@@ -31,8 +31,6 @@ export class TeamSystem {
             scene,
             entry,
             playerArchetypes[entry.archetypeId],
-            team.color,
-            team.accentColor,
           ),
       ),
     )

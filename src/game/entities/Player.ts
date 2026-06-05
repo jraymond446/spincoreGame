@@ -12,6 +12,8 @@ import type {
   TeamSide,
 } from '../data/matchTypes'
 import type { PlayerArchetype } from '../data/matchTypes'
+import { createPlayerVisualProfile } from '../data/playerVisualProfiles'
+import { PlayerVisual } from '../rendering/PlayerVisual'
 
 export type StickCurve = {
   root: Point
@@ -39,12 +41,7 @@ export class Player {
 
   private scene: Phaser.Scene
   private spawn: Point
-  private base: Phaser.GameObjects.Arc
-  private facing: Phaser.GameObjects.Graphics
-  private stick: Phaser.GameObjects.Graphics
-  private controlledIndicator: Phaser.GameObjects.Arc
-  private roleLabel: Phaser.GameObjects.Text
-  private aiStateLabel: Phaser.GameObjects.Text
+  private visual: PlayerVisual
   private releaseAimAngle = 0
   private stickVisualRotation = 0
   private aiState: AIState = 'IDLE'
@@ -54,8 +51,6 @@ export class Player {
     scene: Phaser.Scene,
     rosterEntry: PlayerRosterEntry,
     archetype: PlayerArchetype,
-    teamColor: number,
-    accentColor: number,
   ) {
     this.scene = scene
     this.id = rosterEntry.id
@@ -78,40 +73,13 @@ export class Player {
 
     this.scene.matter.body.setInertia(this.body, Infinity)
 
-    this.stick = scene.add.graphics()
-    this.base = scene.add.circle(
-      rosterEntry.spawn.x,
-      rosterEntry.spawn.y,
-      playerRuntimeConfig.radius,
-      teamColor,
-      1,
-    )
-    this.base.setStrokeStyle(4, accentColor, 1)
-    this.facing = scene.add.graphics()
-    this.controlledIndicator = scene.add.circle(
-      rosterEntry.spawn.x,
-      rosterEntry.spawn.y,
-      playerRuntimeConfig.controlledIndicatorRadius,
-    )
-    this.controlledIndicator.setStrokeStyle(4, 0xffffff, 0.95)
-    this.controlledIndicator.setVisible(false)
-    this.roleLabel = scene.add.text(0, 0, roleLabel(this.role), {
-      fontFamily: 'Inter, ui-sans-serif, system-ui, sans-serif',
-      fontSize: '18px',
-      fontStyle: '800',
-      color: '#ffffff',
-      align: 'center',
+    this.visual = new PlayerVisual(scene, {
+      id: this.id,
+      role: this.role,
+      controllerType: this.controllerType,
+      teamSide: this.teamSide,
+      profile: createPlayerVisualProfile(this.id, this.role),
     })
-    this.roleLabel.setOrigin(0.5)
-    this.aiStateLabel = scene.add.text(0, 0, '', {
-      fontFamily: 'Inter, ui-sans-serif, system-ui, sans-serif',
-      fontSize: '13px',
-      fontStyle: '700',
-      color: '#c9f9ff',
-      align: 'center',
-    })
-    this.aiStateLabel.setOrigin(0.5)
-    this.aiStateLabel.setVisible(false)
     this.syncVisuals()
   }
 
@@ -156,16 +124,17 @@ export class Player {
   }
 
   setControlled(isControlled: boolean): void {
-    this.controlledIndicator.setVisible(isControlled)
+    this.visual.setControlled(isControlled)
+    this.syncVisuals()
   }
 
   setDebugVisible(isVisible: boolean): void {
-    this.aiStateLabel.setVisible(isVisible && this.controllerType === 'ai')
+    this.visual.setDebugVisible(isVisible)
   }
 
   setAIState(state: AIState): void {
     this.aiState = state
-    this.aiStateLabel.setText(state)
+    this.visual.setAIState(state)
   }
 
   setStickState(state: StickActionState): void {
@@ -174,7 +143,7 @@ export class Player {
     }
 
     this.stickState = state
-    this.drawStick()
+    this.syncVisuals()
   }
 
   getAIState(): AIState {
@@ -311,55 +280,15 @@ export class Player {
   }
 
   private syncVisuals(): void {
-    const position = this.position
-    const forward = this.getStickForward()
-
-    this.base.setPosition(position.x, position.y)
-    this.controlledIndicator.setPosition(position.x, position.y)
-    this.roleLabel.setPosition(
-      position.x,
-      position.y - playerRuntimeConfig.roleLabelOffsetY,
-    )
-    this.aiStateLabel.setPosition(
-      position.x,
-      position.y - playerRuntimeConfig.aiStateLabelOffsetY,
-    )
-
-    this.facing.clear()
-    this.facing.lineStyle(3, 0xffffff, 0.85)
-    this.facing.lineBetween(
-      position.x,
-      position.y,
-      position.x + forward.x * playerRuntimeConfig.radius,
-      position.y + forward.y * playerRuntimeConfig.radius,
-    )
-
-    this.drawStick()
-  }
-
-  private drawStick(): void {
-    const curve = this.getStickCurve()
-
-    this.stick.clear()
-    this.stick.lineStyle(
-      stickConfig.visual.width + 5,
-      stickConfig.visual.shadowColor,
-      0.5,
-    )
-    this.drawStickPath(curve, 24)
-    this.stick.lineStyle(
-      stickConfig.visual.width,
-      stickColor(this.stickState),
-      0.98,
-    )
-    this.drawStickPath(curve, 24)
-  }
-
-  private drawStickPath(curve: StickCurve, pointsTotal: number): void {
-    const path = new Phaser.Curves.Path(curve.root.x, curve.root.y)
-
-    path.quadraticBezierTo(curve.tip.x, curve.tip.y, curve.control.x, curve.control.y)
-    path.draw(this.stick, pointsTotal)
+    this.visual.update({
+      position: this.position,
+      velocity: this.velocity,
+      stickRotation: this.stickVisualRotation,
+      stickCurve: this.getStickCurve(),
+      stickForward: this.getStickForward(),
+      stickRight: this.getStickRight(),
+      stickState: this.stickState,
+    })
   }
 }
 
@@ -370,54 +299,4 @@ function quadraticPoint(start: Point, control: Point, end: Point, t: number): Po
     x: inverse * inverse * start.x + 2 * inverse * t * control.x + t * t * end.x,
     y: inverse * inverse * start.y + 2 * inverse * t * control.y + t * t * end.y,
   }
-}
-
-function roleLabel(role: PlayerRole): string {
-  if (role === 'keeper') {
-    return 'K'
-  }
-
-  if (role === 'striker') {
-    return 'S'
-  }
-
-  if (role === 'support') {
-    return 'Sup'
-  }
-
-  return 'B'
-}
-
-function stickColor(state: StickActionState): number {
-  const colors = stickConfig.feedbackColors
-
-  if (state === 'CATCH_READY') {
-    return colors.catchReady
-  }
-
-  if (state === 'CRADLED_STABLE') {
-    return colors.stable
-  }
-
-  if (state === 'CRADLED_CHARGING') {
-    return colors.charging
-  }
-
-  if (state === 'CRADLED_OVERCHARGED') {
-    return colors.overcharged
-  }
-
-  if (state === 'SWINGING') {
-    return colors.swinging
-  }
-
-  if (state === 'RELEASE_RECOVERY') {
-    return colors.recovery
-  }
-
-  if (state === 'FUMBLED_COOLDOWN') {
-    return colors.fumbled
-  }
-
-  return colors.idle
 }
