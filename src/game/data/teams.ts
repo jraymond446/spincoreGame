@@ -1,10 +1,5 @@
-import { arenaConfig } from '../config/arenaConfig'
 import { playerRuntimeConfig } from '../config/playerConfig'
 import type { Team } from './matchTypes'
-
-const centerX = arenaConfig.center.x
-const top = arenaConfig.center.y - arenaConfig.height / 2
-const bottom = arenaConfig.center.y + arenaConfig.height / 2
 
 export const teams: Team[] = [
   {
@@ -15,6 +10,7 @@ export const teams: Team[] = [
     accentColor: playerRuntimeConfig.teamAAccent,
     defendedGoalId: 'bottom-goal',
     attackedGoalId: 'top-goal',
+    formation: 'balanced',
     roster: [
       {
         id: 'a-keeper',
@@ -23,7 +19,8 @@ export const teams: Team[] = [
         role: 'keeper',
         controllerType: 'ai',
         archetypeId: 'keeper',
-        spawn: { x: centerX, y: bottom - 150 },
+        handedness: 'right',
+        playStyle: 'tight',
       },
       {
         id: 'a-support',
@@ -32,7 +29,8 @@ export const teams: Team[] = [
         role: 'support',
         controllerType: 'ai',
         archetypeId: 'support',
-        spawn: { x: centerX - 185, y: arenaConfig.center.y + 150 },
+        handedness: 'right',
+        playStyle: 'creative',
       },
       {
         id: 'a-striker',
@@ -41,7 +39,8 @@ export const teams: Team[] = [
         role: 'striker',
         controllerType: 'human',
         archetypeId: 'striker',
-        spawn: { x: centerX + 115, y: arenaConfig.center.y + 280 },
+        handedness: 'left',
+        playStyle: 'aggressive',
       },
     ],
   },
@@ -53,6 +52,7 @@ export const teams: Team[] = [
     accentColor: playerRuntimeConfig.teamBAccent,
     defendedGoalId: 'top-goal',
     attackedGoalId: 'bottom-goal',
+    formation: 'brutePress',
     roster: [
       {
         id: 'b-keeper',
@@ -61,7 +61,8 @@ export const teams: Team[] = [
         role: 'keeper',
         controllerType: 'ai',
         archetypeId: 'keeper',
-        spawn: { x: centerX, y: top + 150 },
+        handedness: 'right',
+        playStyle: 'sweeper',
       },
       {
         id: 'b-brute',
@@ -70,7 +71,8 @@ export const teams: Team[] = [
         role: 'brute',
         controllerType: 'ai',
         archetypeId: 'brute',
-        spawn: { x: centerX + 185, y: arenaConfig.center.y - 150 },
+        handedness: 'right',
+        playStyle: 'disruptive',
       },
       {
         id: 'b-striker',
@@ -79,7 +81,8 @@ export const teams: Team[] = [
         role: 'striker',
         controllerType: 'ai',
         archetypeId: 'striker',
-        spawn: { x: centerX - 115, y: arenaConfig.center.y - 280 },
+        handedness: 'right',
+        playStyle: 'direct',
       },
     ],
   },

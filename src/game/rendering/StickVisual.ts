@@ -19,7 +19,7 @@ export class StickVisual {
   update(
     curve: StickCurve,
     forward: Point,
-    right: Point,
+    stickSide: Point,
     cradleSocket: Point,
     state: StickActionState,
   ): void {
@@ -32,26 +32,26 @@ export class StickVisual {
 
     if (this.style === 'whip') {
       this.drawWhip(curve, color)
-      this.drawInnerEdge(curve, right)
+      this.drawInnerEdge(curve, stickSide)
       return
     }
 
     this.drawQuadratic(curve, visualConfig.outlineColor, outlineWidth)
     this.drawQuadratic(curve, color, visualConfig.stick.thickness)
-    this.drawInnerEdge(curve, right)
+    this.drawInnerEdge(curve, stickSide)
 
     switch (this.style) {
       case 'hook':
-        this.drawHook(curve.tip, forward, right, color)
+        this.drawHook(curve.tip, forward, stickSide, color)
         break
       case 'cradle':
-        this.drawCradle(curve.tip, forward, right, color)
+        this.drawCradle(curve.tip, forward, stickSide, color)
         break
       case 'hammer':
-        this.drawHammer(curve.tip, right, color)
+        this.drawHammer(curve.tip, stickSide, color)
         break
       case 'fork':
-        this.drawFork(curve.tip, forward, right, color)
+        this.drawFork(curve.tip, forward, stickSide, color)
         break
     }
   }

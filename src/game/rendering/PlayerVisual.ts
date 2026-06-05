@@ -8,8 +8,11 @@ import {
   type TeamVisualPalette,
 } from '../data/visualPalettes'
 import { visualConfig } from '../config/visualConfig'
+import { stickConfig } from '../config/stickConfig'
 import type {
   PlayerControllerType,
+  PlayerHandedness,
+  PlayerPlayStyle,
   PlayerRole,
   StickActionState,
   TeamSide,
@@ -25,7 +28,7 @@ export type PlayerVisualUpdate = {
   facingRotation: number
   stickCurve: StickCurve
   stickForward: Point
-  stickRight: Point
+  stickSide: Point
   cradleSocket: Point
   stickState: StickActionState
 }
@@ -33,6 +36,8 @@ export type PlayerVisualUpdate = {
 type PlayerVisualOptions = {
   id: string
   role: PlayerRole
+  handedness: PlayerHandedness
+  playStyle: PlayerPlayStyle
   controllerType: PlayerControllerType
   teamSide: TeamSide
   profile: PlayerVisualProfile
@@ -117,7 +122,7 @@ export class PlayerVisual {
     this.stick.update(
       data.stickCurve,
       data.stickForward,
-      data.stickRight,
+      data.stickSide,
       data.cradleSocket,
       data.stickState,
     )
@@ -496,7 +501,11 @@ export class PlayerVisual {
   }
 
   private getRoleLabel(): string {
-    return `${this.options.id} | ${this.options.role.toUpperCase()} | ${this.options.profile.stickStyle.toUpperCase()}`
+    const handedness = stickConfig.handednessDebugEnabled
+      ? ` | ${this.options.handedness.toUpperCase()}`
+      : ''
+
+    return `${this.options.id} | ${this.options.role.toUpperCase()}${handedness} | ${this.options.playStyle.toUpperCase()} | ${this.options.profile.stickStyle.toUpperCase()}`
   }
 
   private hash(value: string): number {

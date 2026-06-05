@@ -4,6 +4,42 @@ export type TeamSide = 'A' | 'B'
 export type PlayerRole = 'keeper' | 'striker' | 'support' | 'brute'
 export type PlayerControllerType = 'human' | 'ai'
 export type PlayerArchetypeId = 'keeper' | 'striker' | 'support' | 'brute'
+export type PlayerHandedness = 'right' | 'left'
+export type PlayerPlayStyle =
+  | 'balanced'
+  | 'aggressive'
+  | 'conservative'
+  | 'technical'
+  | 'creative'
+  | 'direct'
+  | 'disruptive'
+  | 'sweeper'
+  | 'tight'
+  | 'bodyguard'
+export type FormationId =
+  | 'balanced'
+  | 'aggressive'
+  | 'conservative'
+  | 'staggeredLeft'
+  | 'staggeredRight'
+  | 'brutePress'
+export type FormationSlot = 'striker' | 'flex'
+export type FormationPosition = {
+  lateral: number
+  attackProgress: number
+}
+export type FormationAIBias = {
+  releaseDelayMultiplier: number
+  pressTargetBlend: number
+  defensiveRetreat: number
+  supportSpacingMultiplier: number
+  brutePressureMultiplier: number
+}
+export type Formation = {
+  id: FormationId
+  positions: Record<FormationSlot, FormationPosition>
+  aiBias: FormationAIBias
+}
 export type StickActionState =
   | 'IDLE'
   | 'CATCH_READY'
@@ -39,6 +75,8 @@ export type PlayerAttributes = {
 export type PlayerArchetype = {
   id: PlayerArchetypeId
   role: PlayerRole
+  defaultHandedness: PlayerHandedness
+  defaultPlayStyle: PlayerPlayStyle
   attributes: PlayerAttributes
 }
 
@@ -49,6 +87,11 @@ export type PlayerRosterEntry = {
   role: PlayerRole
   controllerType: PlayerControllerType
   archetypeId: PlayerArchetypeId
+  handedness: PlayerHandedness
+  playStyle: PlayerPlayStyle
+}
+
+export type ResolvedPlayerRosterEntry = PlayerRosterEntry & {
   spawn: Point
 }
 
@@ -60,6 +103,7 @@ export type Team = {
   accentColor: number
   defendedGoalId: string
   attackedGoalId: string
+  formation: FormationId
   roster: PlayerRosterEntry[]
 }
 
@@ -76,5 +120,6 @@ export type PlayerControlIntent = {
   hold: boolean
   swing?: boolean
   releaseTarget?: Point
+  aiReleaseDelayMs?: number
   aiState: AIState
 }

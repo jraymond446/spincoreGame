@@ -18,6 +18,7 @@ export type StickIntent = {
   hold: boolean
   swing?: boolean
   releaseTarget?: Point
+  aiReleaseDelayMs?: number
 }
 
 export type CradleFailureReason =
@@ -185,7 +186,7 @@ export class StickInteractionSystem {
     const localPoint = player.worldToStickLocal(core.position)
 
     return (
-      localPoint.y > 0 &&
+      localPoint.y * player.getHandednessMirror() > 0 &&
       distance(core.position, player.getCradleSocket()) <=
         stickConfig.cradleAssistRadius
     )
@@ -375,12 +376,17 @@ export class StickInteractionSystem {
       let targetRotation = player.getReleaseAimAngle()
 
       if (autoOrientActive) {
-        targetRotation = coreAngle + stickConfig.cradleFacingOffsetRadians
+        targetRotation =
+          coreAngle +
+          stickConfig.cradleFacingOffsetRadians *
+            player.getHandednessMirror()
       } else if (
         !isCarrier &&
         (state === 'IDLE' || state === 'CATCH_READY')
       ) {
-        targetRotation += stickConfig.readyStanceOffsetRadians
+        targetRotation +=
+          stickConfig.readyStanceOffsetRadians *
+          player.getHandednessMirror()
       }
       const strength = autoOrientActive
         ? stickConfig.catchAutoOrientStrength
@@ -405,7 +411,8 @@ export class StickInteractionSystem {
         autoOrientActive
           ? coreAngle
           : player.getStickVisualRotation() -
-              stickConfig.cradleFacingOffsetRadians,
+              stickConfig.cradleFacingOffsetRadians *
+                player.getHandednessMirror(),
       )
     }
   }
@@ -438,7 +445,11 @@ export class StickInteractionSystem {
       return
     }
 
-    if (intent.releaseTarget && this.cradleElapsedMs >= aiConfig.aiReleaseDelayMs) {
+    if (
+      intent.releaseTarget &&
+      this.cradleElapsedMs >=
+        (intent.aiReleaseDelayMs ?? aiConfig.aiReleaseDelayMs)
+    ) {
       this.releaseToward(core, carrier, intent.releaseTarget)
       return
     }
@@ -466,8 +477,9 @@ export class StickInteractionSystem {
         localPoint: player.worldToStickLocal(core.position),
       }))
       .filter(
-        ({ socketDistance, localPoint }) =>
-          localPoint.y > 0 && socketDistance <= stickConfig.cradleAssistRadius,
+        ({ player, socketDistance, localPoint }) =>
+          localPoint.y * player.getHandednessMirror() > 0 &&
+          socketDistance <= stickConfig.cradleAssistRadius,
       )
       .sort((a, b) => {
         if (a.player.id === preferredPlayerId) {
@@ -679,7 +691,7 @@ export class StickInteractionSystem {
 
   private fumble(core: Core, carrier: Player): void {
     const aim = carrier.getStickForward()
-    const right = carrier.getStickRight()
+    const right = carrier.getCradleSideDirection()
 
     this.finishPossession(
       core,
@@ -855,7 +867,9 @@ export class StickInteractionSystem {
       )
       const cradleOpenAngle =
         this.cradleOpenDirections.get(focus.id) ??
-        focus.getStickVisualRotation() - stickConfig.cradleFacingOffsetRadians
+        focus.getStickVisualRotation() -
+          stickConfig.cradleFacingOffsetRadians *
+            focus.getHandednessMirror()
       this.drawDirectionVector(
         focus.position,
         {
@@ -986,7 +1000,7 @@ function testLegalCradle(core: Core, player: Player): CradleTestResult {
   const socketDistance = distance(core.position, player.getCradleSocket())
   const zone = player.getCradleZone()
   const insideZone =
-    localPoint.y > 0 &&
+    localPoint.y * player.getHandednessMirror() > 0 &&
     radius >= zone.minRadius &&
     radius <= zone.maxRadius &&
     angle >= zone.minAngle &&

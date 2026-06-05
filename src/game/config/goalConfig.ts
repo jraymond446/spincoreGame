@@ -6,17 +6,23 @@ export type GoalGateConfig = {
   x: number
   y: number
   length: number
-  postRadius: number
   planeColor: number
   postColor: number
   flashColor: number
 }
 
+export const goalConfig = {
+  goalPostRadius: 16,
+  goalPostRestitution: 0.9,
+  goalPostFriction: 0.02,
+  scoringPlaneTolerance: 5,
+  scoringCooldownMs: 500,
+} as const
+
 const sharedGoalConfig = {
   orientation: 'horizontal',
   x: arenaConfig.center.x,
   length: 230,
-  postRadius: 12,
   planeColor: 0xe8fbff,
   postColor: 0xffca62,
   flashColor: 0xffffff,

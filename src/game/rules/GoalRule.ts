@@ -1,5 +1,6 @@
 import type { GoalGate } from '../entities/GoalGate'
 import type { Point } from '../data/geometry'
+import { goalConfig } from '../config/goalConfig'
 
 export type GoalCrossing = {
   directionSign: -1 | 1
@@ -8,26 +9,37 @@ export type GoalCrossing = {
 
 export class GoalRule {
   private previousPosition: Point
+  private scoringCooldownMsRemaining = 0
 
   constructor(startPosition: Point) {
     this.previousPosition = { ...startPosition }
   }
 
-  check(currentPosition: Point, gate: GoalGate): GoalCrossing | null {
+  check(
+    currentPosition: Point,
+    gate: GoalGate,
+    deltaMs: number,
+  ): GoalCrossing | null {
+    this.scoringCooldownMsRemaining = Math.max(
+      0,
+      this.scoringCooldownMsRemaining - deltaMs,
+    )
     const motion = subtract(currentPosition, this.previousPosition)
     const directionSign = dot(motion, gate.normal) >= 0 ? 1 : -1
     const crossing = findSegmentIntersection(
       this.previousPosition,
       currentPosition,
-      gate.planeStart,
-      gate.planeEnd,
+      gate.scoringPlaneStart,
+      gate.scoringPlaneEnd,
     )
 
     this.previousPosition = { ...currentPosition }
 
-    if (!crossing) {
+    if (!crossing || this.scoringCooldownMsRemaining > 0) {
       return null
     }
+
+    this.scoringCooldownMsRemaining = goalConfig.scoringCooldownMs
 
     return {
       directionSign,
@@ -35,8 +47,12 @@ export class GoalRule {
     }
   }
 
-  reset(position: Point): void {
+  reset(position: Point, clearCooldown = true): void {
     this.previousPosition = { ...position }
+
+    if (clearCooldown) {
+      this.scoringCooldownMsRemaining = 0
+    }
   }
 }
 

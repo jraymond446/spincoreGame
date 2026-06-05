@@ -26,13 +26,10 @@ export class KeeperAreaSystem {
     }
 
     for (const player of players) {
-      let corrected = false
-
-      if (player.role === 'keeper') {
-        corrected = this.constrainInsideKeeperArea(player) || corrected
-      }
-
-      corrected = this.constrainOutsideNoBodyZones(player) || corrected
+      const corrected =
+        player.role === 'keeper'
+          ? this.constrainKeeperInsideAssignedZone(player)
+          : this.constrainFieldPlayerOutsideZones(player)
 
       if (corrected) {
         player.updateVisuals()
@@ -60,12 +57,12 @@ export class KeeperAreaSystem {
     this.draw()
   }
 
-  private constrainInsideKeeperArea(player: Player): boolean {
+  private constrainKeeperInsideAssignedZone(player: Player): boolean {
     const center = keeperAreaConfig.areas[player.teamSide]
     const maximumDistance =
-      keeperAreaConfig.outerRadius -
+      keeperAreaConfig.keeperZoneRadius -
       playerRuntimeConfig.radius -
-      keeperAreaConfig.bodyPadding
+      keeperAreaConfig.keeperZoneBoundaryBuffer
     const offset = subtract(player.position, center)
     const length = magnitude(offset)
 
@@ -78,11 +75,11 @@ export class KeeperAreaSystem {
     return true
   }
 
-  private constrainOutsideNoBodyZones(player: Player): boolean {
+  private constrainFieldPlayerOutsideZones(player: Player): boolean {
     const minimumDistance =
-      keeperAreaConfig.noBodyRadius +
+      keeperAreaConfig.keeperZoneRadius +
       playerRuntimeConfig.radius +
-      keeperAreaConfig.bodyPadding
+      keeperAreaConfig.keeperZoneBoundaryBuffer
 
     for (const side of ['A', 'B'] as const) {
       const center = keeperAreaConfig.areas[side]
@@ -108,9 +105,19 @@ export class KeeperAreaSystem {
     radius: number,
     violation: 'inside' | 'outside',
   ): void {
-    this.scene.matter.body.setPosition(player.body, {
+    const target = {
       x: center.x + normal.x * radius,
       y: center.y + normal.y * radius,
+    }
+    const strength = Phaser.Math.Clamp(
+      keeperAreaConfig.keeperZonePushStrength,
+      0,
+      1,
+    )
+
+    this.scene.matter.body.setPosition(player.body, {
+      x: Phaser.Math.Linear(player.position.x, target.x, strength),
+      y: Phaser.Math.Linear(player.position.y, target.y, strength),
     })
 
     const radialVelocity = dot(player.velocity, normal)
@@ -138,22 +145,28 @@ export class KeeperAreaSystem {
 
       const keeperLabel = this.scene.add.text(
         center.x + keeperAreaConfig.debug.labelOffsetX,
-        center.y + verticalDirection * keeperAreaConfig.outerRadius,
-        'Keeper Area',
+        center.y +
+          verticalDirection *
+            (keeperAreaConfig.keeperZoneRadius -
+              keeperAreaConfig.debug.labelGap),
+        'Keeper Only',
         sharedStyle,
       )
-      const noBodyLabel = this.scene.add.text(
+      const blockedLabel = this.scene.add.text(
         center.x + keeperAreaConfig.debug.labelOffsetX,
-        center.y + verticalDirection * keeperAreaConfig.noBodyRadius,
-        'No Body Zone',
+        center.y +
+          verticalDirection *
+            (keeperAreaConfig.keeperZoneRadius +
+              keeperAreaConfig.debug.labelGap),
+        'Field Players Blocked',
         sharedStyle,
       )
 
       keeperLabel.setDepth(3)
-      noBodyLabel.setDepth(3)
+      blockedLabel.setDepth(3)
       keeperLabel.setVisible(false)
-      noBodyLabel.setVisible(false)
-      this.labels.push(keeperLabel, noBodyLabel)
+      blockedLabel.setVisible(false)
+      this.labels.push(keeperLabel, blockedLabel)
     }
   }
 
@@ -172,27 +185,25 @@ export class KeeperAreaSystem {
 
       this.graphics.fillStyle(
         normal.keeperFillColor,
-        this.debugEnabled ? debug.keeperFillAlpha : normal.keeperFillAlpha,
+        this.debugEnabled
+          ? keeperAreaConfig.keeperZoneDebugAlpha
+          : keeperAreaConfig.keeperZoneVisualAlpha,
       )
-      this.graphics.fillCircle(center.x, center.y, keeperAreaConfig.outerRadius)
+      this.graphics.fillCircle(
+        center.x,
+        center.y,
+        keeperAreaConfig.keeperZoneRadius,
+      )
       this.graphics.lineStyle(
         this.debugEnabled ? 4 : 2,
         normal.keeperStrokeColor,
         this.debugEnabled ? debug.keeperStrokeAlpha : normal.keeperStrokeAlpha,
       )
-      this.graphics.strokeCircle(center.x, center.y, keeperAreaConfig.outerRadius)
-
-      this.graphics.fillStyle(
-        normal.noBodyFillColor,
-        this.debugEnabled ? debug.noBodyFillAlpha : normal.noBodyFillAlpha,
+      this.graphics.strokeCircle(
+        center.x,
+        center.y,
+        keeperAreaConfig.keeperZoneRadius,
       )
-      this.graphics.fillCircle(center.x, center.y, keeperAreaConfig.noBodyRadius)
-      this.graphics.lineStyle(
-        this.debugEnabled ? 4 : 2,
-        normal.noBodyStrokeColor,
-        this.debugEnabled ? debug.noBodyStrokeAlpha : normal.noBodyStrokeAlpha,
-      )
-      this.graphics.strokeCircle(center.x, center.y, keeperAreaConfig.noBodyRadius)
     }
   }
 }

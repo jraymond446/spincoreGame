@@ -4,6 +4,8 @@ export const playerArchetypes: Record<PlayerArchetypeId, PlayerArchetype> = {
   keeper: {
     id: 'keeper',
     role: 'keeper',
+    defaultHandedness: 'right',
+    defaultPlayStyle: 'balanced',
     attributes: {
       speed: 0.72,
       control: 0.72,
@@ -18,6 +20,8 @@ export const playerArchetypes: Record<PlayerArchetypeId, PlayerArchetype> = {
   striker: {
     id: 'striker',
     role: 'striker',
+    defaultHandedness: 'right',
+    defaultPlayStyle: 'balanced',
     attributes: {
       speed: 0.94,
       control: 0.78,
@@ -32,6 +36,8 @@ export const playerArchetypes: Record<PlayerArchetypeId, PlayerArchetype> = {
   support: {
     id: 'support',
     role: 'support',
+    defaultHandedness: 'right',
+    defaultPlayStyle: 'balanced',
     attributes: {
       speed: 0.82,
       control: 0.94,
@@ -46,6 +52,8 @@ export const playerArchetypes: Record<PlayerArchetypeId, PlayerArchetype> = {
   brute: {
     id: 'brute',
     role: 'brute',
+    defaultHandedness: 'right',
+    defaultPlayStyle: 'balanced',
     attributes: {
       speed: 0.76,
       control: 0.5,

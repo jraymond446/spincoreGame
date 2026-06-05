@@ -1,5 +1,4 @@
 import Phaser from 'phaser'
-import { aiConfig } from '../config/aiConfig'
 import { arenaConfig } from '../config/arenaConfig'
 import { coreSafetyConfig } from '../config/coreSafetyConfig'
 import { coreConfig } from '../config/entityConfig'
@@ -78,7 +77,10 @@ export class GameScene extends Phaser.Scene {
     this.core = new Core(this)
     this.teamSystem = new TeamSystem(this, this.gameMode)
     this.playerControlSystem = new PlayerControlSystem()
-    this.aiSystem = new AISystem(this)
+    this.aiSystem = new AISystem(
+      this,
+      this.teamSystem.getFormationBiases(),
+    )
     this.inputController = new PlayerInputController(this, hudRoot)
     this.stickInteractionSystem = new StickInteractionSystem(this)
     this.coreRecoverySystem = new CoreRecoverySystem()
@@ -147,7 +149,7 @@ export class GameScene extends Phaser.Scene {
       if (
         this.stickInteractionSystem.getStickState(request.bruteId) ===
           'SWINGING' &&
-        Math.random() <= aiConfig.bruteFumblePressure
+        Math.random() <= request.fumbleChance
       ) {
         this.stickInteractionSystem.forceFumble(this.core, players, request.targetId)
       }
@@ -159,7 +161,9 @@ export class GameScene extends Phaser.Scene {
 
     for (const goal of this.goals) {
       goal.update(delta)
-      const crossing = this.goalRules.get(goal.id)?.check(this.core.position, goal)
+      const crossing = this.goalRules
+        .get(goal.id)
+        ?.check(this.core.position, goal, delta)
 
       if (crossing) {
         this.scoreGoal(goal, crossing)
@@ -224,6 +228,7 @@ export class GameScene extends Phaser.Scene {
         hold: intent.hold,
         swing: intent.swing,
         releaseTarget: intent.releaseTarget,
+        aiReleaseDelayMs: intent.aiReleaseDelayMs,
       })
     }
   }
@@ -285,10 +290,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   private resetAfterGoal(): void {
-    this.resetPositions()
+    this.resetPositions(false)
   }
 
-  private resetPositions = (): void => {
+  private resetPositions = (clearGoalCooldown = true): void => {
     this.inputController.reset()
     this.stickInteractionSystem.clearForReset(this.core)
     this.coreRecoverySystem.reset()
@@ -296,7 +301,7 @@ export class GameScene extends Phaser.Scene {
     this.core.reset()
 
     for (const rule of this.goalRules.values()) {
-      rule.reset(coreConfig.spawn)
+      rule.reset(coreConfig.spawn, clearGoalCooldown)
     }
   }
 
@@ -375,6 +380,7 @@ export class GameScene extends Phaser.Scene {
       ),
       lastInteraction: this.stickInteractionSystem.getLastInteraction(),
       recoveryStatus: this.coreRecoverySystem.getDebugStatus(),
+      formations: this.teamSystem.getFormationIds(),
     })
   }
 

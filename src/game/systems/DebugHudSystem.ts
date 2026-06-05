@@ -3,6 +3,7 @@ import { inputConfig } from '../config/inputConfig'
 import { viewConfig } from '../config/viewConfig'
 import type { Point } from '../data/geometry'
 import type {
+  FormationId,
   PlayerRole,
   StickActionState,
   TeamSide,
@@ -35,6 +36,7 @@ type DebugHudState = {
   recoveryStatus: string
   cradleFailure: CradleFailureReason
   lastInteraction: StickInteractionResult
+  formations: Record<TeamSide, FormationId>
 }
 
 type DebugHudActions = {
@@ -127,6 +129,8 @@ export class DebugHudSystem {
     this.readout.textContent =
       `MODE     ${state.gameMode === 'stickLab' ? 'STICK LAB' : '3V3'}\n` +
       `SCORE    ${scoreText(state)}\n` +
+      `Team A Formation: ${state.formations.A}\n` +
+      `Team B Formation: ${state.formations.B}\n` +
       `INPUT    ${state.inputMode}\n` +
       `LEFT     ${formatVector(state.leftJoystickVector)}\n` +
       `RIGHT    ${formatVector(state.rightAimVector)}\n` +

@@ -2,12 +2,21 @@ import type Phaser from 'phaser'
 import { gameplayConfig, type GameMode } from '../config/gameplayConfig'
 import { playerArchetypes } from '../data/playerArchetypes'
 import { teams } from '../data/teams'
-import type { Team, TeamSide } from '../data/matchTypes'
+import type {
+  FormationAIBias,
+  FormationId,
+  ResolvedPlayerRosterEntry,
+  Team,
+  TeamSide,
+} from '../data/matchTypes'
 import { Player } from '../entities/Player'
+import { FormationSystem } from './FormationSystem'
 
 export class TeamSystem {
   readonly teams: Team[]
   readonly players: Player[]
+  private readonly formationSystem: FormationSystem
+  private readonly resetSpawns = new Map<string, { x: number; y: number }>()
 
   constructor(scene: Phaser.Scene, gameMode: GameMode) {
     this.teams =
@@ -18,21 +27,32 @@ export class TeamSystem {
               ...team,
               roster: team.roster
                 .filter((entry) => entry.id === gameplayConfig.stickLab.playerId)
-                .map((entry) => ({
-                  ...entry,
-                  spawn: { ...gameplayConfig.stickLab.playerSpawn },
-                })),
+                .map((entry) => ({ ...entry })),
             }))
         : teams
+    this.formationSystem = new FormationSystem(
+      scene,
+      this.teams,
+      gameMode === 'match3v3',
+    )
     this.players = this.teams.flatMap((team) =>
-      team.roster.map(
-        (entry) =>
-          new Player(
-            scene,
-            entry,
-            playerArchetypes[entry.archetypeId],
-          ),
-      ),
+      team.roster.map((entry) => {
+        const spawn =
+          gameMode === 'stickLab'
+            ? { ...gameplayConfig.stickLab.playerSpawn }
+            : this.formationSystem.getSpawn(entry.id)
+        const resolvedEntry: ResolvedPlayerRosterEntry = {
+          ...entry,
+          spawn,
+        }
+
+        this.resetSpawns.set(entry.id, spawn)
+        return new Player(
+          scene,
+          resolvedEntry,
+          playerArchetypes[entry.archetypeId],
+        )
+      }),
     )
   }
 
@@ -60,13 +80,29 @@ export class TeamSystem {
 
   resetFormation(): void {
     for (const player of this.players) {
-      player.reset()
+      const spawn = this.resetSpawns.get(player.id)
+
+      if (!spawn) {
+        throw new Error(`Missing reset spawn for ${player.id}`)
+      }
+
+      player.reset(spawn)
     }
   }
 
   setDebugVisible(isVisible: boolean): void {
+    this.formationSystem.setDebugVisible(isVisible)
+
     for (const player of this.players) {
       player.setDebugVisible(isVisible)
     }
+  }
+
+  getFormationIds(): Record<TeamSide, FormationId> {
+    return this.formationSystem.getFormationIds()
+  }
+
+  getFormationBiases(): Record<TeamSide, FormationAIBias> {
+    return this.formationSystem.getFormationBiases()
   }
 }

@@ -6,8 +6,10 @@ import type {
   AIState,
   PlayerAttributes,
   PlayerControllerType,
+  PlayerHandedness,
+  PlayerPlayStyle,
   PlayerRole,
-  PlayerRosterEntry,
+  ResolvedPlayerRosterEntry,
   StickActionState,
   TeamSide,
 } from '../data/matchTypes'
@@ -36,6 +38,8 @@ export class Player {
   readonly teamSide: TeamSide
   readonly role: PlayerRole
   readonly controllerType: PlayerControllerType
+  readonly handedness: PlayerHandedness
+  readonly playStyle: PlayerPlayStyle
   readonly attributes: PlayerAttributes
   readonly body: MatterJS.BodyType
 
@@ -49,7 +53,7 @@ export class Player {
 
   constructor(
     scene: Phaser.Scene,
-    rosterEntry: PlayerRosterEntry,
+    rosterEntry: ResolvedPlayerRosterEntry,
     archetype: PlayerArchetype,
   ) {
     this.scene = scene
@@ -58,6 +62,8 @@ export class Player {
     this.teamSide = rosterEntry.teamSide
     this.role = rosterEntry.role
     this.controllerType = rosterEntry.controllerType
+    this.handedness = rosterEntry.handedness
+    this.playStyle = rosterEntry.playStyle
     this.attributes = archetype.attributes
     this.spawn = { ...rosterEntry.spawn }
     this.body = scene.matter.add.circle(
@@ -76,6 +82,8 @@ export class Player {
     this.visual = new PlayerVisual(scene, {
       id: this.id,
       role: this.role,
+      handedness: this.handedness,
+      playStyle: this.playStyle,
       controllerType: this.controllerType,
       teamSide: this.teamSide,
       profile: createPlayerVisualProfile(this.id, this.role),
@@ -112,7 +120,11 @@ export class Player {
     this.syncVisuals()
   }
 
-  reset(): void {
+  reset(spawn?: Point): void {
+    if (spawn) {
+      this.spawn = { ...spawn }
+    }
+
     this.scene.matter.body.setPosition(this.body, this.spawn)
     this.scene.matter.body.setVelocity(this.body, { x: 0, y: 0 })
     this.scene.matter.body.setAngularVelocity(this.body, 0)
@@ -190,6 +202,23 @@ export class Player {
     }
   }
 
+  getHandednessMirror(): number {
+    return (
+      (this.handedness === 'left' ? -1 : 1) *
+      stickConfig.handednessMirrorMultiplier
+    )
+  }
+
+  getCradleSideDirection(): Point {
+    const right = this.getStickRight()
+    const mirror = this.getHandednessMirror()
+
+    return {
+      x: right.x * mirror,
+      y: right.y * mirror,
+    }
+  }
+
   getStickCurve(): StickCurve {
     const position = this.position
     const forward = this.getStickForward()
@@ -198,7 +227,12 @@ export class Player {
     const tipDistance = playerRuntimeConfig.radius + stickConfig.visual.length
     const controlDistance =
       playerRuntimeConfig.radius + stickConfig.visual.length * 0.5
-    const sideOffset = stickConfig.visual.stanceSideOffset
+    const mirror = this.getHandednessMirror()
+    const sideOffset =
+      this.handedness === 'left'
+        ? stickConfig.leftHandedStickOffset
+        : stickConfig.rightHandedStickOffset
+    const curveOffset = stickConfig.visual.curve * mirror
 
     return {
       root: {
@@ -215,11 +249,11 @@ export class Player {
         x:
           position.x +
           forward.x * controlDistance +
-          right.x * (stickConfig.visual.curve + sideOffset),
+          right.x * (curveOffset + sideOffset),
         y:
           position.y +
           forward.y * controlDistance +
-          right.y * (stickConfig.visual.curve + sideOffset),
+          right.y * (curveOffset + sideOffset),
       },
       tip: {
         x:
@@ -253,17 +287,23 @@ export class Player {
   getCradleSocket(): Point {
     return this.stickLocalToWorld({
       x: stickConfig.cradleSocketOffset.forward,
-      y: stickConfig.cradleSocketOffset.side,
+      y:
+        stickConfig.cradleSocketOffset.side *
+        this.getHandednessMirror(),
     })
   }
 
   getCradleZone(): CradleZone {
+    const mirror = this.getHandednessMirror()
+    const minimum = Phaser.Math.DegToRad(stickConfig.cradleMinAngle)
+    const maximum = Phaser.Math.DegToRad(stickConfig.cradleMaxAngle)
+
     return {
       center: this.position,
       minRadius: stickConfig.cradleMinRadius,
       maxRadius: stickConfig.cradleMaxRadius,
-      minAngle: Phaser.Math.DegToRad(stickConfig.cradleMinAngle),
-      maxAngle: Phaser.Math.DegToRad(stickConfig.cradleMaxAngle),
+      minAngle: mirror > 0 ? minimum : -maximum,
+      maxAngle: mirror > 0 ? maximum : -minimum,
       aimAngle: this.stickVisualRotation,
     }
   }
@@ -299,7 +339,7 @@ export class Player {
       facingRotation: this.releaseAimAngle,
       stickCurve: this.getStickCurve(),
       stickForward: this.getStickForward(),
-      stickRight: this.getStickRight(),
+      stickSide: this.getCradleSideDirection(),
       cradleSocket: this.getCradleSocket(),
       stickState: this.stickState,
     })

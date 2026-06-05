@@ -1,12 +1,19 @@
 import Phaser from 'phaser'
-import type { GoalGateConfig } from '../config/goalConfig'
+import {
+  goalConfig,
+  type GoalGateConfig,
+} from '../config/goalConfig'
+import { coreConfig } from '../config/entityConfig'
 import type { Point } from '../data/geometry'
 
 export class GoalGate {
   readonly id: string
   readonly planeStart: Point
   readonly planeEnd: Point
+  readonly scoringPlaneStart: Point
+  readonly scoringPlaneEnd: Point
   readonly normal: Point
+  readonly postBodies: MatterJS.BodyType[]
 
   private config: GoalGateConfig
   private graphics: Phaser.GameObjects.Graphics
@@ -36,6 +43,32 @@ export class GoalGate {
             x: config.x,
             y: config.y + config.length / 2,
           }
+    const scoringInset = Math.max(
+      0,
+      goalConfig.goalPostRadius +
+        coreConfig.radius -
+        goalConfig.scoringPlaneTolerance,
+    )
+    this.scoringPlaneStart =
+      config.orientation === 'horizontal'
+        ? {
+            x: this.planeStart.x + scoringInset,
+            y: this.planeStart.y,
+          }
+        : {
+            x: this.planeStart.x,
+            y: this.planeStart.y + scoringInset,
+          }
+    this.scoringPlaneEnd =
+      config.orientation === 'horizontal'
+        ? {
+            x: this.planeEnd.x - scoringInset,
+            y: this.planeEnd.y,
+          }
+        : {
+            x: this.planeEnd.x,
+            y: this.planeEnd.y - scoringInset,
+          }
     this.normal =
       config.orientation === 'horizontal'
         ? {
@@ -47,6 +80,10 @@ export class GoalGate {
             y: 0,
           }
 
+    this.postBodies = [
+      this.createPostBody(scene, this.planeStart, 'start'),
+      this.createPostBody(scene, this.planeEnd, 'end'),
+    ]
     this.draw()
   }
 
@@ -84,11 +121,38 @@ export class GoalGate {
     }
 
     this.graphics.lineStyle(4, postColor, alpha)
-    this.graphics.strokeCircle(this.planeStart.x, this.planeStart.y, config.postRadius)
-    this.graphics.strokeCircle(this.planeEnd.x, this.planeEnd.y, config.postRadius)
-    this.graphics.fillStyle(postColor, 0.3 + this.flashAmount * 0.35)
-    this.graphics.fillCircle(this.planeStart.x, this.planeStart.y, config.postRadius - 2)
-    this.graphics.fillCircle(this.planeEnd.x, this.planeEnd.y, config.postRadius - 2)
+    this.graphics.strokeCircle(
+      this.planeStart.x,
+      this.planeStart.y,
+      goalConfig.goalPostRadius,
+    )
+    this.graphics.strokeCircle(
+      this.planeEnd.x,
+      this.planeEnd.y,
+      goalConfig.goalPostRadius,
+    )
+    this.graphics.fillStyle(postColor, 0.72 + this.flashAmount * 0.24)
+    this.graphics.fillCircle(
+      this.planeStart.x,
+      this.planeStart.y,
+      goalConfig.goalPostRadius - 2,
+    )
+    this.graphics.fillCircle(
+      this.planeEnd.x,
+      this.planeEnd.y,
+      goalConfig.goalPostRadius - 2,
+    )
+    this.graphics.fillStyle(config.flashColor, 0.5 + this.flashAmount * 0.35)
+    this.graphics.fillCircle(
+      this.planeStart.x - 4,
+      this.planeStart.y - 4,
+      goalConfig.goalPostRadius * 0.3,
+    )
+    this.graphics.fillCircle(
+      this.planeEnd.x - 4,
+      this.planeEnd.y - 4,
+      goalConfig.goalPostRadius * 0.3,
+    )
 
     this.drawChevron(-1, alpha)
     this.drawChevron(1, alpha)
@@ -120,5 +184,24 @@ export class GoalGate {
     }
 
     this.graphics.strokePath()
+  }
+
+  private createPostBody(
+    scene: Phaser.Scene,
+    position: Point,
+    suffix: string,
+  ): MatterJS.BodyType {
+    return scene.matter.add.circle(
+      position.x,
+      position.y,
+      goalConfig.goalPostRadius,
+      {
+        isStatic: true,
+        label: `goal-post:${this.id}:${suffix}`,
+        restitution: goalConfig.goalPostRestitution,
+        friction: goalConfig.goalPostFriction,
+        frictionStatic: goalConfig.goalPostFriction,
+      },
+    )
   }
 }
