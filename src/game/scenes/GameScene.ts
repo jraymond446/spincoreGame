@@ -1,6 +1,8 @@
 import Phaser from 'phaser'
 import { arenaConfig } from '../config/arenaConfig'
+import { arenaPresentationConfig } from '../config/arenaPresentationConfig'
 import { coreSafetyConfig } from '../config/coreSafetyConfig'
+import { defenseConfig } from '../config/defenseConfig'
 import { coreConfig } from '../config/entityConfig'
 import {
   gameplayConfig,
@@ -8,15 +10,18 @@ import {
 } from '../config/gameplayConfig'
 import { goalConfigs } from '../config/goalConfig'
 import { inputConfig } from '../config/inputConfig'
+import { matchFlowConfig } from '../config/matchFlowConfig'
 import { viewConfig } from '../config/viewConfig'
 import type { Point } from '../data/geometry'
 import type { MatchState, PlayerControlIntent, TeamSide } from '../data/matchTypes'
-import { initialMatchState, scoreLabels } from '../data/scoreData'
+import { initialMatchState } from '../data/scoreData'
 import { Core } from '../entities/Core'
 import { GoalGate } from '../entities/GoalGate'
 import type { Player } from '../entities/Player'
 import { labEvents } from '../lab/LabEvents'
 import { getLabState, setLabMode } from '../lab/LabState'
+import { ArenaDressing } from '../rendering/ArenaDressing'
+import { ScoreboardOverlay } from '../rendering/ScoreboardOverlay'
 import { GoalRule, type GoalCrossing } from '../rules/GoalRule'
 import { AISystem } from '../systems/AISystem'
 import { ArenaSystem } from '../systems/ArenaSystem'
@@ -27,7 +32,10 @@ import {
 } from '../systems/DefenseSystem'
 import { DebugHudSystem } from '../systems/DebugHudSystem'
 import { FumbleSystem } from '../systems/FumbleSystem'
+import { GoalCelebrationSystem } from '../systems/GoalCelebrationSystem'
 import { KeeperAreaSystem } from '../systems/KeeperAreaSystem'
+import { MatchFlowSystem } from '../systems/MatchFlowSystem'
+import { MatchStatsTracker } from '../systems/MatchStatsTracker'
 import { PlayerInputController } from '../systems/PlayerInputController'
 import { PlayerControlSystem } from '../systems/PlayerControlSystem'
 import {
@@ -40,6 +48,7 @@ export class GameScene extends Phaser.Scene {
   private core!: Core
   private goals: GoalGate[] = []
   private goalRules = new Map<string, GoalRule>()
+  private arenaDressing!: ArenaDressing
   private arenaSystem!: ArenaSystem
   private keeperAreaSystem!: KeeperAreaSystem
   private coreRecoverySystem!: CoreRecoverySystem
@@ -50,11 +59,14 @@ export class GameScene extends Phaser.Scene {
   private stickInteractionSystem!: StickInteractionSystem
   private defenseSystem!: DefenseSystem
   private fumbleSystem!: FumbleSystem
+  private matchFlowSystem!: MatchFlowSystem
+  private matchStatsTracker!: MatchStatsTracker
   private debugHudSystem!: DebugHudSystem
-  private scoreElement!: HTMLDivElement
+  private scoreboardOverlay!: ScoreboardOverlay
   private matchState: MatchState = structuredClone(initialMatchState)
   private debugEnabled = false
   private gameMode: GameMode = gameplayConfig.defaultMode
+  private currentInputIntent = 'IDLE'
 
   constructor() {
     super('GameScene')
@@ -68,10 +80,13 @@ export class GameScene extends Phaser.Scene {
 
   create(): void {
     this.matter.world.setGravity(0, 0)
-    this.cameras.main.setBackgroundColor('#071016')
+    this.cameras.main.setBackgroundColor(
+      arenaPresentationConfig.venue.floorColor,
+    )
 
     const hudRoot = this.getHudRoot()
 
+    this.arenaDressing = new ArenaDressing(this)
     this.arenaSystem = new ArenaSystem(this)
     this.keeperAreaSystem = new KeeperAreaSystem(this)
     this.keeperAreaSystem.setActive(this.gameMode === 'match3v3')
@@ -95,6 +110,14 @@ export class GameScene extends Phaser.Scene {
     this.defenseSystem = new DefenseSystem(this)
     this.fumbleSystem = new FumbleSystem()
     this.coreRecoverySystem = new CoreRecoverySystem()
+    this.matchFlowSystem = new MatchFlowSystem(
+      new GoalCelebrationSystem(this, hudRoot),
+      {
+        onResetFormation: this.preparePostGoalReset,
+        onResumePlay: this.resumeAfterCountdown,
+      },
+    )
+    this.matchStatsTracker = new MatchStatsTracker()
     this.debugHudSystem = new DebugHudSystem(hudRoot, {
       onReset: this.resetPositions,
       onToggleMode: this.toggleGameMode,
@@ -119,11 +142,15 @@ export class GameScene extends Phaser.Scene {
       window.removeEventListener(labEvents.resetCore, this.resetCore)
       this.inputController.destroy()
       this.debugHudSystem.destroy()
-      this.scoreElement.remove()
+      this.matchFlowSystem.destroy()
+      this.scoreboardOverlay.destroy()
+      this.arenaDressing.destroy()
     })
   }
 
-  update(_time: number, delta: number): void {
+  update(time: number, delta: number): void {
+    this.arenaDressing.update(time)
+
     if (this.inputController.consumeModeToggle()) {
       this.toggleGameMode()
       return
@@ -137,6 +164,37 @@ export class GameScene extends Phaser.Scene {
       delta,
       getLabState().controlledPlayer,
     )
+    const controlledIsCarrier =
+      this.stickInteractionSystem.getCarrierId() === controlledPlayer.id
+    this.inputController.setGameplayContext(
+      controlledIsCarrier,
+      this.matchFlowSystem.isPlaying(),
+      defenseConfig.bodyCheckEnabled,
+    )
+
+    if (this.inputController.consumeDebugToggle()) {
+      this.toggleDebug()
+    }
+
+    this.matchFlowSystem.update(delta)
+    this.inputController.setGameplayContext(
+      this.stickInteractionSystem.getCarrierId() === controlledPlayer.id,
+      this.matchFlowSystem.isPlaying(),
+      defenseConfig.bodyCheckEnabled,
+    )
+
+    for (const goal of this.goals) {
+      goal.update(delta)
+    }
+
+    if (!this.matchFlowSystem.isPlaying()) {
+      this.currentInputIntent = 'WAIT'
+      this.freezeEntities(players)
+      this.core.update()
+      this.updateDebugHud(controlledPlayer)
+      return
+    }
+
     const aiIntents = this.aiSystem.update(
       players,
       this.core,
@@ -161,10 +219,6 @@ export class GameScene extends Phaser.Scene {
       defenseIntents,
     )
 
-    if (this.inputController.consumeDebugToggle()) {
-      this.toggleDebug()
-    }
-
     this.stickInteractionSystem.update(
       this.core,
       players,
@@ -181,6 +235,24 @@ export class GameScene extends Phaser.Scene {
       controlledPlayer.id,
       delta,
     )
+    const defenseEvents = this.defenseSystem.consumeEvents()
+    let statsChanged = false
+
+    for (const event of defenseEvents) {
+      this.matchStatsTracker.recordCheck(event.teamSide)
+      statsChanged = true
+    }
+
+    statsChanged =
+      this.matchStatsTracker.observeCarrier(
+        this.stickInteractionSystem.getCarrierId(),
+        players,
+      ) || statsChanged
+
+    if (statsChanged) {
+      this.updateHud()
+    }
+
     this.arenaSystem.containPlayers(players)
     this.keeperAreaSystem.update(players)
 
@@ -189,7 +261,6 @@ export class GameScene extends Phaser.Scene {
     let goalScored = false
 
     for (const goal of this.goals) {
-      goal.update(delta)
       const crossing = this.goalRules
         .get(goal.id)
         ?.check(this.core.position, goal, delta)
@@ -219,15 +290,35 @@ export class GameScene extends Phaser.Scene {
       player.getAimAngle(),
       deltaMs,
     )
+    const isCarrier =
+      this.stickInteractionSystem.getCarrierId() === player.id
 
     player.update(input.movement, input.aimAngle)
     stickIntents.set(player.id, {
-      hold: input.hold,
+      hold: input.primaryStickAction,
+      suppressEmptyReleaseSwing: !isCarrier,
     })
     defenseIntents.set(player.id, {
-      bodyCheck: input.bodyCheck,
-      stickSwipe: input.stickSwipe,
+      bodyCheck: !isCarrier && input.bodyCheckAction,
+      stickSwipe:
+        !isCarrier &&
+        (input.primaryStickActionStarted ||
+          input.explicitStickSwipeAction),
     })
+    this.currentInputIntent = isCarrier
+      ? input.releasePrimaryStickAction
+        ? 'RELEASE'
+        : input.primaryStickAction
+          ? 'AIM / CHARGE'
+          : 'CARRYING'
+      : input.bodyCheckAction
+        ? 'TRUCK'
+        : input.primaryStickActionStarted ||
+            input.explicitStickSwipeAction
+          ? 'SWIPE / POKE'
+          : input.primaryStickAction
+            ? 'CATCH READY'
+            : 'IDLE'
   }
 
   private updateAIPlayers(
@@ -277,10 +368,14 @@ export class GameScene extends Phaser.Scene {
   }
 
   private createHud(hudRoot: HTMLDivElement): void {
-    this.scoreElement = document.createElement('div')
-    this.scoreElement.className = 'scoreboard'
-    hudRoot.appendChild(this.scoreElement)
-    this.layoutHud()
+    this.scoreboardOverlay = new ScoreboardOverlay(hudRoot, {
+      A:
+        this.teamSystem.teams.find((team) => team.side === 'A')?.name ??
+        'Team A',
+      B:
+        this.teamSystem.teams.find((team) => team.side === 'B')?.name ??
+        'Team B',
+    })
     this.updateHud()
   }
 
@@ -290,35 +385,31 @@ export class GameScene extends Phaser.Scene {
     const safeTop = getCssPixelValue('--safe-area-inset-top')
     const safeBottom = getCssPixelValue('--safe-area-inset-bottom')
     const width = Math.max(1, this.scale.width - safeLeft - safeRight)
-    const height = Math.max(1, this.scale.height - safeTop - safeBottom)
+    const scoreboardHeight =
+      this.scoreboardOverlay?.getReservedHeight(width) ?? 0
+    const viewportTop = safeTop + scoreboardHeight
+    const height = Math.max(
+      1,
+      this.scale.height - viewportTop - safeBottom,
+    )
     const cameraPadding = viewConfig.camera.arenaPadding
     const targetWidth = arenaConfig.width + cameraPadding * 2
     const targetHeight = arenaConfig.height + cameraPadding * 2
     const fitZoom = Math.min(width / targetWidth, height / targetHeight)
     const zoom = Math.min(fitZoom, viewConfig.camera.maxZoom)
 
-    this.cameras.main.setViewport(safeLeft, safeTop, width, height)
+    this.cameras.main.setViewport(safeLeft, viewportTop, width, height)
     this.cameras.main.setZoom(zoom)
     this.cameras.main.centerOn(arenaConfig.center.x, arenaConfig.center.y)
+    this.arenaDressing.layout(this.scale.width)
     this.inputController.layout()
-    this.layoutHud()
-  }
-
-  private layoutHud(): void {
-    if (!this.scoreElement) {
-      return
-    }
-
-    this.scoreElement.style.left =
-      `calc(${viewConfig.hud.padding.x}px + env(safe-area-inset-left, 0px))`
-    this.scoreElement.style.top =
-      `calc(${viewConfig.hud.padding.y}px + env(safe-area-inset-top, 0px))`
   }
 
   private scoreGoal(goal: GoalGate, crossing: GoalCrossing): void {
     const scoringSide: TeamSide = goal.id === 'top-goal' ? 'A' : 'B'
     const newScore = this.matchState.score[scoringSide] + 1
 
+    this.matchStatsTracker.recordGoal(scoringSide)
     this.matchState.score[scoringSide] = newScore
     this.matchState.lastScorer = scoringSide
 
@@ -326,22 +417,24 @@ export class GameScene extends Phaser.Scene {
       this.matchState.winner = scoringSide
     }
 
-    goal.flash()
-    this.burstAt(crossing.impactPoint)
-    this.resetAfterGoal()
+    goal.flash(matchFlowConfig.goalFlashDurationMs)
+    this.beginGoalSequence()
+    this.matchFlowSystem.scoreGoal(scoringSide, crossing.impactPoint)
     this.updateHud()
   }
 
-  private resetAfterGoal(): void {
-    this.resetPositions(false)
+  private resetPositions = (clearGoalCooldown = true): void => {
+    this.matchFlowSystem.reset()
+    this.resetEntities(clearGoalCooldown)
   }
 
-  private resetPositions = (clearGoalCooldown = true): void => {
+  private resetEntities(clearGoalCooldown = true): void {
     this.inputController.reset()
     this.stickInteractionSystem.clearForReset(this.core)
     this.defenseSystem.clear()
     this.fumbleSystem.clear()
     this.coreRecoverySystem.reset()
+    this.matchStatsTracker.clearPossession()
     this.teamSystem.resetFormation()
     this.core.reset()
 
@@ -363,16 +456,19 @@ export class GameScene extends Phaser.Scene {
 
   private resetMatch = (): void => {
     this.matchState = structuredClone(initialMatchState)
+    this.matchStatsTracker.reset()
     this.resetPositions()
     this.updateHud()
   }
 
   private resetCore = (): void => {
+    this.matchFlowSystem.reset()
     this.inputController.reset()
     this.stickInteractionSystem.clearForReset(this.core)
     this.defenseSystem.clear()
     this.fumbleSystem.clear()
     this.coreRecoverySystem.reset()
+    this.matchStatsTracker.clearPossession()
     this.core.reset()
 
     for (const rule of this.goalRules.values()) {
@@ -399,6 +495,7 @@ export class GameScene extends Phaser.Scene {
   private recoverCoreToFaceoff(): void {
     this.stickInteractionSystem.clearForReset(this.core)
     this.fumbleSystem.clear()
+    this.matchStatsTracker.clearPossession()
     this.core.reset()
 
     if (coreSafetyConfig.coreResetImpulseAfterRecovery > 0) {
@@ -411,6 +508,35 @@ export class GameScene extends Phaser.Scene {
     for (const rule of this.goalRules.values()) {
       rule.reset(coreConfig.spawn)
     }
+  }
+
+  private beginGoalSequence(): void {
+    this.inputController.reset()
+    this.stickInteractionSystem.clearForReset(this.core)
+    this.defenseSystem.clear()
+    this.fumbleSystem.clear()
+    this.coreRecoverySystem.reset()
+    this.freezeEntities(this.teamSystem.players)
+  }
+
+  private preparePostGoalReset = (): void => {
+    this.resetEntities(true)
+    this.freezeEntities(this.teamSystem.players)
+  }
+
+  private resumeAfterCountdown = (): void => {
+    this.inputController.reset()
+    this.currentInputIntent = 'IDLE'
+  }
+
+  private freezeEntities(players: Player[]): void {
+    for (const player of players) {
+      this.matter.body.setVelocity(player.body, { x: 0, y: 0 })
+      this.matter.body.setAngularVelocity(player.body, 0)
+      player.updateVisuals()
+    }
+
+    this.core.setVelocity({ x: 0, y: 0 })
   }
 
   private updateDebugHud(controlledPlayer: Player): void {
@@ -458,6 +584,23 @@ export class GameScene extends Phaser.Scene {
       fumblePressure: this.fumbleSystem.getPressure(),
       fumblePressureNormalized:
         this.fumbleSystem.getNormalizedPressure(),
+      matchFlowState: this.matchFlowSystem.getState(),
+      matchFlowTimerMs: this.matchFlowSystem.getTimerMs(),
+      countdownLabel: this.matchFlowSystem.getCountdownLabel(),
+      lastScorer: this.matchFlowSystem.getLastScorer(),
+      carrierBallHandling:
+        this.teamSystem.getPlayer(
+          this.stickInteractionSystem.getCarrierId(),
+        )?.attributes.ballHandling ?? null,
+      truckAvailable:
+        this.matchFlowSystem.isPlaying() &&
+        defenseConfig.bodyCheckEnabled &&
+        this.stickInteractionSystem.getCarrierId() !== controlledPlayer.id,
+      swipeAvailable:
+        this.matchFlowSystem.isPlaying() &&
+        defenseConfig.stickSwipeEnabled &&
+        this.stickInteractionSystem.getCarrierId() !== controlledPlayer.id,
+      inputIntent: this.currentInputIntent,
     })
   }
 
@@ -472,43 +615,15 @@ export class GameScene extends Phaser.Scene {
   }
 
   private updateHud(): void {
-    if (this.gameMode === 'stickLab') {
-      this.scoreElement.textContent =
-        `STICK LAB\nGOALS ${this.matchState.score.A}\nCORE CONTROL`
-      return
-    }
-
-    const winner = this.matchState.winner
-      ? `\n${scoreLabels.winner} TEAM ${this.matchState.winner}`
-      : ''
-
-    this.scoreElement.textContent =
-      `${scoreLabels.title}\n` +
-      `${scoreLabels.teamA} ${this.matchState.score.A}  -  ` +
-      `${scoreLabels.teamB} ${this.matchState.score.B}\n` +
-      `${scoreLabels.firstTo} ${this.matchState.firstTo}${winner}`
-  }
-
-  private burstAt(point: Point): void {
-    const burst = this.add.graphics()
-
-    burst.lineStyle(4, 0xf8fbff, 0.9)
-    burst.strokeCircle(point.x, point.y, 32)
-    burst.lineStyle(2, 0x67f4ff, 0.8)
-    burst.strokeCircle(point.x, point.y, 52)
-    burst.setBlendMode(Phaser.BlendModes.ADD)
-
-    this.tweens.add({
-      targets: burst,
-      alpha: 0,
-      scale: 1.8,
-      duration: 260,
-      ease: 'Quad.easeOut',
-      onComplete: () => {
-        burst.destroy()
-      },
+    this.scoreboardOverlay.update({
+      gameMode: this.gameMode,
+      score: this.matchState.score,
+      firstTo: this.matchState.firstTo,
+      winner: this.matchState.winner,
+      stats: this.matchStatsTracker.getSnapshot(),
     })
   }
+
 }
 
 function movementToward(position: Point, target: Point): Phaser.Math.Vector2 {

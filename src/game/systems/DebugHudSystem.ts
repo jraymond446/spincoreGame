@@ -15,6 +15,7 @@ import type {
 } from './StickInteractionSystem'
 import type { InputMode } from './PlayerInputController'
 import type { DefensiveActionState } from './DefenseSystem'
+import type { MatchFlowState } from './MatchFlowSystem'
 
 type DebugHudState = {
   gameMode: GameMode
@@ -45,6 +46,14 @@ type DebugHudState = {
   }
   fumblePressure: number
   fumblePressureNormalized: number
+  matchFlowState: MatchFlowState
+  matchFlowTimerMs: number
+  countdownLabel: string
+  lastScorer: TeamSide | null
+  carrierBallHandling: number | null
+  truckAvailable: boolean
+  swipeAvailable: boolean
+  inputIntent: string
 }
 
 type DebugHudActions = {
@@ -137,11 +146,15 @@ export class DebugHudSystem {
     this.readout.textContent =
       `MODE     ${state.gameMode === 'stickLab' ? 'STICK LAB' : '3V3'}\n` +
       `SCORE    ${scoreText(state)}\n` +
+      `MATCH    ${state.matchFlowState}\n` +
+      `TIMER    ${Math.ceil(state.matchFlowTimerMs)}ms / ${state.countdownLabel}\n` +
+      `SCORER   ${state.lastScorer ?? '-'}\n` +
       `Team A Formation: ${state.formations.A}\n` +
       `Team B Formation: ${state.formations.B}\n` +
       `INPUT    ${state.inputMode}\n` +
       `LEFT     ${formatVector(state.leftJoystickVector)}\n` +
       `RIGHT    ${formatVector(state.rightAimVector)}\n` +
+      `INTENT   ${state.inputIntent}\n` +
       `PLAYER   ${state.controlledPlayerId} / ${state.controlledPlayerRole}\n` +
       `STICK    ${state.stickState}\n` +
       `CORE     ${state.coreState}\n` +
@@ -156,6 +169,9 @@ export class DebugHudSystem {
       `CHECK CD ${Math.ceil(state.defenseCooldowns.bodyCheckMs)}ms\n` +
       `POKE CD  ${Math.ceil(state.defenseCooldowns.stickSwipeMs)}ms\n` +
       `FUMBLE   ${state.fumblePressure.toFixed(2)} / ${state.fumblePressureNormalized.toFixed(2)}\n` +
+      `HANDLING ${state.carrierBallHandling?.toFixed(2) ?? '-'}\n` +
+      `TRUCK    ${state.truckAvailable ? 'READY' : 'LOCKED'}\n` +
+      `SWIPE    ${state.swipeAvailable ? 'READY' : 'LOCKED'}\n` +
       `RECOVERY ${state.recoveryStatus}\n` +
       `VISUAL   ${state.stickVisualRotation.toFixed(2)}\n` +
       `OWNER    ${state.possessionOwner ?? 'LOOSE'}`

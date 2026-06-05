@@ -18,6 +18,7 @@ export class GoalGate {
   private config: GoalGateConfig
   private graphics: Phaser.GameObjects.Graphics
   private flashAmount = 0
+  private flashDurationMs = 280
 
   constructor(scene: Phaser.Scene, config: GoalGateConfig) {
     this.config = config
@@ -92,12 +93,16 @@ export class GoalGate {
       return
     }
 
-    this.flashAmount = Math.max(0, this.flashAmount - delta / 280)
+    this.flashAmount = Math.max(
+      0,
+      this.flashAmount - delta / this.flashDurationMs,
+    )
     this.draw()
   }
 
-  flash(): void {
+  flash(durationMs = 280): void {
     this.flashAmount = 1
+    this.flashDurationMs = Math.max(1, durationMs)
     this.draw()
   }
 

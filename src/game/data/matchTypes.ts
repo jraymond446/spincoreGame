@@ -26,8 +26,8 @@ export type FormationId =
   | 'brutePress'
 export type FormationSlot = 'striker' | 'flex'
 export type FormationPosition = {
-  lateral: number
-  attackProgress: number
+  xNormalized: number
+  yInTeamHalf: number
 }
 export type FormationAIBias = {
   releaseDelayMultiplier: number
@@ -71,6 +71,7 @@ export type PlayerAttributes = {
   power: number
   accuracy: number
   reaction: number
+  ballHandling: number
 }
 
 export type PlayerDefenseTendencies = {

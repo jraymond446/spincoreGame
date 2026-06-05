@@ -1,6 +1,7 @@
 import Phaser from 'phaser'
 import { defenseConfig } from '../config/defenseConfig'
 import type { PlayerRole } from '../data/matchTypes'
+import type { Player } from '../entities/Player'
 import type { CorePossessionState } from './StickInteractionSystem'
 
 export type FumblePressureSource = 'bodyCheck' | 'stickSwipe'
@@ -36,16 +37,33 @@ export class FumbleSystem {
     attackerRole: PlayerRole,
     source: FumblePressureSource,
     coreState: CorePossessionState,
+    carrier: Player,
   ): boolean {
+    const handlingResistance = Phaser.Math.Linear(
+      1.25,
+      0.65,
+      Phaser.Math.Clamp(carrier.attributes.ballHandling, 0, 1),
+    )
+    const handlingVulnerability = Phaser.Math.Linear(
+      1.25,
+      0.75,
+      Phaser.Math.Clamp(carrier.attributes.ballHandling, 0, 1),
+    )
     const phaseMultiplier =
       coreState === 'CRADLED_OVERCHARGED'
         ? defenseConfig.overchargeFumbleVulnerability *
+          handlingVulnerability *
           (source === 'bodyCheck'
             ? defenseConfig.bodyCheckOverchargeMultiplier
             : defenseConfig.stickSwipeOverchargeMultiplier)
         : coreState === 'CRADLED_CHARGING'
           ? defenseConfig.chargingFumbleResistance
-          : defenseConfig.stableCradleFumbleResistance
+          : defenseConfig.stableCradleFumbleResistance *
+            Phaser.Math.Linear(
+              1.08,
+              0.88,
+              Phaser.Math.Clamp(carrier.attributes.ballHandling, 0, 1),
+            )
     const roleBonus =
       attackerRole === 'brute'
         ? defenseConfig.bruteFumbleBonus
@@ -54,7 +72,9 @@ export class FumbleSystem {
           : 0
 
     this.pressure = Phaser.Math.Clamp(
-      this.pressure + amount * phaseMultiplier + roleBonus,
+      this.pressure +
+        amount * phaseMultiplier * handlingResistance +
+        roleBonus * handlingResistance,
       0,
       defenseConfig.fumblePressureThreshold * 1.5,
     )

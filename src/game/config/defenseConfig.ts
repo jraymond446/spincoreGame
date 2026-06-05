@@ -1,4 +1,6 @@
 export const defenseConfig = {
+  bodyCheckEnabled: true,
+  stickSwipeEnabled: true,
   bodyCheckCooldownMs: 1050,
   bodyCheckStartupMs: 90,
   bodyCheckActiveMs: 130,

@@ -72,6 +72,8 @@ export function createDefaultLabTuning(): LabTuningState {
       handednessMirrorMultiplier: 1,
     },
     defense: {
+      bodyCheckEnabled: true,
+      stickSwipeEnabled: true,
       bodyCheckCooldownMs: 1050,
       bodyCheckStartupMs: 90,
       bodyCheckActiveMs: 130,
@@ -102,6 +104,15 @@ export function createDefaultLabTuning(): LabTuningState {
       chargingFumbleResistance: 0.86,
       bruteFumbleBonus: 0.18,
       supportStealBonus: 0.14,
+    },
+    matchFlow: {
+      enableGoalCelebration: true,
+      goalCelebrationMs: 1200,
+      goalFlashDurationMs: 720,
+      goalTextDurationMs: 1050,
+      enableResetCountdown: true,
+      resetCountdownStart: 3,
+      resetCountdownStepMs: 700,
     },
   }
 }

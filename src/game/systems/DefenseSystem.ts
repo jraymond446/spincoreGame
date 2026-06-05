@@ -1,6 +1,7 @@
 import Phaser from 'phaser'
 import { defenseConfig } from '../config/defenseConfig'
 import type { Point } from '../data/geometry'
+import type { TeamSide } from '../data/matchTypes'
 import type { Core } from '../entities/Core'
 import type { Player } from '../entities/Player'
 import type { FumbleSystem } from './FumbleSystem'
@@ -19,6 +20,13 @@ export type DefensiveActionState =
   | 'SWIPE_STARTUP'
   | 'SWIPE_ACTIVE'
   | 'SWIPE_RECOVERY'
+
+export type DefenseEvent = {
+  type: 'bodyCheckConnected'
+  attackerId: string
+  targetId: string
+  teamSide: TeamSide
+}
 
 type DefenseRuntime = {
   state: DefensiveActionState
@@ -44,6 +52,7 @@ export class DefenseSystem {
   private readonly runtimes = new Map<string, DefenseRuntime>()
   private readonly bursts: Burst[] = []
   private readonly shoves = new Map<string, Shove>()
+  private readonly pendingEvents: DefenseEvent[] = []
   private debugEnabled = false
   private focusPlayerId: string | null = null
 
@@ -82,9 +91,14 @@ export class DefenseSystem {
         runtime.state === 'IDLE' &&
         player.id !== stickSystem.getCarrierId()
       ) {
-        if (intent.bodyCheck && runtime.bodyCheckCooldownMs === 0) {
+        if (
+          defenseConfig.bodyCheckEnabled &&
+          intent.bodyCheck &&
+          runtime.bodyCheckCooldownMs === 0
+        ) {
           this.startBodyCheck(runtime)
         } else if (
+          defenseConfig.stickSwipeEnabled &&
           intent.stickSwipe &&
           runtime.stickSwipeCooldownMs === 0
         ) {
@@ -142,7 +156,12 @@ export class DefenseSystem {
     this.runtimes.clear()
     this.bursts.length = 0
     this.shoves.clear()
+    this.pendingEvents.length = 0
     this.graphics.clear()
+  }
+
+  consumeEvents(): DefenseEvent[] {
+    return this.pendingEvents.splice(0)
   }
 
   getState(playerId: string): DefensiveActionState {
@@ -268,6 +287,12 @@ export class DefenseSystem {
     }
 
     runtime.connected = true
+    this.pendingEvents.push({
+      type: 'bodyCheckConnected',
+      attackerId: attacker.id,
+      targetId: target.id,
+      teamSide: attacker.teamSide,
+    })
     const roleMultiplier =
       attacker.role === 'brute'
         ? defenseConfig.bruteCheckMultiplier
@@ -297,6 +322,7 @@ export class DefenseSystem {
         attacker.role,
         'bodyCheck',
         stickSystem.getState(),
+        target,
       )
 
       if (
@@ -369,6 +395,7 @@ export class DefenseSystem {
         attacker.role,
         'stickSwipe',
         stickSystem.getState(),
+        carrier,
       )
 
       if (

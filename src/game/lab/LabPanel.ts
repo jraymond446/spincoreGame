@@ -121,6 +121,7 @@ export class LabPanel {
       this.createFieldSection(),
       this.createStickSection(),
       this.createDefenseSection(),
+      this.createMatchFlowSection(),
     )
     panel.appendChild(body)
 
@@ -564,8 +565,33 @@ export class LabPanel {
     const defense = this.draft.defense
     const content = document.createElement('div')
     content.className = 'lab-range-list'
+    content.append(
+      this.createCheckbox(
+        'Body check enabled',
+        defense.bodyCheckEnabled,
+        (value) => {
+          defense.bodyCheckEnabled = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createCheckbox(
+        'Stick swipe enabled',
+        defense.stickSwipeEnabled,
+        (value) => {
+          defense.stickSwipeEnabled = value
+          this.markDraftChanged()
+        },
+      ),
+    )
     const controls: Array<
-      [string, keyof LabTuningState['defense'], RangeOptions]
+      [
+        string,
+        Exclude<
+          keyof LabTuningState['defense'],
+          'bodyCheckEnabled' | 'stickSwipeEnabled'
+        >,
+        RangeOptions,
+      ]
     > = [
       ['Check cooldown ms', 'bodyCheckCooldownMs', { min: 300, max: 2200, step: 25 }],
       ['Check startup ms', 'bodyCheckStartupMs', { min: 0, max: 300, step: 5 }],
@@ -609,6 +635,77 @@ export class LabPanel {
     }
 
     return this.createSection('Defense / Fumble Tuning', content)
+  }
+
+  private createMatchFlowSection(): HTMLElement {
+    const matchFlow = this.draft.matchFlow
+    const content = document.createElement('div')
+    content.className = 'lab-range-list'
+    content.append(
+      this.createCheckbox(
+        'Enable goal celebration',
+        matchFlow.enableGoalCelebration,
+        (value) => {
+          matchFlow.enableGoalCelebration = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Goal celebration ms',
+        matchFlow.goalCelebrationMs,
+        { min: 300, max: 3000, step: 50 },
+        (value) => {
+          matchFlow.goalCelebrationMs = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Goal flash ms',
+        matchFlow.goalFlashDurationMs,
+        { min: 100, max: 2000, step: 25 },
+        (value) => {
+          matchFlow.goalFlashDurationMs = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Goal text ms',
+        matchFlow.goalTextDurationMs,
+        { min: 100, max: 2500, step: 25 },
+        (value) => {
+          matchFlow.goalTextDurationMs = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createCheckbox(
+        'Enable reset countdown',
+        matchFlow.enableResetCountdown,
+        (value) => {
+          matchFlow.enableResetCountdown = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Countdown start',
+        matchFlow.resetCountdownStart,
+        { min: 1, max: 5, step: 1 },
+        (value) => {
+          matchFlow.resetCountdownStart = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Countdown step ms',
+        matchFlow.resetCountdownStepMs,
+        { min: 300, max: 1500, step: 50 },
+        (value) => {
+          matchFlow.resetCountdownStepMs = value
+          this.markDraftChanged()
+        },
+      ),
+    )
+
+    return this.createSection('Celebration / Reset Flow', content)
   }
 
   private createSection(
@@ -678,6 +775,23 @@ export class LabPanel {
       onChange(nextValue)
     })
     label.append(row, input)
+    return label
+  }
+
+  private createCheckbox(
+    labelText: string,
+    checked: boolean,
+    onChange: (checked: boolean) => void,
+  ): HTMLElement {
+    const label = document.createElement('label')
+    label.className = 'lab-checkbox-field'
+    const input = document.createElement('input')
+    input.type = 'checkbox'
+    input.checked = checked
+    const text = document.createElement('span')
+    text.textContent = labelText
+    input.addEventListener('change', () => onChange(input.checked))
+    label.append(input, text)
     return label
   }
 

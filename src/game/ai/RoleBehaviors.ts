@@ -372,11 +372,17 @@ function releaseDelay(
     aiConfig.roleBehavior.attributeChargeMax,
     executionAttribute,
   )
+  const handlingMultiplier = Phaser.Math.Linear(
+    context.player.role === 'striker' ? 0.76 : 0.84,
+    context.player.role === 'support' ? 1.2 : 1.12,
+    Phaser.Math.Clamp(context.player.attributes.ballHandling, 0, 1),
+  )
 
   return (
     aiConfig.aiReleaseDelayMs *
     context.style.releaseDelayMultiplier *
     attributeMultiplier *
+    handlingMultiplier *
     context.formationBias.releaseDelayMultiplier
   )
 }

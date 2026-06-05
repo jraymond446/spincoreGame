@@ -17,6 +17,7 @@ export type CorePossessionState =
 export type StickIntent = {
   hold: boolean
   swing?: boolean
+  suppressEmptyReleaseSwing?: boolean
   releaseTarget?: Point
   aiReleaseDelayMs?: number
 }
@@ -48,6 +49,7 @@ type CradleTestResult = {
   accepted: boolean
   relativeSpeed: number
   insideZone: boolean
+  maxEntrySpeed: number
 }
 
 type DeflectHit = {
@@ -337,6 +339,7 @@ export class StickInteractionSystem {
 
       const releasedEmpty =
         stickConfig.lightSwingOnEmptyRelease &&
+        !intent.suppressEmptyReleaseSwing &&
         (this.previousHold.get(player.id) ?? false) &&
         !intent.hold
       const requestedSwing =
@@ -445,7 +448,15 @@ export class StickInteractionSystem {
       this.calculateReleaseVelocity(carrier.getReleaseAimForward(), carrier),
     )
 
-    if (this.cradleElapsedMs >= stickConfig.fumbleMs) {
+    const fumbleTime =
+      stickConfig.fumbleMs *
+      Phaser.Math.Linear(
+        0.96,
+        1.12,
+        Phaser.Math.Clamp(carrier.attributes.ballHandling, 0, 1),
+      )
+
+    if (this.cradleElapsedMs >= fumbleTime) {
       this.fumble(core, carrier)
       return
     }
@@ -571,7 +582,7 @@ export class StickInteractionSystem {
           player.id,
           !test.insideZone
             ? 'outside cradle zone'
-            : test.relativeSpeed > stickConfig.maxCradleEntrySpeed
+            : test.relativeSpeed > test.maxEntrySpeed
               ? 'speed too high'
               : 'ready',
         )
@@ -770,9 +781,15 @@ export class StickInteractionSystem {
       1,
     )
     const instabilityWave = Math.sin(this.cradleElapsedMs * 0.021)
+    const handlingInstability = Phaser.Math.Linear(
+      1.25,
+      0.75,
+      Phaser.Math.Clamp(carrier.attributes.ballHandling, 0, 1),
+    )
     const accuracyOffset =
       instabilityWave *
       stickConfig.overchargeAccuracyPenalty *
+      handlingInstability *
       overchargeProgress
     const aimedDirection = rotate(normalized(direction), accuracyOffset)
     const sideDirection = {
@@ -786,6 +803,7 @@ export class StickInteractionSystem {
         sideDirection.x *
           instabilityWave *
           stickConfig.overchargeInstability *
+          handlingInstability *
           overchargeProgress,
       y:
         aimedDirection.y * baseForce +
@@ -793,6 +811,7 @@ export class StickInteractionSystem {
         sideDirection.y *
           instabilityWave *
           stickConfig.overchargeInstability *
+          handlingInstability *
           overchargeProgress,
     }
 
@@ -1025,10 +1044,21 @@ function testLegalCradle(core: Core, player: Player): CradleTestResult {
     angle <= zone.maxAngle &&
     socketDistance <= stickConfig.cradleCaptureRadius
 
+  const handlingCatchTolerance = Phaser.Math.Linear(
+    0.94,
+    1.08,
+    Phaser.Math.Clamp(player.attributes.ballHandling, 0, 1),
+  )
+
   return {
-    accepted: insideZone && relativeSpeed <= stickConfig.maxCradleEntrySpeed,
+    accepted:
+      insideZone &&
+      relativeSpeed <=
+        stickConfig.maxCradleEntrySpeed * handlingCatchTolerance,
     relativeSpeed,
     insideZone,
+    maxEntrySpeed:
+      stickConfig.maxCradleEntrySpeed * handlingCatchTolerance,
   }
 }
 

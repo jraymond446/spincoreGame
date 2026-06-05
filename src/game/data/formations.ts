@@ -1,6 +1,6 @@
-import Phaser from 'phaser'
 import { arenaConfig } from '../config/arenaConfig'
-import { goalConfigs } from '../config/goalConfig'
+import { formationConfig } from '../config/formationConfig'
+import { goalConfig, goalConfigs } from '../config/goalConfig'
 import { keeperAreaConfig } from '../config/keeperAreaConfig'
 import { playerRuntimeConfig } from '../config/playerConfig'
 import type { Point } from './geometry'
@@ -17,20 +17,12 @@ export type TeamFormationResolution = {
   spawns: Map<string, Point>
 }
 
-export const formationConfig = {
-  keeperHomeProgress: 0.25,
-  fieldBoundaryPadding: 18,
-  ghostMarkerRadius: 16,
-  ghostMarkerAlpha: 0.42,
-  ghostLineAlpha: 0.3,
-} as const
-
 export const formations: Record<FormationId, Formation> = {
   balanced: {
     id: 'balanced',
     positions: {
-      striker: { lateral: 0.22, attackProgress: 0.58 },
-      flex: { lateral: -0.26, attackProgress: 0.46 },
+      striker: { xNormalized: 0.62, yInTeamHalf: 0.78 },
+      flex: { xNormalized: 0.36, yInTeamHalf: 0.52 },
     },
     aiBias: {
       releaseDelayMultiplier: 1,
@@ -43,8 +35,8 @@ export const formations: Record<FormationId, Formation> = {
   aggressive: {
     id: 'aggressive',
     positions: {
-      striker: { lateral: 0.18, attackProgress: 0.67 },
-      flex: { lateral: -0.2, attackProgress: 0.59 },
+      striker: { xNormalized: 0.61, yInTeamHalf: 0.95 },
+      flex: { xNormalized: 0.39, yInTeamHalf: 0.86 },
     },
     aiBias: {
       releaseDelayMultiplier: 0.86,
@@ -57,8 +49,8 @@ export const formations: Record<FormationId, Formation> = {
   conservative: {
     id: 'conservative',
     positions: {
-      striker: { lateral: 0.16, attackProgress: 0.48 },
-      flex: { lateral: -0.18, attackProgress: 0.32 },
+      striker: { xNormalized: 0.59, yInTeamHalf: 0.58 },
+      flex: { xNormalized: 0.39, yInTeamHalf: 0.3 },
     },
     aiBias: {
       releaseDelayMultiplier: 1.12,
@@ -71,8 +63,8 @@ export const formations: Record<FormationId, Formation> = {
   staggeredLeft: {
     id: 'staggeredLeft',
     positions: {
-      striker: { lateral: -0.38, attackProgress: 0.62 },
-      flex: { lateral: 0.3, attackProgress: 0.46 },
+      striker: { xNormalized: 0.28, yInTeamHalf: 0.84 },
+      flex: { xNormalized: 0.68, yInTeamHalf: 0.52 },
     },
     aiBias: {
       releaseDelayMultiplier: 1,
@@ -85,8 +77,8 @@ export const formations: Record<FormationId, Formation> = {
   staggeredRight: {
     id: 'staggeredRight',
     positions: {
-      striker: { lateral: 0.38, attackProgress: 0.62 },
-      flex: { lateral: -0.3, attackProgress: 0.46 },
+      striker: { xNormalized: 0.72, yInTeamHalf: 0.84 },
+      flex: { xNormalized: 0.32, yInTeamHalf: 0.52 },
     },
     aiBias: {
       releaseDelayMultiplier: 1,
@@ -99,8 +91,8 @@ export const formations: Record<FormationId, Formation> = {
   brutePress: {
     id: 'brutePress',
     positions: {
-      striker: { lateral: -0.24, attackProgress: 0.54 },
-      flex: { lateral: 0, attackProgress: 0.64 },
+      striker: { xNormalized: 0.36, yInTeamHalf: 0.72 },
+      flex: { xNormalized: 0.5, yInTeamHalf: 0.92 },
     },
     aiBias: {
       releaseDelayMultiplier: 0.92,
@@ -120,11 +112,6 @@ export function resolveTeamFormation(team: Team): TeamFormationResolution {
     x: attackedGoal.x - defendedGoal.x,
     y: attackedGoal.y - defendedGoal.y,
   })
-  const attackDistance = distance(defendedGoal, attackedGoal)
-  const lateralDirection = {
-    x: -attackDirection.y,
-    y: attackDirection.x,
-  }
   const spawns = new Map<string, Point>()
 
   for (const entry of team.roster) {
@@ -133,10 +120,8 @@ export function resolveTeamFormation(team: Team): TeamFormationResolution {
         ? resolveKeeperSpawn(defendedGoal, attackDirection)
         : resolveFieldSpawn(
             formation.positions[entry.role === 'striker' ? 'striker' : 'flex'],
-            defendedGoal,
+            team.side,
             attackDirection,
-            lateralDirection,
-            attackDistance,
           )
 
     spawns.set(entry.id, spawn)
@@ -174,37 +159,24 @@ function resolveKeeperSpawn(
 
 function resolveFieldSpawn(
   position: FormationPosition,
-  defendedGoal: Point,
+  side: Team['side'],
   attackDirection: Point,
-  lateralDirection: Point,
-  attackDistance: number,
 ): Point {
+  const bounds = getFormationHalfBounds(side)
+  const xNormalized = clamp(position.xNormalized, 0, 1)
+  const yInTeamHalf = clamp(position.yInTeamHalf, 0, 1)
   const raw = {
-    x:
-      defendedGoal.x +
-      attackDirection.x * attackDistance * position.attackProgress +
-      lateralDirection.x * (arenaConfig.width * 0.5) * position.lateral,
+    x: lerp(bounds.left, bounds.right, xNormalized),
     y:
-      defendedGoal.y +
-      attackDirection.y * attackDistance * position.attackProgress +
-      lateralDirection.y * (arenaConfig.width * 0.5) * position.lateral,
+      side === 'A'
+        ? lerp(bounds.bottom, bounds.halfBoundary, yInTeamHalf)
+        : lerp(bounds.top, bounds.halfBoundary, yInTeamHalf),
   }
-  const outsideZones = keepOutsideKeeperZones(raw, attackDirection)
-  const edgePadding =
-    playerRuntimeConfig.radius + formationConfig.fieldBoundaryPadding
+  const withinHalf = clampFieldSpawnToLegalHalf(raw, side)
+  const outsideZones = keepOutsideKeeperZones(withinHalf, attackDirection)
+  const outsidePosts = keepAwayFromGoalPosts(outsideZones, attackDirection)
 
-  return {
-    x: Phaser.Math.Clamp(
-      outsideZones.x,
-      arenaConfig.center.x - arenaConfig.width * 0.5 + edgePadding,
-      arenaConfig.center.x + arenaConfig.width * 0.5 - edgePadding,
-    ),
-    y: Phaser.Math.Clamp(
-      outsideZones.y,
-      arenaConfig.center.y - arenaConfig.height * 0.5 + edgePadding,
-      arenaConfig.center.y + arenaConfig.height * 0.5 - edgePadding,
-    ),
-  }
+  return clampFieldSpawnToLegalHalf(outsidePosts, side)
 }
 
 function keepOutsideKeeperZones(
@@ -214,7 +186,8 @@ function keepOutsideKeeperZones(
   const minimumDistance =
     keeperAreaConfig.keeperZoneRadius +
     playerRuntimeConfig.radius +
-    keeperAreaConfig.keeperZoneBoundaryBuffer
+    keeperAreaConfig.keeperZoneBoundaryBuffer +
+    formationConfig.spawnClearanceEpsilon
   let result = { ...position }
 
   for (const center of Object.values(keeperAreaConfig.areas)) {
@@ -241,6 +214,95 @@ function keepOutsideKeeperZones(
   return result
 }
 
+function keepAwayFromGoalPosts(
+  position: Point,
+  fallbackDirection: Point,
+): Point {
+  const minimumDistance =
+    goalConfig.goalPostRadius +
+    playerRuntimeConfig.radius +
+    formationConfig.goalPostSpawnClearance +
+    formationConfig.spawnClearanceEpsilon
+  let result = { ...position }
+
+  for (const goal of goalConfigs) {
+    const halfLength = goal.length / 2
+    const posts =
+      goal.orientation === 'horizontal'
+        ? [
+            { x: goal.x - halfLength, y: goal.y },
+            { x: goal.x + halfLength, y: goal.y },
+          ]
+        : [
+            { x: goal.x, y: goal.y - halfLength },
+            { x: goal.x, y: goal.y + halfLength },
+          ]
+
+    for (const post of posts) {
+      const offset = {
+        x: result.x - post.x,
+        y: result.y - post.y,
+      }
+      const length = Math.hypot(offset.x, offset.y)
+
+      if (length >= minimumDistance) {
+        continue
+      }
+
+      const direction =
+        length === 0
+          ? fallbackDirection
+          : { x: offset.x / length, y: offset.y / length }
+      result = {
+        x: post.x + direction.x * minimumDistance,
+        y: post.y + direction.y * minimumDistance,
+      }
+    }
+  }
+
+  return result
+}
+
+export function getFormationHalfBounds(side: Team['side']): {
+  left: number
+  right: number
+  top: number
+  bottom: number
+  halfBoundary: number
+} {
+  const edgePadding =
+    playerRuntimeConfig.radius + formationConfig.fieldBoundaryPadding
+  const left =
+    arenaConfig.center.x - arenaConfig.width * 0.5 + edgePadding
+  const right =
+    arenaConfig.center.x + arenaConfig.width * 0.5 - edgePadding
+  const top =
+    arenaConfig.center.y - arenaConfig.height * 0.5 + edgePadding
+  const bottom =
+    arenaConfig.center.y + arenaConfig.height * 0.5 - edgePadding
+  const halfBoundary =
+    arenaConfig.center.y +
+    (side === 'A' ? 1 : -1) *
+      formationConfig.formationMidfieldBuffer
+
+  return { left, right, top, bottom, halfBoundary }
+}
+
+function clampFieldSpawnToLegalHalf(
+  position: Point,
+  side: Team['side'],
+): Point {
+  const bounds = getFormationHalfBounds(side)
+
+  return {
+    x: clamp(position.x, bounds.left, bounds.right),
+    y:
+      side === 'A'
+        ? clamp(position.y, bounds.halfBoundary, bounds.bottom)
+        : clamp(position.y, bounds.top, bounds.halfBoundary),
+  }
+}
+
 function getGoalPoint(goalId: string): Point {
   const goal = goalConfigs.find((candidate) => candidate.id === goalId)
 
@@ -264,6 +326,10 @@ function normalized(vector: Point): Point {
   }
 }
 
-function distance(a: Point, b: Point): number {
-  return Math.hypot(a.x - b.x, a.y - b.y)
+function clamp(value: number, minimum: number, maximum: number): number {
+  return Math.min(maximum, Math.max(minimum, value))
+}
+
+function lerp(start: number, end: number, amount: number): number {
+  return start + (end - start) * amount
 }

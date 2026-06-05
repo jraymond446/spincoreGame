@@ -10,6 +10,7 @@ import {
   topGoalConfig,
 } from '../config/goalConfig'
 import { keeperAreaConfig } from '../config/keeperAreaConfig'
+import { matchFlowConfig } from '../config/matchFlowConfig'
 import { playerRuntimeConfig } from '../config/playerConfig'
 import { stickConfig } from '../config/stickConfig'
 import { visualConfig } from '../config/visualConfig'
@@ -147,4 +148,5 @@ export function applyLabSettings(state: LabTuningState): void {
     handednessMirrorMultiplier: stick.handednessMirrorMultiplier,
   })
   Object.assign(defenseConfig, state.defense)
+  Object.assign(matchFlowConfig, state.matchFlow)
 }

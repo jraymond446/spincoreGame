@@ -72,6 +72,8 @@ export type LabStickTuning = {
 }
 
 export type LabDefenseTuning = {
+  bodyCheckEnabled: boolean
+  stickSwipeEnabled: boolean
   bodyCheckCooldownMs: number
   bodyCheckStartupMs: number
   bodyCheckActiveMs: number
@@ -104,6 +106,16 @@ export type LabDefenseTuning = {
   supportStealBonus: number
 }
 
+export type LabMatchFlowTuning = {
+  enableGoalCelebration: boolean
+  goalCelebrationMs: number
+  goalFlashDurationMs: number
+  goalTextDurationMs: number
+  enableResetCountdown: boolean
+  resetCountdownStart: number
+  resetCountdownStepMs: number
+}
+
 export type LabTuningState = {
   mode: GameMode
   controlledPlayer: ControlledPlayerSelection
@@ -112,6 +124,7 @@ export type LabTuningState = {
   field: LabFieldTuning
   stick: LabStickTuning
   defense: LabDefenseTuning
+  matchFlow: LabMatchFlowTuning
 }
 
 export const labOptions = {
@@ -168,5 +181,6 @@ export const labOptions = {
     'power',
     'accuracy',
     'reaction',
+    'ballHandling',
   ] satisfies Array<keyof PlayerAttributes>,
 } as const
