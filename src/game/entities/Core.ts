@@ -20,7 +20,7 @@ export class Core {
       density: coreConfig.density,
     })
 
-    this.trail = scene.add.graphics()
+    this.trail = scene.add.graphics().setDepth(4)
     this.glow = scene.add.circle(
       coreConfig.spawn.x,
       coreConfig.spawn.y,
@@ -28,6 +28,7 @@ export class Core {
       coreConfig.glowColor,
       0.16,
     )
+    this.glow.setDepth(7)
     this.shell = scene.add.circle(
       coreConfig.spawn.x,
       coreConfig.spawn.y,
@@ -35,6 +36,7 @@ export class Core {
       coreConfig.fillColor,
       1,
     )
+    this.shell.setDepth(8)
 
     this.glow.setBlendMode(Phaser.BlendModes.ADD)
     this.shell.setStrokeStyle(3, coreConfig.strokeColor, 1)
@@ -86,6 +88,9 @@ export class Core {
   holdAt(position: Point): void {
     this.setPosition(position)
     this.setVelocity({ x: 0, y: 0 })
+    this.trail.clear()
+    this.glow.setPosition(position.x, position.y)
+    this.shell.setPosition(position.x, position.y)
   }
 
   setPosition(position: Point): void {

@@ -20,6 +20,7 @@ export class StickVisual {
     curve: StickCurve,
     forward: Point,
     right: Point,
+    cradleSocket: Point,
     state: StickActionState,
   ): void {
     const color = this.getStateColor(state)
@@ -27,14 +28,17 @@ export class StickVisual {
       visualConfig.stick.thickness + visualConfig.stick.outlineExtra
 
     this.graphics.clear()
+    this.drawSocketGlow(cradleSocket, state)
 
     if (this.style === 'whip') {
       this.drawWhip(curve, color)
+      this.drawInnerEdge(curve, right)
       return
     }
 
     this.drawQuadratic(curve, visualConfig.outlineColor, outlineWidth)
     this.drawQuadratic(curve, color, visualConfig.stick.thickness)
+    this.drawInnerEdge(curve, right)
 
     switch (this.style) {
       case 'hook':
@@ -68,6 +72,78 @@ export class StickVisual {
     }
 
     this.graphics.strokePath()
+  }
+
+  private drawInnerEdge(curve: StickCurve, right: Point): void {
+    const config = visualConfig.stick
+    const segments = 12
+
+    this.graphics.lineStyle(
+      config.innerEdgeWidth,
+      config.innerEdgeColor,
+      config.innerEdgeAlpha,
+    )
+    this.graphics.beginPath()
+
+    for (let index = 0; index <= segments; index += 1) {
+      const progress = Phaser.Math.Linear(
+        config.innerEdgeStart,
+        config.innerEdgeEnd,
+        index / segments,
+      )
+      const point = this.sampleQuadratic(curve, progress)
+      const innerPoint = {
+        x: point.x - right.x * config.innerEdgeOffset,
+        y: point.y - right.y * config.innerEdgeOffset,
+      }
+
+      if (index === 0) {
+        this.graphics.moveTo(innerPoint.x, innerPoint.y)
+      } else {
+        this.graphics.lineTo(innerPoint.x, innerPoint.y)
+      }
+    }
+
+    this.graphics.strokePath()
+  }
+
+  private drawSocketGlow(
+    socket: Point,
+    state: StickActionState,
+  ): void {
+    const catchReady = state === 'CATCH_READY'
+    const cradled =
+      state === 'CRADLED_STABLE' ||
+      state === 'CRADLED_CHARGING' ||
+      state === 'CRADLED_OVERCHARGED'
+
+    if (!catchReady && !cradled) {
+      return
+    }
+
+    const pulse =
+      cradled && state !== 'CRADLED_STABLE'
+        ? 1 + Math.sin(Date.now() * 0.012) * 0.12
+        : 1
+    const radius = visualConfig.stick.socketGlowRadius * pulse
+
+    this.graphics.fillStyle(
+      visualConfig.stick.socketGlowColor,
+      cradled ? 0.22 : 0.12,
+    )
+    this.graphics.fillCircle(socket.x, socket.y, radius)
+    this.graphics.lineStyle(
+      cradled ? 3 : 2,
+      visualConfig.stick.socketGlowColor,
+      cradled ? 0.9 : 0.62,
+    )
+    this.graphics.strokeCircle(socket.x, socket.y, radius * 0.56)
+    this.graphics.fillStyle(visualConfig.stick.innerEdgeColor, 0.92)
+    this.graphics.fillCircle(
+      socket.x,
+      socket.y,
+      visualConfig.stick.socketCoreRadius,
+    )
   }
 
   private drawHook(

@@ -17,8 +17,8 @@ const sharedGoalConfig = {
   x: arenaConfig.center.x,
   length: 230,
   postRadius: 12,
-  planeColor: 0x6df2ff,
-  postColor: 0xf7f2a0,
+  planeColor: 0xe8fbff,
+  postColor: 0xffca62,
   flashColor: 0xffffff,
 } as const
 

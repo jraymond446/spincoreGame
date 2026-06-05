@@ -39,7 +39,7 @@ function stickStyleForPlayer(
   }
 
   if (role === 'support') {
-    return 'fork'
+    return 'cradle'
   }
 
   return playerId.startsWith('b-') ? 'whip' : 'hook'

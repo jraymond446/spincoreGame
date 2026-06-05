@@ -198,25 +198,38 @@ export class Player {
     const tipDistance = playerRuntimeConfig.radius + stickConfig.visual.length
     const controlDistance =
       playerRuntimeConfig.radius + stickConfig.visual.length * 0.5
+    const sideOffset = stickConfig.visual.stanceSideOffset
 
     return {
       root: {
-        x: position.x + forward.x * rootDistance,
-        y: position.y + forward.y * rootDistance,
+        x:
+          position.x +
+          forward.x * rootDistance +
+          right.x * sideOffset,
+        y:
+          position.y +
+          forward.y * rootDistance +
+          right.y * sideOffset,
       },
       control: {
         x:
           position.x +
           forward.x * controlDistance +
-          right.x * stickConfig.visual.curve,
+          right.x * (stickConfig.visual.curve + sideOffset),
         y:
           position.y +
           forward.y * controlDistance +
-          right.y * stickConfig.visual.curve,
+          right.y * (stickConfig.visual.curve + sideOffset),
       },
       tip: {
-        x: position.x + forward.x * tipDistance,
-        y: position.y + forward.y * tipDistance,
+        x:
+          position.x +
+          forward.x * tipDistance +
+          right.x * sideOffset,
+        y:
+          position.y +
+          forward.y * tipDistance +
+          right.y * sideOffset,
       },
     }
   }
@@ -283,10 +296,11 @@ export class Player {
     this.visual.update({
       position: this.position,
       velocity: this.velocity,
-      stickRotation: this.stickVisualRotation,
+      facingRotation: this.releaseAimAngle,
       stickCurve: this.getStickCurve(),
       stickForward: this.getStickForward(),
       stickRight: this.getStickRight(),
+      cradleSocket: this.getCradleSocket(),
       stickState: this.stickState,
     })
   }

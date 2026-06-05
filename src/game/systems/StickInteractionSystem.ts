@@ -370,9 +370,18 @@ export class StickInteractionSystem {
         this.getStickState(player.id) === 'CATCH_READY' &&
         distance(player.position, core.position) <=
           stickConfig.catchAssistDetectionRadius
-      const targetRotation = autoOrientActive
-        ? coreAngle + stickConfig.cradleFacingOffsetRadians
-        : player.getReleaseAimAngle()
+      const state = this.getStickState(player.id)
+      const isCarrier = this.isCradled() && player.id === this.carrierId
+      let targetRotation = player.getReleaseAimAngle()
+
+      if (autoOrientActive) {
+        targetRotation = coreAngle + stickConfig.cradleFacingOffsetRadians
+      } else if (
+        !isCarrier &&
+        (state === 'IDLE' || state === 'CATCH_READY')
+      ) {
+        targetRotation += stickConfig.readyStanceOffsetRadians
+      }
       const strength = autoOrientActive
         ? stickConfig.catchAutoOrientStrength
         : stickConfig.aimSmoothing
@@ -974,13 +983,15 @@ function testLegalCradle(core: Core, player: Player): CradleTestResult {
   const radius = Math.hypot(localPoint.x, localPoint.y)
   const angle = Math.atan2(localPoint.y, localPoint.x)
   const relativeSpeed = distance(core.velocity, player.velocity)
+  const socketDistance = distance(core.position, player.getCradleSocket())
   const zone = player.getCradleZone()
   const insideZone =
     localPoint.y > 0 &&
     radius >= zone.minRadius &&
     radius <= zone.maxRadius &&
     angle >= zone.minAngle &&
-    angle <= zone.maxAngle
+    angle <= zone.maxAngle &&
+    socketDistance <= stickConfig.cradleCaptureRadius
 
   return {
     accepted: insideZone && relativeSpeed <= stickConfig.maxCradleEntrySpeed,

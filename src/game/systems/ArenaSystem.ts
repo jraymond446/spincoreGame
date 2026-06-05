@@ -144,9 +144,18 @@ export class ArenaSystem {
   private drawFloor(): void {
     const x = arenaConfig.center.x - arenaConfig.width / 2
     const y = arenaConfig.center.y - arenaConfig.height / 2
+    const inset = arenaConfig.courtInset
+    const innerX = x + inset
+    const innerY = y + inset
+    const innerWidth = arenaConfig.width - inset * 2
+    const innerHeight = arenaConfig.height - inset * 2
+    const centerY = arenaConfig.center.y
+    const topServiceY = y + arenaConfig.serviceLineDepth
+    const bottomServiceY =
+      y + arenaConfig.height - arenaConfig.serviceLineDepth
 
     this.graphics.clear()
-    this.graphics.fillStyle(arenaConfig.floorColor, 1)
+    this.graphics.fillStyle(arenaConfig.outerSurfaceColor, 1)
     this.graphics.fillRoundedRect(
       x,
       y,
@@ -155,7 +164,24 @@ export class ArenaSystem {
       arenaConfig.cornerRadius,
     )
 
-    this.graphics.lineStyle(3, arenaConfig.wallStrokeColor, 0.75)
+    this.graphics.fillStyle(arenaConfig.floorColor, 1)
+    this.graphics.fillRoundedRect(
+      innerX,
+      innerY,
+      innerWidth,
+      innerHeight,
+      Math.max(6, arenaConfig.cornerRadius - 6),
+    )
+
+    this.graphics.fillStyle(arenaConfig.floorAccentColor, 0.34)
+    this.graphics.fillRect(
+      innerX,
+      topServiceY,
+      innerWidth,
+      bottomServiceY - topServiceY,
+    )
+
+    this.graphics.lineStyle(4, arenaConfig.wallStrokeColor, 0.92)
     this.graphics.strokeRoundedRect(
       x,
       y,
@@ -164,18 +190,64 @@ export class ArenaSystem {
       arenaConfig.cornerRadius,
     )
 
-    this.graphics.lineStyle(1, arenaConfig.stripeColor, 0.3)
+    this.graphics.lineStyle(4, arenaConfig.boundaryLineColor, 0.88)
+    this.graphics.strokeRoundedRect(
+      innerX,
+      innerY,
+      innerWidth,
+      innerHeight,
+      Math.max(6, arenaConfig.cornerRadius - 6),
+    )
 
-    for (let offsetX = x + 70; offsetX < x + arenaConfig.width; offsetX += 70) {
-      this.graphics.lineBetween(offsetX, y + 18, offsetX, y + arenaConfig.height - 18)
-    }
+    this.graphics.lineStyle(3, arenaConfig.boundaryLineColor, 0.78)
+    this.graphics.lineBetween(innerX, centerY, innerX + innerWidth, centerY)
+    this.graphics.strokeCircle(
+      arenaConfig.center.x,
+      centerY,
+      arenaConfig.centerCircleRadius,
+    )
 
-    for (let offsetY = y + 60; offsetY < y + arenaConfig.height; offsetY += 60) {
-      this.graphics.lineBetween(x + 18, offsetY, x + arenaConfig.width - 18, offsetY)
-    }
+    this.graphics.lineStyle(2, arenaConfig.secondaryLineColor, 0.62)
+    this.graphics.lineBetween(
+      innerX,
+      topServiceY,
+      innerX + innerWidth,
+      topServiceY,
+    )
+    this.graphics.lineBetween(
+      innerX,
+      bottomServiceY,
+      innerX + innerWidth,
+      bottomServiceY,
+    )
+    this.graphics.lineBetween(
+      arenaConfig.center.x,
+      innerY,
+      arenaConfig.center.x,
+      topServiceY,
+    )
+    this.graphics.lineBetween(
+      arenaConfig.center.x,
+      bottomServiceY,
+      arenaConfig.center.x,
+      innerY + innerHeight,
+    )
 
-    this.graphics.lineStyle(2, arenaConfig.stripeColor, 0.55)
-    this.graphics.lineBetween(arenaConfig.center.x, y + 28, arenaConfig.center.x, y + arenaConfig.height - 28)
-    this.graphics.strokeCircle(arenaConfig.center.x, arenaConfig.center.y, 70)
+    this.graphics.fillStyle(arenaConfig.boundaryLineColor, 0.9)
+    this.graphics.fillCircle(
+      arenaConfig.center.x,
+      centerY,
+      arenaConfig.faceoffMarkRadius,
+    )
+    this.graphics.fillCircle(
+      arenaConfig.center.x,
+      topServiceY,
+      arenaConfig.faceoffMarkRadius * 0.62,
+    )
+    this.graphics.fillCircle(
+      arenaConfig.center.x,
+      bottomServiceY,
+      arenaConfig.faceoffMarkRadius * 0.62,
+    )
   }
 }

@@ -1,7 +1,7 @@
 export const viewConfig = {
   width: 900,
   height: 1400,
-  backgroundColor: '#071016',
+  backgroundColor: '#123f52',
   camera: {
     arenaPadding: 72,
     maxZoom: 1.15,

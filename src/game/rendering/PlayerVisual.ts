@@ -22,10 +22,11 @@ type Point = { x: number; y: number }
 export type PlayerVisualUpdate = {
   position: Point
   velocity: Point
-  stickRotation: number
+  facingRotation: number
   stickCurve: StickCurve
   stickForward: Point
   stickRight: Point
+  cradleSocket: Point
   stickState: StickActionState
 }
 
@@ -101,8 +102,8 @@ export class PlayerVisual {
         this.scene.time.now * visualConfig.idleBobSpeed + this.animationPhase,
       ) * bobAmplitude
     const forward = {
-      x: Math.cos(data.stickRotation),
-      y: Math.sin(data.stickRotation),
+      x: Math.cos(data.facingRotation),
+      y: Math.sin(data.facingRotation),
     }
     const right = { x: -forward.y, y: forward.x }
     const visualPosition = {
@@ -117,6 +118,7 @@ export class PlayerVisual {
       data.stickCurve,
       data.stickForward,
       data.stickRight,
+      data.cradleSocket,
       data.stickState,
     )
 
@@ -151,14 +153,16 @@ export class PlayerVisual {
   }
 
   private drawShadow(position: Point, speed: number): void {
+    const roleScale = visualConfig.roleScale[this.options.role]
+    const visualScale = visualConfig.playerScale
     const stretch = Phaser.Math.Clamp(speed * 0.7, 0, 10)
     this.shadow.clear()
     this.shadow.fillStyle(visualConfig.shadowColor, visualConfig.shadowAlpha)
     this.shadow.fillEllipse(
       position.x,
       position.y + visualConfig.shadowOffsetY,
-      visualConfig.shadowWidth + stretch,
-      visualConfig.shadowHeight,
+      (visualConfig.shadowWidth + stretch) * visualScale * roleScale.shadow,
+      visualConfig.shadowHeight * visualScale,
     )
   }
 
@@ -195,65 +199,31 @@ export class PlayerVisual {
     right: Point,
   ): void {
     const roleScale = visualConfig.roleScale[this.options.role]
-    const bodyLength = visualConfig.torsoLength * roleScale.bodyY
-    const bodyWidth = visualConfig.torsoWidth * roleScale.bodyX
-    const headRadius = visualConfig.headRadius * roleScale.head
-    const bodyCenter = this.offset(position, forward, -4, right, 0)
+    const visualScale = visualConfig.playerScale
+    const bodyLength =
+      visualConfig.torsoLength * roleScale.bodyY * visualScale
+    const bodyWidth = visualConfig.torsoWidth * roleScale.bodyX * visualScale
+    const headRadius =
+      visualConfig.headRadius * roleScale.head * visualScale
+    const bodyCenter = this.offset(
+      position,
+      forward,
+      -4 * visualScale,
+      right,
+      0,
+    )
     const headCenter = this.offset(
       position,
       forward,
-      visualConfig.headForwardOffset,
+      visualConfig.headForwardOffset * visualScale,
       right,
       0,
     )
 
     this.character.clear()
-    this.drawLegs(bodyCenter, forward, right, bodyLength, bodyWidth)
     this.drawTorso(bodyCenter, forward, right, bodyLength, bodyWidth)
     this.drawRoleAccent(bodyCenter, forward, right, bodyLength, bodyWidth)
     this.drawHead(headCenter, forward, right, headRadius)
-  }
-
-  private drawLegs(
-    bodyCenter: Point,
-    forward: Point,
-    right: Point,
-    bodyLength: number,
-    bodyWidth: number,
-  ): void {
-    const legBack = -bodyLength * 0.5 - visualConfig.legLength * 0.35
-    const separation = bodyWidth * 0.27
-
-    for (const side of [-1, 1]) {
-      const hip = this.offset(
-        bodyCenter,
-        forward,
-        legBack + visualConfig.legLength * 0.45,
-        right,
-        separation * side,
-      )
-      const foot = this.offset(
-        bodyCenter,
-        forward,
-        legBack - visualConfig.legLength * 0.45,
-        right,
-        separation * side,
-      )
-      this.character.lineStyle(
-        visualConfig.legWidth + visualConfig.outlineWidth,
-        visualConfig.outlineColor,
-        visualConfig.outlineAlpha,
-      )
-      this.character.lineBetween(hip.x, hip.y, foot.x, foot.y)
-      this.character.lineStyle(
-        visualConfig.legWidth,
-        this.palette.shorts,
-        1,
-      )
-      this.character.lineBetween(hip.x, hip.y, foot.x, foot.y)
-      this.character.fillStyle(this.palette.trim, 1)
-      this.character.fillCircle(foot.x, foot.y, visualConfig.legWidth * 0.55)
-    }
   }
 
   private drawTorso(
@@ -293,6 +263,7 @@ export class PlayerVisual {
     width: number,
   ): void {
     const accent = roleAccentColors[this.options.role]
+    const visualScale = visualConfig.playerScale
 
     switch (this.options.role) {
       case 'keeper': {
@@ -306,9 +277,13 @@ export class PlayerVisual {
             shoulderOffset * side,
           )
           this.character.fillStyle(visualConfig.outlineColor, 1)
-          this.character.fillCircle(shoulder.x, shoulder.y, 8.5)
+          this.character.fillCircle(
+            shoulder.x,
+            shoulder.y,
+            8.5 * visualScale,
+          )
           this.character.fillStyle(accent, 1)
-          this.character.fillCircle(shoulder.x, shoulder.y, 6)
+          this.character.fillCircle(shoulder.x, shoulder.y, 6 * visualScale)
         }
         this.drawLocalLine(
           center,
@@ -319,7 +294,7 @@ export class PlayerVisual {
           length * 0.2,
           width * 0.34,
           accent,
-          5,
+          5 * visualScale,
         )
         break
       }
@@ -333,7 +308,7 @@ export class PlayerVisual {
           length * 0.44,
           0,
           accent,
-          6,
+          6 * visualScale,
         )
         break
       case 'support':
@@ -346,7 +321,7 @@ export class PlayerVisual {
           length * 0.35,
           0,
           accent,
-          4,
+          4 * visualScale,
         )
         this.drawLocalLine(
           center,
@@ -357,7 +332,7 @@ export class PlayerVisual {
           0,
           width * 0.3,
           accent,
-          4,
+          4 * visualScale,
         )
         break
       case 'brute': {
@@ -371,9 +346,9 @@ export class PlayerVisual {
             padOffset * side,
           )
           this.character.fillStyle(visualConfig.outlineColor, 1)
-          this.character.fillCircle(pad.x, pad.y, 10)
+          this.character.fillCircle(pad.x, pad.y, 10 * visualScale)
           this.character.fillStyle(accent, 1)
-          this.character.fillCircle(pad.x, pad.y, 7.2)
+          this.character.fillCircle(pad.x, pad.y, 7.2 * visualScale)
         }
         break
       }
