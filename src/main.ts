@@ -8,7 +8,7 @@ if (!app) {
   throw new Error('Missing #app root element')
 }
 
-app.innerHTML = '<div id="game-root"></div>'
+app.innerHTML = '<div id="game-root"></div><div id="hud-root" aria-live="polite"></div>'
 
 const game = new Phaser.Game({
   ...gameConfig,

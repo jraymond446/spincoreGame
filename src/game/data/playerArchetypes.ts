@@ -1,0 +1,60 @@
+import type { PlayerArchetype, PlayerArchetypeId } from './matchTypes'
+
+export const playerArchetypes: Record<PlayerArchetypeId, PlayerArchetype> = {
+  keeper: {
+    id: 'keeper',
+    role: 'keeper',
+    attributes: {
+      speed: 0.72,
+      control: 0.72,
+      passing: 0.62,
+      shooting: 0.38,
+      defense: 0.94,
+      power: 0.72,
+      accuracy: 0.68,
+      reaction: 0.96,
+    },
+  },
+  striker: {
+    id: 'striker',
+    role: 'striker',
+    attributes: {
+      speed: 0.94,
+      control: 0.78,
+      passing: 0.58,
+      shooting: 0.94,
+      defense: 0.46,
+      power: 0.82,
+      accuracy: 0.86,
+      reaction: 0.84,
+    },
+  },
+  support: {
+    id: 'support',
+    role: 'support',
+    attributes: {
+      speed: 0.82,
+      control: 0.94,
+      passing: 0.96,
+      shooting: 0.58,
+      defense: 0.62,
+      power: 0.54,
+      accuracy: 0.9,
+      reaction: 0.84,
+    },
+  },
+  brute: {
+    id: 'brute',
+    role: 'brute',
+    attributes: {
+      speed: 0.76,
+      control: 0.5,
+      passing: 0.34,
+      shooting: 0.64,
+      defense: 0.96,
+      power: 1,
+      accuracy: 0.38,
+      reaction: 0.7,
+    },
+  },
+}

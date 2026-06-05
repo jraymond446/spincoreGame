@@ -18,8 +18,10 @@ body {
 }
 
 #app {
+  position: relative;
   width: 100%;
   height: 100%;
+  overflow: hidden;
 }
 
 #game-root {
@@ -30,7 +32,27 @@ body {
     linear-gradient(135deg, #071016 0%, #101c26 42%, #08141c 100%);
 }
 
+#hud-root {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.scoreboard {
+  position: absolute;
+  min-width: 170px;
+  white-space: pre-line;
+  color: #d7fbff;
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1.35;
+  text-shadow: 0 0 12px #2eeeff;
+}
+
 canvas {
   display: block;
+  width: 100%;
+  height: 100%;
   image-rendering: auto;
 }

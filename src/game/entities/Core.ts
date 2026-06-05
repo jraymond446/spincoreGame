@@ -47,6 +47,13 @@ export class Core {
     }
   }
 
+  get velocity(): Point {
+    return {
+      x: this.body.velocity.x,
+      y: this.body.velocity.y,
+    }
+  }
+
   update(): void {
     const position = this.position
     const velocity = this.body.velocity
@@ -67,15 +74,31 @@ export class Core {
   }
 
   reset(): void {
-    const bodyApi = this.scene.matter.body
-
-    bodyApi.setPosition(this.body, {
+    this.setSensor(false)
+    this.setPosition({
       x: coreConfig.spawn.x,
       y: coreConfig.spawn.y,
     })
-    bodyApi.setVelocity(this.body, { x: 0, y: 0 })
-    bodyApi.setAngularVelocity(this.body, 0)
+    this.setVelocity({ x: 0, y: 0 })
     this.update()
+  }
+
+  holdAt(position: Point): void {
+    this.setPosition(position)
+    this.setVelocity({ x: 0, y: 0 })
+  }
+
+  setPosition(position: Point): void {
+    this.scene.matter.body.setPosition(this.body, position)
+  }
+
+  setVelocity(velocity: Point): void {
+    this.scene.matter.body.setVelocity(this.body, velocity)
+    this.scene.matter.body.setAngularVelocity(this.body, 0)
+  }
+
+  setSensor(isSensor: boolean): void {
+    this.scene.matter.body.set(this.body, 'isSensor', isSensor)
   }
 
   applyForce(force: Point): void {

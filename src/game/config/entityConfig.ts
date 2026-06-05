@@ -1,8 +1,8 @@
 export const coreConfig = {
   radius: 18,
   spawn: {
-    x: 640,
-    y: 360,
+    x: 450,
+    y: 700,
   },
   fillColor: 0xd8fbff,
   strokeColor: 0x41e6ff,
@@ -16,8 +16,8 @@ export const coreConfig = {
 
 export const playerConfig = {
   spawn: {
-    x: 420,
-    y: 360,
+    x: 450,
+    y: 1050,
   },
   radius: 26,
   maxSpeed: 5.2,
@@ -31,11 +31,70 @@ export const playerConfig = {
     width: 13,
     curve: 44,
     rootOffset: 18,
-    sampleCount: 8,
-    contactRadius: 15,
-    contactForce: 0.0018,
-    guideForce: 0.00065,
+    visualSampleCount: 8,
     color: 0xffcf68,
     shadowColor: 0x4b2f0d,
+  },
+} as const
+
+export const stickInteractionConfig = {
+  visual: {
+    length: 92,
+    width: 13,
+    curve: 44,
+    rootOffset: 18,
+    sampleCount: 8,
+    color: 0xffcf68,
+    shadowColor: 0x4b2f0d,
+  },
+  cradle: {
+    cradleMinRadius: 38,
+    cradleMaxRadius: 148,
+    cradleMinAngle: 4,
+    cradleMaxAngle: 78,
+    cradleSocketOffset: {
+      forward: 76,
+      side: 34,
+    },
+    cradleAssistSnapRadius: 46,
+    maxCradleEntrySpeed: 32,
+    releaseCooldownMs: 320,
+    debugSegments: 26,
+  },
+  deflect: {
+    deflectForce: 5.4,
+    pointerHeldDeflectForce: 1.7,
+    deflectRadius: 29,
+    deflectCooldownMs: 120,
+  },
+  chargeTiming: {
+    stableCradleMs: 800,
+    chargeCradleMs: 1400,
+    overchargeMs: 2000,
+    fumbleMs: 2000,
+  },
+  release: {
+    releaseForceMin: 8.2,
+    releaseForceMax: 16.6,
+    playerVelocityReleaseInfluence: 0.72,
+    fumbleSpeed: 2.3,
+    vectorScale: 11,
+    vectorVisibleSeconds: 0.34,
+  },
+  debug: {
+    textX: 34,
+    textY: 142,
+    zoneFillColor: 0x41e6ff,
+    zoneStrokeColor: 0x9af8ff,
+    deflectZoneColor: 0xffcf68,
+    socketColor: 0xfff09a,
+    assistRadiusColor: 0x8effb4,
+    rejectedContactColor: 0xff4770,
+    releaseVectorColor: 0xff6b7a,
+    textColor: '#d7fbff',
+    zoneFillAlpha: 0.16,
+    zoneStrokeAlpha: 0.82,
+    deflectZoneAlpha: 0.22,
+    socketRadius: 8,
   },
 } as const

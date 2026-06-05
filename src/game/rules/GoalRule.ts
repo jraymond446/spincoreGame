@@ -14,7 +14,8 @@ export class GoalRule {
   }
 
   check(currentPosition: Point, gate: GoalGate): GoalCrossing | null {
-    const directionSign = currentPosition.x >= this.previousPosition.x ? 1 : -1
+    const motion = subtract(currentPosition, this.previousPosition)
+    const directionSign = dot(motion, gate.normal) >= 0 ? 1 : -1
     const crossing = findSegmentIntersection(
       this.previousPosition,
       currentPosition,
@@ -76,4 +77,8 @@ function subtract(a: Point, b: Point): Point {
 
 function cross(a: Point, b: Point): number {
   return a.x * b.y - a.y * b.x
+}
+
+function dot(a: Point, b: Point): number {
+  return a.x * b.x + a.y * b.y
 }

@@ -57,4 +57,12 @@ export class InputController {
 
     return Phaser.Math.Angle.Between(origin.x, origin.y, pointer.worldX, pointer.worldY)
   }
+
+  isPointerHeld(): boolean {
+    return this.scene.input.activePointer.isDown
+  }
+
+  consumeDebugToggle(): boolean {
+    return Phaser.Input.Keyboard.JustDown(this.keys.right)
+  }
 }

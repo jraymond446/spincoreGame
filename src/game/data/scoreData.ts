@@ -1,17 +1,19 @@
-export type ScoreState = {
-  goals: number
-  lastCall: string
-}
+import type { MatchState } from './matchTypes'
 
-export const initialScoreState: ScoreState = {
-  goals: 0,
-  lastCall: 'READY',
+export const initialMatchState: MatchState = {
+  score: {
+    A: 0,
+    B: 0,
+  },
+  firstTo: 5,
+  winner: null,
+  lastScorer: null,
 }
 
 export const scoreLabels = {
   title: 'SPINCORE',
-  goals: 'GOALS',
-  last: 'LAST',
-  forward: 'FORWARD',
-  reverse: 'REVERSE',
+  teamA: 'TEAM A',
+  teamB: 'TEAM B',
+  firstTo: 'FIRST TO',
+  winner: 'WINNER',
 } as const
