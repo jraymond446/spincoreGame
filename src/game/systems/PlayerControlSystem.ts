@@ -1,6 +1,7 @@
 import { aiConfig } from '../config/aiConfig'
 import type { Point } from '../data/geometry'
 import type { Player } from '../entities/Player'
+import type { ControlledPlayerSelection } from '../lab/LabConfig'
 
 export class PlayerControlSystem {
   private controlledPlayerId: string | null = null
@@ -11,8 +12,16 @@ export class PlayerControlSystem {
     carrierId: string | null,
     corePosition: Point,
     deltaMs: number,
+    selection: ControlledPlayerSelection = 'auto',
   ): Player {
     this.switchTimerMs -= deltaMs
+    const explicitlySelected = selectByRole(teamAPlayers, selection)
+
+    if (explicitlySelected) {
+      this.setControlled(teamAPlayers, explicitlySelected)
+      return explicitlySelected
+    }
+
     const teamCarrier = teamAPlayers.find((player) => player.id === carrierId)
 
     if (teamCarrier) {
@@ -66,4 +75,31 @@ function minByDistance(players: Player[], point: Point): Player {
 
 function distance(a: Point, b: Point): number {
   return Math.hypot(a.x - b.x, a.y - b.y)
+}
+
+function selectByRole(
+  players: Player[],
+  selection: ControlledPlayerSelection,
+): Player | null {
+  if (selection === 'auto') {
+    return null
+  }
+
+  const preferredId =
+    selection === 'keeper'
+      ? 'a-keeper'
+      : selection === 'flex'
+        ? 'a-support'
+        : 'a-striker'
+  const preferred = players.find((player) => player.id === preferredId)
+
+  if (preferred) {
+    return preferred
+  }
+
+  return selection === 'flex'
+    ? players.find(
+        (player) => player.role === 'support' || player.role === 'brute',
+      ) ?? null
+    : players.find((player) => player.role === selection) ?? null
 }

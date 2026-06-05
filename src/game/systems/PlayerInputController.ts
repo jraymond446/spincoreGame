@@ -9,6 +9,8 @@ export type PlayerInputState = {
   movement: Phaser.Math.Vector2
   aimAngle: number
   hold: boolean
+  bodyCheck: boolean
+  stickSwipe: boolean
 }
 
 export type InputDebugVectors = {
@@ -38,6 +40,8 @@ export class PlayerInputController {
   private keys: MovementKeys
   private debugKey: Phaser.Input.Keyboard.Key
   private modeKey: Phaser.Input.Keyboard.Key
+  private bodyCheckKeys: Phaser.Input.Keyboard.Key[]
+  private stickSwipeKey: Phaser.Input.Keyboard.Key
   private mode: InputMode
   private movement = new Phaser.Math.Vector2()
   private debugVectors: InputDebugVectors = {
@@ -50,6 +54,11 @@ export class PlayerInputController {
   private joystickBase: HTMLDivElement
   private joystickKnob: HTMLDivElement
   private aimIndicator: HTMLDivElement
+  private bodyCheckButton: HTMLButtonElement
+  private stickSwipeButton: HTMLButtonElement
+  private touchBodyCheckQueued = false
+  private touchStickSwipeQueued = false
+  private rightMouseWasDown = false
   private defaultJoystickCenter: Point = { x: 0, y: 0 }
   private defaultAimCenter: Point = { x: 0, y: 0 }
 
@@ -74,6 +83,11 @@ export class PlayerInputController {
     }
     this.debugKey = this.keys.right
     this.modeKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.L)
+    this.bodyCheckKeys = [
+      keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE),
+      keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT),
+    ]
+    this.stickSwipeKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E)
     this.touchRoot = document.createElement('div')
     this.touchRoot.className = 'touch-controls'
     this.joystickBase = document.createElement('div')
@@ -82,6 +96,14 @@ export class PlayerInputController {
     this.joystickKnob.className = 'virtual-joystick-knob'
     this.aimIndicator = document.createElement('div')
     this.aimIndicator.className = 'touch-aim-indicator'
+    this.bodyCheckButton = this.createTouchActionButton(
+      'CHECK',
+      'touch-body-check-button',
+    )
+    this.stickSwipeButton = this.createTouchActionButton(
+      'POKE',
+      'touch-stick-swipe-button',
+    )
     this.touchRoot.style.setProperty(
       '--joystick-size',
       `${inputConfig.touch.joystickRadius * 2}px`,
@@ -103,8 +125,14 @@ export class PlayerInputController {
       `${inputConfig.touch.aimIndicatorRadius}px`,
     )
     this.joystickBase.appendChild(this.joystickKnob)
-    this.touchRoot.append(this.joystickBase, this.aimIndicator)
+    this.touchRoot.append(
+      this.joystickBase,
+      this.aimIndicator,
+      this.bodyCheckButton,
+      this.stickSwipeButton,
+    )
     hudRoot.appendChild(this.touchRoot)
+    scene.game.canvas.addEventListener('contextmenu', this.preventContextMenu)
 
     scene.input.addPointer(2)
     scene.input.on(Phaser.Input.Events.POINTER_DOWN, this.handlePointerDown, this)
@@ -128,11 +156,28 @@ export class PlayerInputController {
     const targetMovement =
       this.mode === 'touch' ? this.getTouchMovement() : this.getKeyboardMovement()
     const movementStep = inputConfig.movementAcceleration * (deltaMs / 1000)
+    const pointer = this.scene.input.activePointer
+    const rightMouseDown =
+      this.mode === 'keyboardMouse' &&
+      !pointer.wasTouch &&
+      pointer.rightButtonDown()
     const hold =
       this.mode === 'touch'
         ? this.rightTouch !== null
-        : this.scene.input.activePointer.isDown &&
-          !this.scene.input.activePointer.wasTouch
+        : pointer.leftButtonDown() && !pointer.wasTouch
+    const bodyCheck =
+      this.mode === 'touch'
+        ? this.consumeTouchBodyCheck()
+        : this.bodyCheckKeys.some((key) =>
+            Phaser.Input.Keyboard.JustDown(key),
+          )
+    const stickSwipe =
+      this.mode === 'touch'
+        ? this.consumeTouchStickSwipe()
+        : Phaser.Input.Keyboard.JustDown(this.stickSwipeKey) ||
+          (rightMouseDown && !this.rightMouseWasDown)
+
+    this.rightMouseWasDown = rightMouseDown
 
     moveVectorToward(this.movement, targetMovement, movementStep)
     const aimAngle = this.getSmoothedAimAngle(
@@ -153,6 +198,8 @@ export class PlayerInputController {
       movement: this.movement.clone(),
       aimAngle,
       hold,
+      bodyCheck,
+      stickSwipe,
     }
   }
 
@@ -179,6 +226,9 @@ export class PlayerInputController {
     this.movement.set(0, 0)
     this.leftTouch = null
     this.rightTouch = null
+    this.touchBodyCheckQueued = false
+    this.touchStickSwipeQueued = false
+    this.rightMouseWasDown = false
     this.debugVectors = {
       leftJoystick: { x: 0, y: 0 },
       rightAim: { x: 0, y: 0 },
@@ -210,6 +260,14 @@ export class PlayerInputController {
         bottomSafeArea -
         touch.joystickRadius,
     }
+    this.bodyCheckButton.style.right =
+      `calc(${touch.safePadding}px + env(safe-area-inset-right, 0px))`
+    this.bodyCheckButton.style.bottom =
+      `calc(${bottomSafeArea + touch.safePadding + touch.joystickRadius * 2 + 18}px)`
+    this.stickSwipeButton.style.right =
+      `calc(${touch.safePadding + 76}px + env(safe-area-inset-right, 0px))`
+    this.stickSwipeButton.style.bottom =
+      `calc(${bottomSafeArea + touch.safePadding + touch.joystickRadius * 2 + 18}px)`
     this.updateTouchVisuals()
   }
 
@@ -218,6 +276,18 @@ export class PlayerInputController {
     this.scene.input.off(Phaser.Input.Events.POINTER_MOVE, this.handlePointerMove, this)
     this.scene.input.off(Phaser.Input.Events.POINTER_UP, this.handlePointerUp, this)
     this.scene.input.off('pointerupoutside', this.handlePointerUp, this)
+    this.scene.game.canvas.removeEventListener(
+      'contextmenu',
+      this.preventContextMenu,
+    )
+    this.bodyCheckButton.removeEventListener(
+      'pointerdown',
+      this.handleBodyCheckPointer,
+    )
+    this.stickSwipeButton.removeEventListener(
+      'pointerdown',
+      this.handleStickSwipePointer,
+    )
     this.touchRoot.remove()
   }
 
@@ -446,6 +516,54 @@ export class PlayerInputController {
     positionElement(this.joystickKnob, knobOffset)
     positionElement(this.aimIndicator, aimCenter)
     this.aimIndicator.classList.toggle('is-active', this.rightTouch !== null)
+  }
+
+  private createTouchActionButton(
+    label: string,
+    className: string,
+  ): HTMLButtonElement {
+    const button = document.createElement('button')
+    button.type = 'button'
+    button.className = `touch-action-button ${className}`
+    button.textContent = label
+
+    if (className === 'touch-body-check-button') {
+      button.addEventListener('pointerdown', this.handleBodyCheckPointer)
+    } else {
+      button.addEventListener('pointerdown', this.handleStickSwipePointer)
+    }
+
+    return button
+  }
+
+  private handleBodyCheckPointer = (event: PointerEvent): void => {
+    event.preventDefault()
+    event.stopPropagation()
+    this.setMode('touch')
+    this.touchBodyCheckQueued = true
+  }
+
+  private handleStickSwipePointer = (event: PointerEvent): void => {
+    event.preventDefault()
+    event.stopPropagation()
+    this.setMode('touch')
+    this.touchStickSwipeQueued = true
+  }
+
+  private consumeTouchBodyCheck(): boolean {
+    const queued = this.touchBodyCheckQueued
+    this.touchBodyCheckQueued = false
+    return queued
+  }
+
+  private consumeTouchStickSwipe(): boolean {
+    const queued = this.touchStickSwipeQueued
+    this.touchStickSwipeQueued = false
+    return queued
+  }
+
+  private preventContextMenu = (event: MouseEvent): void => {
+    event.preventDefault()
   }
 }
 

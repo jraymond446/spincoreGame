@@ -21,6 +21,7 @@ export const teams: Team[] = [
         archetypeId: 'keeper',
         handedness: 'right',
         playStyle: 'tight',
+        stickStyle: 'cradle',
       },
       {
         id: 'a-support',
@@ -31,6 +32,7 @@ export const teams: Team[] = [
         archetypeId: 'support',
         handedness: 'right',
         playStyle: 'creative',
+        stickStyle: 'cradle',
       },
       {
         id: 'a-striker',
@@ -41,6 +43,7 @@ export const teams: Team[] = [
         archetypeId: 'striker',
         handedness: 'left',
         playStyle: 'aggressive',
+        stickStyle: 'hook',
       },
     ],
   },
@@ -63,6 +66,7 @@ export const teams: Team[] = [
         archetypeId: 'keeper',
         handedness: 'right',
         playStyle: 'sweeper',
+        stickStyle: 'cradle',
       },
       {
         id: 'b-brute',
@@ -73,6 +77,7 @@ export const teams: Team[] = [
         archetypeId: 'brute',
         handedness: 'right',
         playStyle: 'disruptive',
+        stickStyle: 'hammer',
       },
       {
         id: 'b-striker',
@@ -83,6 +88,7 @@ export const teams: Team[] = [
         archetypeId: 'striker',
         handedness: 'right',
         playStyle: 'direct',
+        stickStyle: 'whip',
       },
     ],
   },

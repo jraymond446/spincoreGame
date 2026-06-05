@@ -200,7 +200,12 @@ export class StickInteractionSystem {
     return this.lastInteraction
   }
 
-  forceFumble(core: Core, players: Player[], targetPlayerId: string): boolean {
+  forceFumble(
+    core: Core,
+    players: Player[],
+    targetPlayerId: string,
+    contactDirection?: Point,
+  ): boolean {
     if (this.carrierId !== targetPlayerId || !this.isCradled()) {
       return false
     }
@@ -211,7 +216,7 @@ export class StickInteractionSystem {
       return false
     }
 
-    this.fumble(core, carrier)
+    this.fumble(core, carrier, contactDirection)
     return true
   }
 
@@ -689,16 +694,29 @@ export class StickInteractionSystem {
     )
   }
 
-  private fumble(core: Core, carrier: Player): void {
+  private fumble(
+    core: Core,
+    carrier: Player,
+    contactDirection?: Point,
+  ): void {
     const aim = carrier.getStickForward()
     const right = carrier.getCradleSideDirection()
+    const direction = contactDirection
+      ? normalized({
+          x: contactDirection.x + right.x * 0.35,
+          y: contactDirection.y + right.y * 0.35,
+        })
+      : normalized({
+          x: aim.x + right.x * 0.55,
+          y: aim.y + right.y * 0.55,
+        })
 
     this.finishPossession(
       core,
       carrier,
       {
-        x: aim.x * stickConfig.fumbleSpeed + right.x * stickConfig.fumbleSpeed * 0.55,
-        y: aim.y * stickConfig.fumbleSpeed + right.y * stickConfig.fumbleSpeed * 0.55,
+        x: direction.x * stickConfig.fumbleSpeed,
+        y: direction.y * stickConfig.fumbleSpeed,
       },
       'FUMBLED',
     )

@@ -2,8 +2,7 @@ import Phaser from 'phaser'
 import { stickConfig } from '../config/stickConfig'
 import { visualConfig } from '../config/visualConfig'
 import type { StickCurve } from '../entities/Player'
-import type { StickStyle } from '../data/playerVisualProfiles'
-import type { StickActionState } from '../data/matchTypes'
+import type { StickActionState, StickStyle } from '../data/matchTypes'
 
 type Point = { x: number; y: number }
 

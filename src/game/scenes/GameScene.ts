@@ -15,11 +15,18 @@ import { initialMatchState, scoreLabels } from '../data/scoreData'
 import { Core } from '../entities/Core'
 import { GoalGate } from '../entities/GoalGate'
 import type { Player } from '../entities/Player'
+import { labEvents } from '../lab/LabEvents'
+import { getLabState, setLabMode } from '../lab/LabState'
 import { GoalRule, type GoalCrossing } from '../rules/GoalRule'
 import { AISystem } from '../systems/AISystem'
 import { ArenaSystem } from '../systems/ArenaSystem'
 import { CoreRecoverySystem } from '../systems/CoreRecoverySystem'
+import {
+  DefenseSystem,
+  type DefenseIntent,
+} from '../systems/DefenseSystem'
 import { DebugHudSystem } from '../systems/DebugHudSystem'
+import { FumbleSystem } from '../systems/FumbleSystem'
 import { KeeperAreaSystem } from '../systems/KeeperAreaSystem'
 import { PlayerInputController } from '../systems/PlayerInputController'
 import { PlayerControlSystem } from '../systems/PlayerControlSystem'
@@ -41,6 +48,8 @@ export class GameScene extends Phaser.Scene {
   private playerControlSystem!: PlayerControlSystem
   private aiSystem!: AISystem
   private stickInteractionSystem!: StickInteractionSystem
+  private defenseSystem!: DefenseSystem
+  private fumbleSystem!: FumbleSystem
   private debugHudSystem!: DebugHudSystem
   private scoreElement!: HTMLDivElement
   private matchState: MatchState = structuredClone(initialMatchState)
@@ -52,7 +61,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   init(data?: { gameMode?: GameMode }): void {
-    this.gameMode = data?.gameMode ?? gameplayConfig.defaultMode
+    this.gameMode = data?.gameMode ?? getLabState().mode
     this.matchState = structuredClone(initialMatchState)
     this.debugEnabled = false
   }
@@ -83,6 +92,8 @@ export class GameScene extends Phaser.Scene {
     )
     this.inputController = new PlayerInputController(this, hudRoot)
     this.stickInteractionSystem = new StickInteractionSystem(this)
+    this.defenseSystem = new DefenseSystem(this)
+    this.fumbleSystem = new FumbleSystem()
     this.coreRecoverySystem = new CoreRecoverySystem()
     this.debugHudSystem = new DebugHudSystem(hudRoot, {
       onReset: this.resetPositions,
@@ -98,8 +109,14 @@ export class GameScene extends Phaser.Scene {
     this.createHud(hudRoot)
     this.layoutViewport()
     this.scale.on('resize', this.layoutViewport, this)
+    window.addEventListener(labEvents.apply, this.applyLabChanges)
+    window.addEventListener(labEvents.resetMatch, this.resetMatch)
+    window.addEventListener(labEvents.resetCore, this.resetCore)
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off('resize', this.layoutViewport, this)
+      window.removeEventListener(labEvents.apply, this.applyLabChanges)
+      window.removeEventListener(labEvents.resetMatch, this.resetMatch)
+      window.removeEventListener(labEvents.resetCore, this.resetCore)
       this.inputController.destroy()
       this.debugHudSystem.destroy()
       this.scoreElement.remove()
@@ -118,6 +135,7 @@ export class GameScene extends Phaser.Scene {
       this.stickInteractionSystem.getCarrierId(),
       this.core.position,
       delta,
+      getLabState().controlledPlayer,
     )
     const aiIntents = this.aiSystem.update(
       players,
@@ -127,11 +145,21 @@ export class GameScene extends Phaser.Scene {
       delta,
     )
     const stickIntents = new Map<string, StickIntent>()
+    const defenseIntents = new Map<string, DefenseIntent>()
 
-    this.updateHumanPlayer(controlledPlayer, stickIntents, delta)
-    this.updateAIPlayers(players, controlledPlayer.id, aiIntents, stickIntents)
-    this.arenaSystem.containPlayers(players)
-    this.keeperAreaSystem.update(players)
+    this.updateHumanPlayer(
+      controlledPlayer,
+      stickIntents,
+      defenseIntents,
+      delta,
+    )
+    this.updateAIPlayers(
+      players,
+      controlledPlayer.id,
+      aiIntents,
+      stickIntents,
+      defenseIntents,
+    )
 
     if (this.inputController.consumeDebugToggle()) {
       this.toggleDebug()
@@ -144,16 +172,17 @@ export class GameScene extends Phaser.Scene {
       controlledPlayer.id,
       delta,
     )
-
-    for (const request of this.aiSystem.consumeCheckRequests()) {
-      if (
-        this.stickInteractionSystem.getStickState(request.bruteId) ===
-          'SWINGING' &&
-        Math.random() <= request.fumbleChance
-      ) {
-        this.stickInteractionSystem.forceFumble(this.core, players, request.targetId)
-      }
-    }
+    this.defenseSystem.update(
+      this.core,
+      players,
+      defenseIntents,
+      this.stickInteractionSystem,
+      this.fumbleSystem,
+      controlledPlayer.id,
+      delta,
+    )
+    this.arenaSystem.containPlayers(players)
+    this.keeperAreaSystem.update(players)
 
     this.core.update()
 
@@ -182,6 +211,7 @@ export class GameScene extends Phaser.Scene {
   private updateHumanPlayer(
     player: Player,
     stickIntents: Map<string, StickIntent>,
+    defenseIntents: Map<string, DefenseIntent>,
     deltaMs: number,
   ): void {
     const input = this.inputController.update(
@@ -194,6 +224,10 @@ export class GameScene extends Phaser.Scene {
     stickIntents.set(player.id, {
       hold: input.hold,
     })
+    defenseIntents.set(player.id, {
+      bodyCheck: input.bodyCheck,
+      stickSwipe: input.stickSwipe,
+    })
   }
 
   private updateAIPlayers(
@@ -201,6 +235,7 @@ export class GameScene extends Phaser.Scene {
     controlledPlayerId: string,
     intents: Map<string, PlayerControlIntent>,
     stickIntents: Map<string, StickIntent>,
+    defenseIntents: Map<string, DefenseIntent>,
   ): void {
     for (const player of players) {
       if (player.id === controlledPlayerId) {
@@ -212,6 +247,10 @@ export class GameScene extends Phaser.Scene {
       if (!intent) {
         player.update(new Phaser.Math.Vector2(), player.getAimAngle())
         stickIntents.set(player.id, { hold: false })
+        defenseIntents.set(player.id, {
+          bodyCheck: false,
+          stickSwipe: false,
+        })
         continue
       }
 
@@ -229,6 +268,10 @@ export class GameScene extends Phaser.Scene {
         swing: intent.swing,
         releaseTarget: intent.releaseTarget,
         aiReleaseDelayMs: intent.aiReleaseDelayMs,
+      })
+      defenseIntents.set(player.id, {
+        bodyCheck: intent.bodyCheck ?? false,
+        stickSwipe: intent.stickSwipe ?? false,
       })
     }
   }
@@ -296,6 +339,8 @@ export class GameScene extends Phaser.Scene {
   private resetPositions = (clearGoalCooldown = true): void => {
     this.inputController.reset()
     this.stickInteractionSystem.clearForReset(this.core)
+    this.defenseSystem.clear()
+    this.fumbleSystem.clear()
     this.coreRecoverySystem.reset()
     this.teamSystem.resetFormation()
     this.core.reset()
@@ -306,9 +351,33 @@ export class GameScene extends Phaser.Scene {
   }
 
   private toggleGameMode = (): void => {
-    this.scene.restart({
-      gameMode: this.gameMode === 'stickLab' ? 'match3v3' : 'stickLab',
-    })
+    const mode = this.gameMode === 'stickLab' ? 'match3v3' : 'stickLab'
+
+    setLabMode(mode)
+    this.scene.restart({ gameMode: mode })
+  }
+
+  private applyLabChanges = (): void => {
+    this.scene.restart({ gameMode: getLabState().mode })
+  }
+
+  private resetMatch = (): void => {
+    this.matchState = structuredClone(initialMatchState)
+    this.resetPositions()
+    this.updateHud()
+  }
+
+  private resetCore = (): void => {
+    this.inputController.reset()
+    this.stickInteractionSystem.clearForReset(this.core)
+    this.defenseSystem.clear()
+    this.fumbleSystem.clear()
+    this.coreRecoverySystem.reset()
+    this.core.reset()
+
+    for (const rule of this.goalRules.values()) {
+      rule.reset(coreConfig.spawn)
+    }
   }
 
   private toggleDebug = (): void => {
@@ -321,6 +390,7 @@ export class GameScene extends Phaser.Scene {
   private setDebugEnabled(enabled: boolean): void {
     this.debugEnabled = enabled
     this.stickInteractionSystem.setDebugEnabled(enabled)
+    this.defenseSystem.setDebugEnabled(enabled)
     this.aiSystem.setDebugEnabled(enabled)
     this.teamSystem.setDebugVisible(enabled)
     this.keeperAreaSystem.setDebugEnabled(enabled)
@@ -328,6 +398,7 @@ export class GameScene extends Phaser.Scene {
 
   private recoverCoreToFaceoff(): void {
     this.stickInteractionSystem.clearForReset(this.core)
+    this.fumbleSystem.clear()
     this.core.reset()
 
     if (coreSafetyConfig.coreResetImpulseAfterRecovery > 0) {
@@ -381,6 +452,12 @@ export class GameScene extends Phaser.Scene {
       lastInteraction: this.stickInteractionSystem.getLastInteraction(),
       recoveryStatus: this.coreRecoverySystem.getDebugStatus(),
       formations: this.teamSystem.getFormationIds(),
+      defenseState: this.defenseSystem.getState(controlledPlayer.id),
+      defenseCooldowns:
+        this.defenseSystem.getCooldowns(controlledPlayer.id),
+      fumblePressure: this.fumbleSystem.getPressure(),
+      fumblePressureNormalized:
+        this.fumbleSystem.getNormalizedPressure(),
     })
   }
 

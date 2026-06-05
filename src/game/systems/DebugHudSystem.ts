@@ -14,6 +14,7 @@ import type {
   StickInteractionResult,
 } from './StickInteractionSystem'
 import type { InputMode } from './PlayerInputController'
+import type { DefensiveActionState } from './DefenseSystem'
 
 type DebugHudState = {
   gameMode: GameMode
@@ -37,6 +38,13 @@ type DebugHudState = {
   cradleFailure: CradleFailureReason
   lastInteraction: StickInteractionResult
   formations: Record<TeamSide, FormationId>
+  defenseState: DefensiveActionState
+  defenseCooldowns: {
+    bodyCheckMs: number
+    stickSwipeMs: number
+  }
+  fumblePressure: number
+  fumblePressureNormalized: number
 }
 
 type DebugHudActions = {
@@ -144,6 +152,10 @@ export class DebugHudSystem {
       `ASSIST   ${state.coreInCatchAssistRadius ? 'IN RADIUS' : 'OUTSIDE'}\n` +
       `FAIL     ${state.cradleFailure}\n` +
       `CONTACT  ${state.lastInteraction}\n` +
+      `DEFENSE  ${state.defenseState}\n` +
+      `CHECK CD ${Math.ceil(state.defenseCooldowns.bodyCheckMs)}ms\n` +
+      `POKE CD  ${Math.ceil(state.defenseCooldowns.stickSwipeMs)}ms\n` +
+      `FUMBLE   ${state.fumblePressure.toFixed(2)} / ${state.fumblePressureNormalized.toFixed(2)}\n` +
       `RECOVERY ${state.recoveryStatus}\n` +
       `VISUAL   ${state.stickVisualRotation.toFixed(2)}\n` +
       `OWNER    ${state.possessionOwner ?? 'LOOSE'}`

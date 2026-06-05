@@ -1,5 +1,6 @@
 import Phaser from 'phaser'
 import { createAIDecisionContext } from '../ai/AIDecisionContext'
+import { decideDefenseActions } from '../ai/DefenseBehavior'
 import { getPlayStyleModifiers } from '../ai/PlayStyleModifiers'
 import { decideRoleIntent } from '../ai/RoleBehaviors'
 import { aiConfig } from '../config/aiConfig'
@@ -14,20 +15,12 @@ import type {
 import type { Core } from '../entities/Core'
 import type { Player } from '../entities/Player'
 
-export type BruteCheckRequest = {
-  bruteId: string
-  targetId: string
-  fumbleChance: number
-}
-
 export class AISystem {
   private readonly debugGraphics: Phaser.GameObjects.Graphics
   private readonly formationBiases: Record<TeamSide, FormationAIBias>
   private debugEnabled = false
   private decisionTimerMs = 0
   private intents = new Map<string, PlayerControlIntent>()
-  private bruteCooldowns = new Map<string, number>()
-  private checkRequests: BruteCheckRequest[] = []
 
   constructor(
     scene: Phaser.Scene,
@@ -45,18 +38,11 @@ export class AISystem {
     deltaMs: number,
   ): Map<string, PlayerControlIntent> {
     this.decisionTimerMs -= deltaMs
-    this.checkRequests = []
-
-    for (const [id, cooldown] of this.bruteCooldowns) {
-      this.bruteCooldowns.set(id, Math.max(0, cooldown - deltaMs))
-    }
-
     if (this.decisionTimerMs <= 0) {
       this.rethink(players, core, carrierId, controlledPlayerId)
       this.decisionTimerMs = stickConfig.aiDecisionIntervalMs
     }
 
-    this.collectBruteChecks(players, carrierId)
     this.drawDebug(players)
     return this.intents
   }
@@ -67,12 +53,6 @@ export class AISystem {
     if (!enabled) {
       this.debugGraphics.clear()
     }
-  }
-
-  consumeCheckRequests(): BruteCheckRequest[] {
-    const requests = this.checkRequests
-    this.checkRequests = []
-    return requests
   }
 
   private rethink(
@@ -99,65 +79,13 @@ export class AISystem {
         this.formationBiases[player.teamSide],
       )
       const intent = decideRoleIntent(context)
+      const defense = decideDefenseActions(context)
 
-      this.intents.set(player.id, intent)
-      player.setAIState(intent.aiState)
-    }
-  }
-
-  private collectBruteChecks(
-    players: Player[],
-    carrierId: string | null,
-  ): void {
-    const carrier = players.find((player) => player.id === carrierId)
-
-    if (!carrier) {
-      return
-    }
-
-    for (const brute of players.filter(
-      (player) => player.role === 'brute',
-    )) {
-      const style = getPlayStyleModifiers(
-        brute.role,
-        brute.playStyle,
-      )
-      const formationBias = this.formationBiases[brute.teamSide]
-      const pressureRange =
-        aiConfig.bruteCheckRadius *
-        style.bruteCheckMultiplier *
-        formationBias.brutePressureMultiplier *
-        Phaser.Math.Linear(0.82, 1.1, brute.attributes.defense)
-
-      if (
-        brute.teamSide === carrier.teamSide ||
-        distance(brute.position, carrier.position) > pressureRange ||
-        (this.bruteCooldowns.get(brute.id) ?? 0) > 0
-      ) {
-        continue
-      }
-
-      const execution =
-        brute.attributes.defense * 0.48 +
-        brute.attributes.power * 0.52
-      const fumbleChance = Phaser.Math.Clamp(
-        aiConfig.bruteFumblePressure *
-          execution *
-          style.bruteCheckMultiplier *
-          formationBias.brutePressureMultiplier,
-        0,
-        0.92,
-      )
-
-      this.checkRequests.push({
-        bruteId: brute.id,
-        targetId: carrier.id,
-        fumbleChance,
+      this.intents.set(player.id, {
+        ...intent,
+        ...defense,
       })
-      this.bruteCooldowns.set(
-        brute.id,
-        aiConfig.bruteCheckCooldownMs,
-      )
+      player.setAIState(intent.aiState)
     }
   }
 
@@ -213,8 +141,4 @@ export class AISystem {
 
 function goalPoint(defendingSide: TeamSide): Point {
   return keeperAreaConfig.areas[defendingSide]
-}
-
-function distance(a: Point, b: Point): number {
-  return Math.hypot(a.x - b.x, a.y - b.y)
 }

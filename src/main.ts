@@ -1,6 +1,13 @@
 import './style.css'
 import Phaser from 'phaser'
 import { gameConfig } from './game/config/gameConfig'
+import { LabPanel } from './game/lab/LabPanel'
+import { labEvents } from './game/lab/LabEvents'
+import {
+  getLabState,
+  replaceLabState,
+} from './game/lab/LabState'
+import { applyLabSettings } from './game/lab/applyLabSettings'
 
 const app = document.querySelector<HTMLDivElement>('#app')
 
@@ -8,7 +15,19 @@ if (!app) {
   throw new Error('Missing #app root element')
 }
 
-app.innerHTML = '<div id="game-root"></div><div id="hud-root" aria-live="polite"></div>'
+app.innerHTML =
+  '<div id="game-shell">' +
+  '<div id="game-root"></div>' +
+  '<div id="hud-root" aria-live="polite"></div>' +
+  '</div>' +
+  '<div id="lab-root"></div>'
+
+const gameRoot = document.querySelector<HTMLDivElement>('#game-root')
+const labRoot = document.querySelector<HTMLDivElement>('#lab-root')
+
+if (!gameRoot || !labRoot) {
+  throw new Error('Missing game or Lab Console root')
+}
 
 let game: Phaser.Game | null = null
 
@@ -21,16 +40,39 @@ const syncVisibleViewport = (): void => {
   document.documentElement.style.setProperty('--app-height', `${height}px`)
 
   if (game) {
-    game.scale.resize(width, height)
+    const gameBounds = gameRoot.getBoundingClientRect()
+    game.scale.resize(
+      Math.max(1, Math.round(gameBounds.width)),
+      Math.max(1, Math.round(gameBounds.height)),
+    )
   }
 }
+
+applyLabSettings(getLabState())
+const labPanel = new LabPanel(labRoot, {
+  onApply: (state) => {
+    replaceLabState(state)
+    applyLabSettings(getLabState())
+    window.dispatchEvent(new CustomEvent(labEvents.apply))
+    window.requestAnimationFrame(syncVisibleViewport)
+  },
+  onResetMatch: () => {
+    window.dispatchEvent(new CustomEvent(labEvents.resetMatch))
+  },
+  onResetCore: () => {
+    window.dispatchEvent(new CustomEvent(labEvents.resetCore))
+  },
+})
 
 syncVisibleViewport()
 game = new Phaser.Game({
   ...gameConfig,
   parent: 'game-root',
 })
-syncVisibleViewport()
+window.requestAnimationFrame(syncVisibleViewport)
+
+const gameResizeObserver = new ResizeObserver(syncVisibleViewport)
+gameResizeObserver.observe(gameRoot)
 
 window.visualViewport?.addEventListener('resize', syncVisibleViewport)
 window.addEventListener('resize', syncVisibleViewport)
@@ -40,5 +82,7 @@ window.addEventListener('beforeunload', () => {
   window.visualViewport?.removeEventListener('resize', syncVisibleViewport)
   window.removeEventListener('resize', syncVisibleViewport)
   window.removeEventListener('orientationchange', syncVisibleViewport)
+  gameResizeObserver.disconnect()
+  labPanel.destroy()
   game?.destroy(true)
 })

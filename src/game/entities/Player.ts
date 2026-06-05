@@ -6,6 +6,7 @@ import type {
   AIState,
   PlayerAttributes,
   PlayerControllerType,
+  PlayerDefenseTendencies,
   PlayerHandedness,
   PlayerPlayStyle,
   PlayerRole,
@@ -41,6 +42,7 @@ export class Player {
   readonly handedness: PlayerHandedness
   readonly playStyle: PlayerPlayStyle
   readonly attributes: PlayerAttributes
+  readonly defenseTendencies: PlayerDefenseTendencies
   readonly body: MatterJS.BodyType
 
   private scene: Phaser.Scene
@@ -55,6 +57,7 @@ export class Player {
     scene: Phaser.Scene,
     rosterEntry: ResolvedPlayerRosterEntry,
     archetype: PlayerArchetype,
+    defenseTendencies: PlayerDefenseTendencies,
   ) {
     this.scene = scene
     this.id = rosterEntry.id
@@ -65,6 +68,7 @@ export class Player {
     this.handedness = rosterEntry.handedness
     this.playStyle = rosterEntry.playStyle
     this.attributes = archetype.attributes
+    this.defenseTendencies = defenseTendencies
     this.spawn = { ...rosterEntry.spawn }
     this.body = scene.matter.add.circle(
       rosterEntry.spawn.x,
@@ -86,7 +90,11 @@ export class Player {
       playStyle: this.playStyle,
       controllerType: this.controllerType,
       teamSide: this.teamSide,
-      profile: createPlayerVisualProfile(this.id, this.role),
+      profile: createPlayerVisualProfile(
+        this.id,
+        this.role,
+        rosterEntry.stickStyle,
+      ),
     })
     this.syncVisuals()
   }

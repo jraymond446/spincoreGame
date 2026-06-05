@@ -5,6 +5,7 @@ export type PlayerRole = 'keeper' | 'striker' | 'support' | 'brute'
 export type PlayerControllerType = 'human' | 'ai'
 export type PlayerArchetypeId = 'keeper' | 'striker' | 'support' | 'brute'
 export type PlayerHandedness = 'right' | 'left'
+export type StickStyle = 'hook' | 'cradle' | 'hammer' | 'whip' | 'fork'
 export type PlayerPlayStyle =
   | 'balanced'
   | 'aggressive'
@@ -72,6 +73,12 @@ export type PlayerAttributes = {
   reaction: number
 }
 
+export type PlayerDefenseTendencies = {
+  bodyCheckAggression: number
+  stickSwipeAggression: number
+  fumblePressurePreference: number
+}
+
 export type PlayerArchetype = {
   id: PlayerArchetypeId
   role: PlayerRole
@@ -89,6 +96,7 @@ export type PlayerRosterEntry = {
   archetypeId: PlayerArchetypeId
   handedness: PlayerHandedness
   playStyle: PlayerPlayStyle
+  stickStyle: StickStyle
 }
 
 export type ResolvedPlayerRosterEntry = PlayerRosterEntry & {
@@ -119,6 +127,8 @@ export type PlayerControlIntent = {
   aimTarget: Point
   hold: boolean
   swing?: boolean
+  bodyCheck?: boolean
+  stickSwipe?: boolean
   releaseTarget?: Point
   aiReleaseDelayMs?: number
   aiState: AIState

@@ -5,11 +5,14 @@ import { teams } from '../data/teams'
 import type {
   FormationAIBias,
   FormationId,
+  PlayerArchetype,
+  PlayerRosterEntry,
   ResolvedPlayerRosterEntry,
   Team,
   TeamSide,
 } from '../data/matchTypes'
 import { Player } from '../entities/Player'
+import { getLabState } from '../lab/LabState'
 import { FormationSystem } from './FormationSystem'
 
 export class TeamSystem {
@@ -19,17 +22,24 @@ export class TeamSystem {
   private readonly resetSpawns = new Map<string, { x: number; y: number }>()
 
   constructor(scene: Phaser.Scene, gameMode: GameMode) {
+    const labState = getLabState()
+    const runtimeTeams = createRuntimeTeams()
+    const stickLabPlayerId = resolveControlledPlayerId(
+      runtimeTeams.find((team) => team.side === 'A')?.roster ?? [],
+      labState.controlledPlayer,
+    )
+
     this.teams =
       gameMode === 'stickLab'
-        ? teams
+        ? runtimeTeams
             .filter((team) => team.side === 'A')
             .map((team) => ({
               ...team,
               roster: team.roster
-                .filter((entry) => entry.id === gameplayConfig.stickLab.playerId)
+                .filter((entry) => entry.id === stickLabPlayerId)
                 .map((entry) => ({ ...entry })),
             }))
-        : teams
+        : runtimeTeams
     this.formationSystem = new FormationSystem(
       scene,
       this.teams,
@@ -50,7 +60,12 @@ export class TeamSystem {
         return new Player(
           scene,
           resolvedEntry,
-          playerArchetypes[entry.archetypeId],
+          createRuntimeArchetype(entry),
+          getLabState().players[entry.id]?.defenseTendencies ?? {
+            bodyCheckAggression: 0.5,
+            stickSwipeAggression: 0.5,
+            fumblePressurePreference: 0.5,
+          },
         )
       }),
     )
@@ -105,4 +120,84 @@ export class TeamSystem {
   getFormationBiases(): Record<TeamSide, FormationAIBias> {
     return this.formationSystem.getFormationBiases()
   }
+}
+
+function createRuntimeTeams(): Team[] {
+  const labState = getLabState()
+
+  return teams.map((team) => ({
+    ...team,
+    formation: labState.formations[team.side],
+    roster: team.roster.map((entry) => {
+      const tuning = labState.players[entry.id]
+
+      if (!tuning) {
+        return { ...entry }
+      }
+
+      return {
+        ...entry,
+        role: tuning.role,
+        archetypeId: tuning.role,
+        handedness: tuning.handedness,
+        playStyle: tuning.playStyle,
+        stickStyle: tuning.stickStyle,
+      }
+    }),
+  }))
+}
+
+function createRuntimeArchetype(entry: PlayerRosterEntry): PlayerArchetype {
+  const tuning = getLabState().players[entry.id]
+  const base = playerArchetypes[entry.archetypeId]
+
+  if (!tuning) {
+    return base
+  }
+
+  return {
+    ...base,
+    id: entry.archetypeId,
+    role: entry.role,
+    defaultHandedness: entry.handedness,
+    defaultPlayStyle: entry.playStyle,
+    attributes: {
+      ...tuning.attributes,
+    },
+  }
+}
+
+function resolveControlledPlayerId(
+  roster: PlayerRosterEntry[],
+  selection: ReturnType<typeof getLabState>['controlledPlayer'],
+): string {
+  if (selection === 'auto') {
+    return (
+      roster.find((entry) => entry.id === gameplayConfig.stickLab.playerId)?.id ??
+      roster.find((entry) => entry.role !== 'keeper')?.id ??
+      roster[0]?.id ??
+      gameplayConfig.stickLab.playerId
+    )
+  }
+
+  const preferredId =
+    selection === 'keeper'
+      ? 'a-keeper'
+      : selection === 'flex'
+        ? 'a-support'
+        : 'a-striker'
+  const selected =
+    roster.find((entry) => entry.id === preferredId) ??
+    (selection === 'flex'
+      ? roster.find(
+          (entry) => entry.role === 'support' || entry.role === 'brute',
+        )
+      : roster.find((entry) => entry.role === selection))
+
+  return (
+    selected?.id ??
+    roster.find((entry) => entry.role !== 'keeper')?.id ??
+    roster[0]?.id ??
+    gameplayConfig.stickLab.playerId
+  )
 }

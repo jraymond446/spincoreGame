@@ -1,8 +1,6 @@
 import { hairColorPalette } from './visualPalettes'
 import { hairStyleOrder, type HairStyleId } from './hairStyles'
-import type { PlayerRole } from './matchTypes'
-
-export type StickStyle = 'hook' | 'cradle' | 'hammer' | 'whip' | 'fork'
+import type { PlayerRole, StickStyle } from './matchTypes'
 
 export type PlayerVisualProfile = {
   hairStyle: HairStyleId
@@ -13,6 +11,7 @@ export type PlayerVisualProfile = {
 export function createPlayerVisualProfile(
   playerId: string,
   role: PlayerRole,
+  stickStyle?: StickStyle,
 ): PlayerVisualProfile {
   const hash = [...playerId].reduce(
     (value, character) => value + character.charCodeAt(0),
@@ -22,7 +21,7 @@ export function createPlayerVisualProfile(
   return {
     hairStyle: hairStyleOrder[hash % hairStyleOrder.length],
     hairColor: hairColorPalette[hash % hairColorPalette.length],
-    stickStyle: stickStyleForPlayer(playerId, role),
+    stickStyle: stickStyle ?? stickStyleForPlayer(playerId, role),
   }
 }
 
