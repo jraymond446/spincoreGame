@@ -1,6 +1,8 @@
 import Phaser from 'phaser'
 import { aiConfig } from '../config/aiConfig'
 import { arenaConfig } from '../config/arenaConfig'
+import { keeperAreaConfig } from '../config/keeperAreaConfig'
+import { stickConfig } from '../config/stickConfig'
 import type { Point } from '../data/geometry'
 import type {
   AIState,
@@ -44,7 +46,7 @@ export class AISystem {
 
     if (this.decisionTimerMs <= 0) {
       this.rethink(players, core, carrierId, controlledPlayerId)
-      this.decisionTimerMs = aiConfig.decisionIntervalMs
+      this.decisionTimerMs = stickConfig.aiDecisionIntervalMs
     }
 
     this.collectBruteChecks(players, carrierId)
@@ -128,6 +130,9 @@ export class AISystem {
         core.position,
         distanceToCore <= aiConfig.aiCradleRadius,
         'DEFEND_GOAL',
+        undefined,
+        distanceToCore > aiConfig.aiCradleRadius &&
+          distanceToCore <= stickConfig.aiSwingRange,
       )
     }
 
@@ -157,7 +162,14 @@ export class AISystem {
     }
 
     if (player.role === 'brute' && opponentHasCore) {
-      return intent(carrier.position, carrier.position, false, 'PRESS_CARRIER')
+      return intent(
+        carrier.position,
+        carrier.position,
+        false,
+        'PRESS_CARRIER',
+        undefined,
+        distance(player.position, carrier.position) <= aiConfig.bruteCheckRadius,
+      )
     }
 
     if (opponentHasCore) {
@@ -180,11 +192,15 @@ export class AISystem {
       return intent(supportTarget, core.position, false, 'SUPPORT_ATTACK')
     }
 
+    const catchReady = distanceToCore <= aiConfig.aiCradleRadius
+
     return intent(
       core.position,
       core.position,
-      distanceToCore <= aiConfig.aiCradleRadius,
+      catchReady,
       'SEEK_CORE',
+      undefined,
+      !catchReady && distanceToCore <= stickConfig.aiSwingRange,
     )
   }
 
@@ -220,15 +236,6 @@ export class AISystem {
     this.debugGraphics.clear()
 
     for (const player of players) {
-      if (player.role === 'keeper') {
-        this.debugGraphics.lineStyle(2, 0x76e5ff, 0.55)
-        this.debugGraphics.strokeCircle(
-          goalPoint(player.teamSide).x,
-          goalPoint(player.teamSide).y,
-          aiConfig.keeperHomeRadius,
-        )
-      }
-
       if (player.role === 'brute') {
         this.debugGraphics.lineStyle(2, 0xff6b7a, 0.55)
         this.debugGraphics.strokeCircle(
@@ -247,24 +254,20 @@ function intent(
   hold: boolean,
   aiState: AIState,
   releaseTarget?: Point,
+  swing = false,
 ): PlayerControlIntent {
   return {
     moveTarget,
     aimTarget,
     hold,
+    swing,
     releaseTarget,
     aiState,
   }
 }
 
 function goalPoint(defendingSide: TeamSide): Point {
-  return {
-    x: arenaConfig.center.x,
-    y:
-      defendingSide === 'A'
-        ? arenaConfig.center.y + arenaConfig.height / 2 - 190
-        : arenaConfig.center.y - arenaConfig.height / 2 + 190,
-  }
+  return keeperAreaConfig.areas[defendingSide]
 }
 
 function bestForwardTeammate(player: Player, players: Player[]): Player {

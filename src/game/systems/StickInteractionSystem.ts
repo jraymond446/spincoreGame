@@ -1,7 +1,8 @@
 import Phaser from 'phaser'
 import { aiConfig } from '../config/aiConfig'
-import { stickInteractionConfig } from '../config/entityConfig'
+import { stickConfig } from '../config/stickConfig'
 import type { Point } from '../data/geometry'
+import type { StickActionState } from '../data/matchTypes'
 import type { Core } from '../entities/Core'
 import type { CradleZone, Player } from '../entities/Player'
 
@@ -15,17 +16,43 @@ export type CorePossessionState =
 
 export type StickIntent = {
   hold: boolean
+  swing?: boolean
   releaseTarget?: Point
+}
+
+export type CradleFailureReason =
+  | 'not catch-ready'
+  | 'outside cradle zone'
+  | 'speed too high'
+  | 'cooldown active'
+  | 'already cradled'
+  | 'deflect fallback'
+  | 'ready'
+
+export type StickInteractionResult =
+  | 'none'
+  | 'passive nudge'
+  | 'active swing'
+  | 'cradle'
+  | 'release'
+  | 'fumble'
+
+type ActionRuntime = {
+  state: StickActionState
+  elapsedMs: number
+  swingCooldownMs: number
 }
 
 type CradleTestResult = {
   accepted: boolean
   relativeSpeed: number
+  insideZone: boolean
 }
 
 type DeflectHit = {
   closestPoint: Point
   normal: Point
+  distance: number
 }
 
 type ReleaseVector = {
@@ -35,30 +62,37 @@ type ReleaseVector = {
 }
 
 export class StickInteractionSystem {
-  private state: CorePossessionState = 'FREE'
+  private coreState: CorePossessionState = 'FREE'
   private carrierId: string | null = null
   private cradleElapsedMs = 0
   private releaseCooldownMsRemaining = 0
-  private deflectCooldowns = new Map<string, number>()
+  private actionRuntimes = new Map<string, ActionRuntime>()
+  private contactCooldowns = new Map<string, number>()
   private previousHold = new Map<string, boolean>()
+  private previousSwing = new Map<string, boolean>()
+  private cradleFailures = new Map<string, CradleFailureReason>()
+  private catchAutoOrientActive = new Map<string, boolean>()
+  private cradleOpenDirections = new Map<string, number>()
   private debugEnabled = false
   private debugFocusPlayerId: string | null = null
   private debugGraphics: Phaser.GameObjects.Graphics
   private debugText: Phaser.GameObjects.Text
   private releaseVector: ReleaseVector | null = null
+  private lastInteraction: StickInteractionResult = 'none'
+  private releaseForcePreview: number = stickConfig.releaseForceMin
 
   constructor(scene: Phaser.Scene) {
     this.debugGraphics = scene.add.graphics()
     this.debugGraphics.setDepth(20)
     this.debugText = scene.add.text(
-      stickInteractionConfig.debug.textX,
-      stickInteractionConfig.debug.textY,
+      stickConfig.debug.textX,
+      stickConfig.debug.textY,
       '',
       {
         fontFamily: 'Inter, ui-sans-serif, system-ui, sans-serif',
         fontSize: '18px',
         fontStyle: '700',
-        color: stickInteractionConfig.debug.textColor,
+        color: stickConfig.debug.textColor,
       },
     )
     this.debugText.setDepth(21)
@@ -73,20 +107,27 @@ export class StickInteractionSystem {
     deltaMs: number,
   ): void {
     this.debugFocusPlayerId = this.carrierId ?? preferredPlayerId
+    this.ensurePlayers(players)
     this.updateTimers(deltaMs)
+    this.updateActionStates(players, intents)
+    this.updateStickOrientations(core, players, deltaMs)
 
     if (this.isCradled()) {
       this.updateCarrier(core, players, intents, deltaMs)
     } else {
-      this.tryAcquire(core, players, intents, preferredPlayerId)
+      this.applyCradleAssist(core, players, preferredPlayerId, deltaMs)
+      this.tryAcquire(core, players, preferredPlayerId)
 
       if (!this.isCradled()) {
-        this.processDeflections(core, players, intents)
+        this.processContacts(core, players)
       }
     }
 
     for (const player of players) {
-      this.previousHold.set(player.id, intents.get(player.id)?.hold ?? false)
+      const intent = intents.get(player.id)
+      this.previousHold.set(player.id, intent?.hold ?? false)
+      this.previousSwing.set(player.id, intent?.swing ?? false)
+      player.setStickState(this.getStickState(player.id))
     }
 
     this.drawDebug(core, players)
@@ -97,11 +138,65 @@ export class StickInteractionSystem {
   }
 
   getState(): CorePossessionState {
-    return this.state
+    return this.coreState
+  }
+
+  getStickState(playerId: string): StickActionState {
+    return this.actionRuntimes.get(playerId)?.state ?? 'IDLE'
   }
 
   getCradleElapsedMs(): number {
     return this.cradleElapsedMs
+  }
+
+  getChargeNormalized(): number {
+    return Phaser.Math.Clamp(
+      this.cradleElapsedMs / stickConfig.overchargeMs,
+      0,
+      1,
+    )
+  }
+
+  getReleaseForcePreview(): number {
+    return this.releaseForcePreview
+  }
+
+  getCradlePhase(): string {
+    if (this.coreState === 'CRADLED_OVERCHARGED') {
+      return 'OVERCHARGED'
+    }
+
+    if (this.coreState === 'CRADLED_CHARGING') {
+      return 'CHARGING'
+    }
+
+    if (this.coreState === 'CRADLED_STABLE') {
+      return 'STABLE'
+    }
+
+    return 'NONE'
+  }
+
+  isCatchAutoOrientActive(playerId: string): boolean {
+    return this.catchAutoOrientActive.get(playerId) ?? false
+  }
+
+  isCoreInCatchAssistRadius(core: Core, player: Player): boolean {
+    const localPoint = player.worldToStickLocal(core.position)
+
+    return (
+      localPoint.y > 0 &&
+      distance(core.position, player.getCradleSocket()) <=
+        stickConfig.cradleAssistRadius
+    )
+  }
+
+  getCradleFailureReason(playerId: string): CradleFailureReason {
+    return this.cradleFailures.get(playerId) ?? 'not catch-ready'
+  }
+
+  getLastInteraction(): StickInteractionResult {
+    return this.lastInteraction
   }
 
   forceFumble(core: Core, players: Player[], targetPlayerId: string): boolean {
@@ -120,32 +215,68 @@ export class StickInteractionSystem {
   }
 
   toggleDebug(): boolean {
-    this.debugEnabled = !this.debugEnabled
+    this.setDebugEnabled(!this.debugEnabled)
+    return this.debugEnabled
+  }
+
+  setDebugEnabled(enabled: boolean): void {
+    this.debugEnabled = enabled
 
     if (!this.debugEnabled) {
       this.debugGraphics.clear()
       this.debugText.setVisible(false)
     }
-
-    return this.debugEnabled
   }
 
   clearForReset(core: Core): void {
-    this.state = 'FREE'
+    this.coreState = 'FREE'
     this.carrierId = null
     this.cradleElapsedMs = 0
     this.releaseCooldownMsRemaining = 0
-    this.deflectCooldowns.clear()
+    this.contactCooldowns.clear()
     this.previousHold.clear()
+    this.previousSwing.clear()
+    this.cradleFailures.clear()
+    this.catchAutoOrientActive.clear()
+    this.cradleOpenDirections.clear()
     this.releaseVector = null
+    this.lastInteraction = 'none'
+    this.releaseForcePreview = stickConfig.releaseForceMin
+
+    for (const runtime of this.actionRuntimes.values()) {
+      runtime.state = 'IDLE'
+      runtime.elapsedMs = 0
+      runtime.swingCooldownMs = 0
+    }
+
     core.setSensor(false)
   }
 
-  private updateTimers(deltaMs: number): void {
-    this.releaseCooldownMsRemaining = Math.max(0, this.releaseCooldownMsRemaining - deltaMs)
+  private ensurePlayers(players: Player[]): void {
+    for (const player of players) {
+      if (!this.actionRuntimes.has(player.id)) {
+        this.actionRuntimes.set(player.id, {
+          state: 'IDLE',
+          elapsedMs: 0,
+          swingCooldownMs: 0,
+        })
+      }
+    }
+  }
 
-    for (const [playerId, cooldown] of this.deflectCooldowns) {
-      this.deflectCooldowns.set(playerId, Math.max(0, cooldown - deltaMs))
+  private updateTimers(deltaMs: number): void {
+    this.releaseCooldownMsRemaining = Math.max(
+      0,
+      this.releaseCooldownMsRemaining - deltaMs,
+    )
+
+    for (const [playerId, cooldown] of this.contactCooldowns) {
+      this.contactCooldowns.set(playerId, Math.max(0, cooldown - deltaMs))
+    }
+
+    for (const runtime of this.actionRuntimes.values()) {
+      runtime.elapsedMs += deltaMs
+      runtime.swingCooldownMs = Math.max(0, runtime.swingCooldownMs - deltaMs)
     }
 
     if (this.releaseVector) {
@@ -157,10 +288,116 @@ export class StickInteractionSystem {
     }
 
     if (
-      (this.state === 'FUMBLED' || this.state === 'RELEASED_COOLDOWN') &&
+      (this.coreState === 'FUMBLED' || this.coreState === 'RELEASED_COOLDOWN') &&
       this.releaseCooldownMsRemaining === 0
     ) {
-      this.state = 'FREE'
+      this.coreState = 'FREE'
+    }
+  }
+
+  private updateActionStates(
+    players: Player[],
+    intents: Map<string, StickIntent>,
+  ): void {
+    for (const player of players) {
+      if (player.id === this.carrierId) {
+        continue
+      }
+
+      const runtime = this.actionRuntimes.get(player.id)!
+      const intent = intents.get(player.id) ?? { hold: false }
+
+      if (
+        runtime.state === 'SWINGING' &&
+        runtime.elapsedMs >= stickConfig.swingDurationMs
+      ) {
+        this.setActionState(player.id, 'RELEASE_RECOVERY')
+        continue
+      }
+
+      if (
+        runtime.state === 'RELEASE_RECOVERY' &&
+        runtime.elapsedMs < stickConfig.releaseRecoveryMs
+      ) {
+        continue
+      }
+
+      if (
+        runtime.state === 'FUMBLED_COOLDOWN' &&
+        this.releaseCooldownMsRemaining > 0
+      ) {
+        continue
+      }
+
+      const releasedEmpty =
+        stickConfig.lightSwingOnEmptyRelease &&
+        (this.previousHold.get(player.id) ?? false) &&
+        !intent.hold
+      const requestedSwing =
+        (intent.swing && !(this.previousSwing.get(player.id) ?? false)) ||
+        releasedEmpty
+
+      if (requestedSwing && runtime.swingCooldownMs === 0) {
+        runtime.swingCooldownMs =
+          player.controllerType === 'ai'
+            ? stickConfig.aiSwingCooldownMs
+            : stickConfig.swingCooldownMs
+        this.setActionState(player.id, 'SWINGING')
+      } else if (intent.hold) {
+        this.setActionState(player.id, 'CATCH_READY')
+      } else {
+        this.setActionState(player.id, 'IDLE')
+      }
+    }
+  }
+
+  private updateStickOrientations(
+    core: Core,
+    players: Player[],
+    deltaMs: number,
+  ): void {
+    const deltaSeconds = Math.max(0, deltaMs / 1000)
+
+    for (const player of players) {
+      const coreAngle = Phaser.Math.Angle.Between(
+        player.position.x,
+        player.position.y,
+        core.position.x,
+        core.position.y,
+      )
+      const autoOrientActive =
+        !this.isCradled() &&
+        this.getStickState(player.id) === 'CATCH_READY' &&
+        distance(player.position, core.position) <=
+          stickConfig.catchAssistDetectionRadius
+      const targetRotation = autoOrientActive
+        ? coreAngle + stickConfig.cradleFacingOffsetRadians
+        : player.getReleaseAimAngle()
+      const strength = autoOrientActive
+        ? stickConfig.catchAutoOrientStrength
+        : stickConfig.aimSmoothing
+      const smoothing = 1 - Math.exp(-strength * deltaSeconds)
+      const angularDelta = Phaser.Math.Angle.Wrap(
+        targetRotation - player.getStickVisualRotation(),
+      )
+      const maximumRotation = stickConfig.maxStickRotationSpeed * deltaSeconds
+      const rotationStep = Phaser.Math.Clamp(
+        angularDelta * smoothing,
+        -maximumRotation,
+        maximumRotation,
+      )
+
+      player.setStickVisualRotation(
+        player.getStickVisualRotation() + rotationStep,
+      )
+      this.catchAutoOrientActive.set(player.id, autoOrientActive)
+      this.cradleOpenDirections.set(
+        player.id,
+        autoOrientActive
+          ? coreAngle
+          : player.getStickVisualRotation() -
+              stickConfig.cradleFacingOffsetRadians,
+      )
     }
   }
 
@@ -178,13 +415,16 @@ export class StickInteractionSystem {
     }
 
     const intent = intents.get(carrier.id) ?? { hold: false }
-    const pointerReleased = (this.previousHold.get(carrier.id) ?? false) && !intent.hold
+    const released = (this.previousHold.get(carrier.id) ?? false) && !intent.hold
 
     this.cradleElapsedMs += deltaMs
     core.holdAt(carrier.getCradleSocket())
-    this.syncCradleState()
+    this.syncCradleState(carrier.id)
+    this.releaseForcePreview = magnitude(
+      this.calculateReleaseVelocity(carrier.getReleaseAimForward(), carrier),
+    )
 
-    if (this.cradleElapsedMs >= stickInteractionConfig.chargeTiming.fumbleMs) {
+    if (this.cradleElapsedMs >= stickConfig.fumbleMs) {
       this.fumble(core, carrier)
       return
     }
@@ -194,28 +434,128 @@ export class StickInteractionSystem {
       return
     }
 
-    if (pointerReleased) {
+    if (released) {
       this.releaseAlongAim(core, carrier)
     }
+  }
+
+  private applyCradleAssist(
+    core: Core,
+    players: Player[],
+    preferredPlayerId: string,
+    deltaMs: number,
+  ): void {
+    if (this.releaseCooldownMsRemaining > 0 || this.coreState !== 'FREE') {
+      return
+    }
+
+    const candidate = players
+      .filter((player) => this.getStickState(player.id) === 'CATCH_READY')
+      .map((player) => ({
+        player,
+        socketDistance: distance(core.position, player.getCradleSocket()),
+        localPoint: player.worldToStickLocal(core.position),
+      }))
+      .filter(
+        ({ socketDistance, localPoint }) =>
+          localPoint.y > 0 && socketDistance <= stickConfig.cradleAssistRadius,
+      )
+      .sort((a, b) => {
+        if (a.player.id === preferredPlayerId) {
+          return -1
+        }
+
+        if (b.player.id === preferredPlayerId) {
+          return 1
+        }
+
+        return a.socketDistance - b.socketDistance
+      })[0]
+
+    if (!candidate) {
+      return
+    }
+
+    const socket = candidate.player.getCradleSocket()
+    const direction = normalized({
+      x: socket.x - core.position.x,
+      y: socket.y - core.position.y,
+    })
+    const distanceRatio = Phaser.Math.Clamp(
+      1 - candidate.socketDistance / stickConfig.cradleAssistRadius,
+      0.15,
+      1,
+    )
+    const targetVelocity = {
+      x:
+        candidate.player.velocity.x +
+        direction.x * stickConfig.cradleAssistMaxSpeed * distanceRatio,
+      y:
+        candidate.player.velocity.y +
+        direction.y * stickConfig.cradleAssistMaxSpeed * distanceRatio,
+    }
+    const blend =
+      1 -
+      Math.exp(
+        -stickConfig.cradleAssistStrength * 10 * Math.max(deltaMs / 1000, 0),
+      )
+
+    core.setVelocity({
+      x: Phaser.Math.Linear(core.velocity.x, targetVelocity.x, blend),
+      y: Phaser.Math.Linear(core.velocity.y, targetVelocity.y, blend),
+    })
   }
 
   private tryAcquire(
     core: Core,
     players: Player[],
-    intents: Map<string, StickIntent>,
     preferredPlayerId: string,
   ): void {
-    if (this.releaseCooldownMsRemaining > 0 || this.state !== 'FREE') {
+    for (const player of players) {
+      this.cradleFailures.set(
+        player.id,
+        this.getStickState(player.id) === 'CATCH_READY'
+          ? 'ready'
+          : 'not catch-ready',
+      )
+    }
+
+    if (this.carrierId) {
+      for (const player of players) {
+        this.cradleFailures.set(player.id, 'already cradled')
+      }
+      return
+    }
+
+    if (this.releaseCooldownMsRemaining > 0 || this.coreState !== 'FREE') {
+      for (const player of players) {
+        if (this.getStickState(player.id) === 'CATCH_READY') {
+          this.cradleFailures.set(player.id, 'cooldown active')
+        }
+      }
       return
     }
 
     const candidates = players
-      .filter((player) => intents.get(player.id)?.hold)
-      .map((player) => ({
-        player,
-        test: testLegalCradle(core, player),
-        socketDistance: distance(core.position, player.getCradleSocket()),
-      }))
+      .filter((player) => this.getStickState(player.id) === 'CATCH_READY')
+      .map((player) => {
+        const test = testLegalCradle(core, player)
+
+        this.cradleFailures.set(
+          player.id,
+          !test.insideZone
+            ? 'outside cradle zone'
+            : test.relativeSpeed > stickConfig.maxCradleEntrySpeed
+              ? 'speed too high'
+              : 'ready',
+        )
+
+        return {
+          player,
+          test,
+          socketDistance: distance(core.position, player.getCradleSocket()),
+        }
+      })
       .filter((candidate) => candidate.test.accepted)
       .sort((a, b) => {
         if (a.player.id === preferredPlayerId) {
@@ -236,61 +576,83 @@ export class StickInteractionSystem {
     }
 
     this.carrierId = selected.player.id
-    this.state = 'CRADLED_STABLE'
+    this.coreState = 'CRADLED_STABLE'
     this.cradleElapsedMs = 0
+    this.lastInteraction = 'cradle'
+    this.setActionState(selected.player.id, 'CRADLED_STABLE')
+    this.cradleFailures.set(selected.player.id, 'already cradled')
     core.setSensor(true)
     core.setVelocity({ x: 0, y: 0 })
     core.holdAt(selected.player.getCradleSocket())
   }
 
-  private processDeflections(
-    core: Core,
-    players: Player[],
-    intents: Map<string, StickIntent>,
-  ): void {
-    for (const player of players) {
-      if ((this.deflectCooldowns.get(player.id) ?? 0) > 0) {
-        continue
-      }
+  private processContacts(core: Core, players: Player[]): void {
+    const contacts = players
+      .filter((player) => (this.contactCooldowns.get(player.id) ?? 0) === 0)
+      .map((player) => ({
+        player,
+        hit: testDeflectZone(core, player),
+        state: this.getStickState(player.id),
+      }))
+      .filter(
+        (
+          contact,
+        ): contact is {
+          player: Player
+          hit: DeflectHit
+          state: StickActionState
+        } => contact.hit !== null,
+      )
+      .sort((a, b) => {
+        const actionPriority =
+          Number(b.state === 'SWINGING') - Number(a.state === 'SWINGING')
 
-      const hit = testDeflectZone(core, player)
+        return actionPriority || a.hit.distance - b.hit.distance
+      })
 
-      if (!hit) {
-        continue
-      }
+    const contact = contacts[0]
 
-      this.deflect(core, player, hit, intents.get(player.id)?.hold ?? false)
-      this.deflectCooldowns.set(player.id, stickInteractionConfig.deflect.deflectCooldownMs)
-      break
+    if (!contact) {
+      return
+    }
+
+    const active = contact.state === 'SWINGING'
+    this.applyControlledContact(core, contact.player, contact.hit, active)
+    this.contactCooldowns.set(
+      contact.player.id,
+      stickConfig.contactImpulseCooldownMs,
+    )
+    this.lastInteraction = active ? 'active swing' : 'passive nudge'
+
+    if (contact.state === 'CATCH_READY') {
+      this.cradleFailures.set(contact.player.id, 'deflect fallback')
     }
   }
 
-  private syncCradleState(): void {
-    if (this.cradleElapsedMs >= stickInteractionConfig.chargeTiming.chargeCradleMs) {
-      this.state = 'CRADLED_OVERCHARGED'
+  private syncCradleState(carrierId: string): void {
+    if (this.cradleElapsedMs >= stickConfig.chargeCradleMs) {
+      this.coreState = 'CRADLED_OVERCHARGED'
+      this.setActionState(carrierId, 'CRADLED_OVERCHARGED')
       return
     }
 
-    if (this.cradleElapsedMs >= stickInteractionConfig.chargeTiming.stableCradleMs) {
-      this.state = 'CRADLED_CHARGING'
+    if (this.cradleElapsedMs >= stickConfig.stableCradleMs) {
+      this.coreState = 'CRADLED_CHARGING'
+      this.setActionState(carrierId, 'CRADLED_CHARGING')
       return
     }
 
-    this.state = 'CRADLED_STABLE'
+    this.coreState = 'CRADLED_STABLE'
+    this.setActionState(carrierId, 'CRADLED_STABLE')
   }
 
   private releaseAlongAim(core: Core, carrier: Player): void {
-    const aim = carrier.getStickForward()
-    const releaseSpeed = this.releaseSpeed()
-
-    this.finishPossession(core, carrier, {
-      x:
-        aim.x * releaseSpeed +
-        carrier.velocity.x * stickInteractionConfig.release.playerVelocityReleaseInfluence,
-      y:
-        aim.y * releaseSpeed +
-        carrier.velocity.y * stickInteractionConfig.release.playerVelocityReleaseInfluence,
-    }, 'RELEASED_COOLDOWN')
+    this.finishPossession(
+      core,
+      carrier,
+      this.calculateReleaseVelocity(carrier.getReleaseAimForward(), carrier),
+      'RELEASED_COOLDOWN',
+    )
   }
 
   private releaseToward(core: Core, carrier: Player, target: Point): void {
@@ -298,31 +660,27 @@ export class StickInteractionSystem {
       x: target.x - carrier.position.x,
       y: target.y - carrier.position.y,
     })
-    const releaseSpeed = this.releaseSpeed()
-
-    this.finishPossession(core, carrier, {
-      x:
-        direction.x * releaseSpeed +
-        carrier.velocity.x * stickInteractionConfig.release.playerVelocityReleaseInfluence,
-      y:
-        direction.y * releaseSpeed +
-        carrier.velocity.y * stickInteractionConfig.release.playerVelocityReleaseInfluence,
-    }, 'RELEASED_COOLDOWN')
+    this.finishPossession(
+      core,
+      carrier,
+      this.calculateReleaseVelocity(direction, carrier),
+      'RELEASED_COOLDOWN',
+    )
   }
 
   private fumble(core: Core, carrier: Player): void {
     const aim = carrier.getStickForward()
     const right = carrier.getStickRight()
-    const velocity = {
-      x:
-        aim.x * stickInteractionConfig.release.fumbleSpeed +
-        right.x * stickInteractionConfig.release.fumbleSpeed * 0.55,
-      y:
-        aim.y * stickInteractionConfig.release.fumbleSpeed +
-        right.y * stickInteractionConfig.release.fumbleSpeed * 0.55,
-    }
 
-    this.finishPossession(core, carrier, velocity, 'FUMBLED')
+    this.finishPossession(
+      core,
+      carrier,
+      {
+        x: aim.x * stickConfig.fumbleSpeed + right.x * stickConfig.fumbleSpeed * 0.55,
+        y: aim.y * stickConfig.fumbleSpeed + right.y * stickConfig.fumbleSpeed * 0.55,
+      },
+      'FUMBLED',
+    )
   }
 
   private finishPossession(
@@ -336,67 +694,123 @@ export class StickInteractionSystem {
     core.setSensor(false)
     core.setPosition(releasePoint)
     core.setVelocity(velocity)
-    this.state = nextState
+    this.coreState = nextState
     this.carrierId = null
     this.cradleElapsedMs = 0
-    this.releaseCooldownMsRemaining = stickInteractionConfig.cradle.releaseCooldownMs
+    this.releaseCooldownMsRemaining = stickConfig.releaseCooldownMs
+    this.lastInteraction = nextState === 'FUMBLED' ? 'fumble' : 'release'
+    this.setActionState(
+      carrier.id,
+      nextState === 'FUMBLED' ? 'FUMBLED_COOLDOWN' : 'RELEASE_RECOVERY',
+    )
     this.releaseVector = {
       start: { ...releasePoint },
       end: {
-        x: releasePoint.x + velocity.x * stickInteractionConfig.release.vectorScale,
-        y: releasePoint.y + velocity.y * stickInteractionConfig.release.vectorScale,
+        x: releasePoint.x + velocity.x * stickConfig.releaseVectorScale,
+        y: releasePoint.y + velocity.y * stickConfig.releaseVectorScale,
       },
-      msRemaining: stickInteractionConfig.release.vectorVisibleSeconds * 1000,
+      msRemaining: stickConfig.releaseVectorVisibleMs,
     }
   }
 
-  private releaseSpeed(): number {
-    const chargeRatio = Phaser.Math.Clamp(
-      this.cradleElapsedMs / stickInteractionConfig.chargeTiming.overchargeMs,
+  private calculateReleaseVelocity(direction: Point, carrier: Player): Point {
+    const chargeNormalized = this.getChargeNormalized()
+    const curvedCharge = Math.pow(
+      chargeNormalized,
+      stickConfig.chargeForceExponent,
+    )
+    const baseForce = Phaser.Math.Linear(
+      stickConfig.releaseForceMin,
+      stickConfig.releaseForceMax,
+      curvedCharge,
+    )
+    const overchargeProgress = Phaser.Math.Clamp(
+      (this.cradleElapsedMs - stickConfig.chargeCradleMs) /
+        Math.max(1, stickConfig.fumbleMs - stickConfig.chargeCradleMs),
       0,
       1,
     )
+    const instabilityWave = Math.sin(this.cradleElapsedMs * 0.021)
+    const accuracyOffset =
+      instabilityWave *
+      stickConfig.overchargeAccuracyPenalty *
+      overchargeProgress
+    const aimedDirection = rotate(normalized(direction), accuracyOffset)
+    const sideDirection = {
+      x: -aimedDirection.y,
+      y: aimedDirection.x,
+    }
+    const velocity = {
+      x:
+        aimedDirection.x * baseForce +
+        carrier.velocity.x * stickConfig.playerVelocityReleaseInfluence +
+        sideDirection.x *
+          instabilityWave *
+          stickConfig.overchargeInstability *
+          overchargeProgress,
+      y:
+        aimedDirection.y * baseForce +
+        carrier.velocity.y * stickConfig.playerVelocityReleaseInfluence +
+        sideDirection.y *
+          instabilityWave *
+          stickConfig.overchargeInstability *
+          overchargeProgress,
+    }
 
-    return Phaser.Math.Linear(
-      stickInteractionConfig.release.releaseForceMin,
-      stickInteractionConfig.release.releaseForceMax,
-      chargeRatio,
+    return clampVectorRange(
+      velocity,
+      stickConfig.releaseForceMin,
+      stickConfig.releaseForceMax,
     )
   }
 
-  private deflect(
+  private applyControlledContact(
     core: Core,
     player: Player,
     hit: DeflectHit,
-    pointerHeld: boolean,
+    active: boolean,
   ): void {
-    const relativeVelocity = {
-      x: core.velocity.x - player.velocity.x,
-      y: core.velocity.y - player.velocity.y,
-    }
-    const normalVelocity = dot(relativeVelocity, hit.normal)
-    const reflected =
-      normalVelocity < 0
-        ? {
-            x: relativeVelocity.x - 2 * normalVelocity * hit.normal.x,
-            y: relativeVelocity.y - 2 * normalVelocity * hit.normal.y,
-          }
-        : relativeVelocity
-    const force = pointerHeld
-      ? stickInteractionConfig.deflect.pointerHeldDeflectForce
-      : stickInteractionConfig.deflect.deflectForce
+    const state = this.getStickState(player.id)
+    const force = active
+      ? stickConfig.activeSwingForce
+      : stickConfig.passiveNudgeForce *
+        (state === 'CATCH_READY' ? stickConfig.catchReadyDeflectMultiplier : 1)
+    const direction = active
+      ? normalized({
+          x: player.getStickForward().x * 0.82 + hit.normal.x * 0.42,
+          y: player.getStickForward().y * 0.82 + hit.normal.y * 0.42,
+        })
+      : hit.normal
+    const impulse = clampVector(
+      {
+        x: direction.x * force + (active ? player.velocity.x * 0.2 : 0),
+        y: direction.y * force + (active ? player.velocity.y * 0.2 : 0),
+      },
+      stickConfig.maxDeflectImpulse,
+    )
 
     core.setVelocity({
-      x: player.velocity.x + reflected.x + hit.normal.x * force,
-      y: player.velocity.y + reflected.y + hit.normal.y * force,
+      x: core.velocity.x + impulse.x,
+      y: core.velocity.y + impulse.y,
     })
+  }
+
+  private setActionState(playerId: string, state: StickActionState): void {
+    const runtime = this.actionRuntimes.get(playerId)
+
+    if (!runtime || runtime.state === state) {
+      return
+    }
+
+    runtime.state = state
+    runtime.elapsedMs = 0
   }
 
   private isCradled(): boolean {
     return (
-      this.state === 'CRADLED_STABLE' ||
-      this.state === 'CRADLED_CHARGING' ||
-      this.state === 'CRADLED_OVERCHARGED'
+      this.coreState === 'CRADLED_STABLE' ||
+      this.coreState === 'CRADLED_CHARGING' ||
+      this.coreState === 'CRADLED_OVERCHARGED'
     )
   }
 
@@ -413,22 +827,38 @@ export class StickInteractionSystem {
       this.drawDeflectZone(focus)
       this.drawCradleZone(focus.getCradleZone())
       const socket = focus.getCradleSocket()
-      this.debugGraphics.fillStyle(stickInteractionConfig.debug.socketColor, 0.95)
+      this.debugGraphics.fillStyle(stickConfig.debug.socketColor, 0.95)
       this.debugGraphics.fillCircle(
         socket.x,
         socket.y,
-        stickInteractionConfig.debug.socketRadius,
+        stickConfig.debug.socketRadius,
       )
-      this.debugGraphics.lineStyle(2, stickInteractionConfig.debug.assistRadiusColor, 0.85)
+      this.debugGraphics.lineStyle(2, stickConfig.debug.assistRadiusColor, 0.85)
       this.debugGraphics.strokeCircle(
         socket.x,
         socket.y,
-        stickInteractionConfig.cradle.cradleAssistSnapRadius,
+        stickConfig.cradleAssistRadius,
+      )
+      this.drawDirectionVector(
+        focus.position,
+        focus.getReleaseAimForward(),
+        stickConfig.debug.releaseAimColor,
+      )
+      const cradleOpenAngle =
+        this.cradleOpenDirections.get(focus.id) ??
+        focus.getStickVisualRotation() - stickConfig.cradleFacingOffsetRadians
+      this.drawDirectionVector(
+        focus.position,
+        {
+          x: Math.cos(cradleOpenAngle),
+          y: Math.sin(cradleOpenAngle),
+        },
+        stickConfig.debug.cradleOpenColor,
       )
     }
 
     if (this.releaseVector) {
-      this.debugGraphics.lineStyle(4, stickInteractionConfig.debug.releaseVectorColor, 0.95)
+      this.debugGraphics.lineStyle(4, stickConfig.debug.releaseVectorColor, 0.95)
       this.debugGraphics.lineBetween(
         this.releaseVector.start.x,
         this.releaseVector.start.y,
@@ -439,23 +869,41 @@ export class StickInteractionSystem {
 
     this.debugText.setVisible(true)
     this.debugText.setText(
-      `CORE ${this.state}\nCHARGE ${(this.cradleElapsedMs / 1000).toFixed(2)}s\nPOSSESSION ${
-        this.carrierId ?? 'LOOSE'
-      }\nSPEED ${Math.hypot(core.velocity.x, core.velocity.y).toFixed(2)}`,
+      `STICK ${focus ? this.getStickState(focus.id) : 'IDLE'}\n` +
+        `CORE ${this.coreState}\n` +
+        `PHASE ${this.getCradlePhase()}\n` +
+        `CHARGE ${Math.round(this.cradleElapsedMs)}ms / ${this
+          .getChargeNormalized()
+          .toFixed(2)}\n` +
+        `FORCE ${this.releaseForcePreview.toFixed(2)}\n` +
+        `POSSESSION ${this.carrierId ?? 'LOOSE'}\n` +
+        `VISUAL ${focus ? focus.getStickVisualRotation().toFixed(2) : 'n/a'}\n` +
+        `AUTO ORIENT ${
+          focus && this.isCatchAutoOrientActive(focus.id) ? 'ACTIVE' : 'INACTIVE'
+        }\n` +
+        `CATCH ${focus ? this.getCradleFailureReason(focus.id) : 'n/a'}\n` +
+        `CONTACT ${this.lastInteraction}\n` +
+        `SPEED ${Math.hypot(core.velocity.x, core.velocity.y).toFixed(2)}`,
     )
   }
 
   private drawCradleZone(zone: CradleZone): void {
-    const config = stickInteractionConfig
     const startAngle = zone.aimAngle + zone.minAngle
     const endAngle = zone.aimAngle + zone.maxAngle
 
-    this.debugGraphics.fillStyle(config.debug.zoneFillColor, config.debug.zoneFillAlpha)
-    this.debugGraphics.lineStyle(2, config.debug.zoneStrokeColor, config.debug.zoneStrokeAlpha)
+    this.debugGraphics.fillStyle(
+      stickConfig.debug.zoneFillColor,
+      stickConfig.debug.zoneFillAlpha,
+    )
+    this.debugGraphics.lineStyle(
+      2,
+      stickConfig.debug.zoneStrokeColor,
+      stickConfig.debug.zoneStrokeAlpha,
+    )
     this.debugGraphics.beginPath()
 
-    for (let index = 0; index <= config.cradle.debugSegments; index += 1) {
-      const t = index / config.cradle.debugSegments
+    for (let index = 0; index <= stickConfig.debug.debugSegments; index += 1) {
+      const t = index / stickConfig.debug.debugSegments
       const point = radialPoint(
         zone.center,
         Phaser.Math.Linear(startAngle, endAngle, t),
@@ -469,8 +917,8 @@ export class StickInteractionSystem {
       }
     }
 
-    for (let index = config.cradle.debugSegments; index >= 0; index -= 1) {
-      const t = index / config.cradle.debugSegments
+    for (let index = stickConfig.debug.debugSegments; index >= 0; index -= 1) {
+      const t = index / stickConfig.debug.debugSegments
       const point = radialPoint(
         zone.center,
         Phaser.Math.Linear(startAngle, endAngle, t),
@@ -492,9 +940,9 @@ export class StickInteractionSystem {
     }
 
     this.debugGraphics.lineStyle(
-      stickInteractionConfig.deflect.deflectRadius * 2,
-      stickInteractionConfig.debug.deflectZoneColor,
-      stickInteractionConfig.debug.deflectZoneAlpha,
+      stickConfig.deflectRadius * 2,
+      stickConfig.debug.deflectZoneColor,
+      stickConfig.debug.deflectZoneAlpha,
     )
     this.debugGraphics.beginPath()
     this.debugGraphics.moveTo(points[0].x, points[0].y)
@@ -505,6 +953,20 @@ export class StickInteractionSystem {
 
     this.debugGraphics.strokePath()
   }
+
+  private drawDirectionVector(
+    start: Point,
+    direction: Point,
+    color: number,
+  ): void {
+    this.debugGraphics.lineStyle(3, color, 0.95)
+    this.debugGraphics.lineBetween(
+      start.x,
+      start.y,
+      start.x + direction.x * stickConfig.debug.directionVectorLength,
+      start.y + direction.y * stickConfig.debug.directionVectorLength,
+    )
+  }
 }
 
 function testLegalCradle(core: Core, player: Player): CradleTestResult {
@@ -513,28 +975,24 @@ function testLegalCradle(core: Core, player: Player): CradleTestResult {
   const angle = Math.atan2(localPoint.y, localPoint.x)
   const relativeSpeed = distance(core.velocity, player.velocity)
   const zone = player.getCradleZone()
-  const assisted =
+  const insideZone =
     localPoint.y > 0 &&
-    distance(core.position, player.getCradleSocket()) <=
-      stickInteractionConfig.cradle.cradleAssistSnapRadius
+    radius >= zone.minRadius &&
+    radius <= zone.maxRadius &&
+    angle >= zone.minAngle &&
+    angle <= zone.maxAngle
 
   return {
-    accepted:
-      localPoint.y > 0 &&
-      relativeSpeed <= stickInteractionConfig.cradle.maxCradleEntrySpeed &&
-      (assisted ||
-        (radius >= zone.minRadius &&
-          radius <= zone.maxRadius &&
-          angle >= zone.minAngle &&
-          angle <= zone.maxAngle)),
+    accepted: insideZone && relativeSpeed <= stickConfig.maxCradleEntrySpeed,
     relativeSpeed,
+    insideZone,
   }
 }
 
 function testDeflectZone(core: Core, player: Player): DeflectHit | null {
   const closest = findClosestPointOnPolyline(core.position, player.getStickSamplePoints())
 
-  if (!closest || closest.distance > stickInteractionConfig.deflect.deflectRadius) {
+  if (!closest || closest.distance > stickConfig.deflectRadius) {
     return null
   }
 
@@ -559,6 +1017,7 @@ function testDeflectZone(core: Core, player: Player): DeflectHit | null {
   return {
     closestPoint: closest.point,
     normal,
+    distance: closest.distance,
   }
 }
 
@@ -593,7 +1052,8 @@ function closestPointOnSegment(
     lengthSq === 0
       ? 0
       : Phaser.Math.Clamp(
-          ((point.x - start.x) * segment.x + (point.y - start.y) * segment.y) / lengthSq,
+          ((point.x - start.x) * segment.x + (point.y - start.y) * segment.y) /
+            lengthSq,
           0,
           1,
         )
@@ -618,13 +1078,64 @@ function radialPoint(center: Point, angle: number, radius: number): Point {
 function normalized(vector: Point): Point {
   const length = Math.hypot(vector.x, vector.y)
 
-  return length === 0 ? { x: 0, y: 0 } : { x: vector.x / length, y: vector.y / length }
+  return length === 0
+    ? { x: 0, y: 0 }
+    : { x: vector.x / length, y: vector.y / length }
+}
+
+function clampVector(vector: Point, maximumLength: number): Point {
+  const length = Math.hypot(vector.x, vector.y)
+
+  if (length <= maximumLength || length === 0) {
+    return vector
+  }
+
+  return {
+    x: (vector.x / length) * maximumLength,
+    y: (vector.y / length) * maximumLength,
+  }
+}
+
+function clampVectorRange(
+  vector: Point,
+  minimumLength: number,
+  maximumLength: number,
+): Point {
+  const length = magnitude(vector)
+
+  if (length === 0) {
+    return {
+      x: minimumLength,
+      y: 0,
+    }
+  }
+
+  const clampedLength = Phaser.Math.Clamp(
+    length,
+    minimumLength,
+    maximumLength,
+  )
+
+  return {
+    x: (vector.x / length) * clampedLength,
+    y: (vector.y / length) * clampedLength,
+  }
+}
+
+function rotate(vector: Point, angle: number): Point {
+  const cosine = Math.cos(angle)
+  const sine = Math.sin(angle)
+
+  return {
+    x: vector.x * cosine - vector.y * sine,
+    y: vector.x * sine + vector.y * cosine,
+  }
+}
+
+function magnitude(vector: Point): number {
+  return Math.hypot(vector.x, vector.y)
 }
 
 function distance(a: Point, b: Point): number {
   return Math.hypot(a.x - b.x, a.y - b.y)
-}
-
-function dot(a: Point, b: Point): number {
-  return a.x * b.x + a.y * b.y
 }

@@ -1,4 +1,10 @@
 :root {
+  --app-width: 100vw;
+  --app-height: 100dvh;
+  --safe-area-inset-top: env(safe-area-inset-top, 0px);
+  --safe-area-inset-right: env(safe-area-inset-right, 0px);
+  --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-area-inset-left: env(safe-area-inset-left, 0px);
   color: #d7f8ff;
   background: #071016;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI',
@@ -11,22 +17,30 @@
 
 html,
 body {
-  width: 100%;
-  height: 100%;
+  position: fixed;
+  inset: 0;
+  width: var(--app-width);
+  height: var(--app-height);
   margin: 0;
   overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: none;
 }
 
 #app {
   position: relative;
-  width: 100%;
-  height: 100%;
+  width: var(--app-width);
+  height: var(--app-height);
   overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: none;
 }
 
 #game-root {
-  width: 100%;
-  height: 100%;
+  width: var(--app-width);
+  height: var(--app-height);
+  overflow: hidden;
+  touch-action: none;
   background:
     radial-gradient(circle at 24% 18%, rgba(35, 151, 165, 0.28), transparent 28%),
     linear-gradient(135deg, #071016 0%, #101c26 42%, #08141c 100%);
@@ -50,9 +64,239 @@ body {
   text-shadow: 0 0 12px #2eeeff;
 }
 
+.debug-hud-shell {
+  position: absolute;
+  z-index: 4;
+  width: min(310px, calc(100vw - 24px));
+  box-sizing: border-box;
+  pointer-events: none;
+}
+
+.debug-hud-panel {
+  display: none;
+  max-height: var(--debug-hud-max-height);
+  box-sizing: border-box;
+  margin-top: 8px;
+  padding: 11px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid rgba(106, 232, 249, 0.5);
+  border-radius: 8px;
+  background: rgb(5 18 24 / var(--debug-hud-opacity));
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  color: #d7fbff;
+  pointer-events: auto;
+}
+
+.debug-hud-shell.is-expanded .debug-hud-panel {
+  display: block;
+}
+
+.debug-hud-toggle-row {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.debug-mini-hud {
+  display: none;
+  width: max-content;
+  max-width: calc(100vw - 100px);
+  margin-top: 5px;
+  margin-left: auto;
+  padding: 5px 7px;
+  overflow: hidden;
+  border: 1px solid rgba(106, 232, 249, 0.34);
+  border-radius: 5px;
+  background: rgb(5 18 24 / 0.68);
+  color: #d7fbff;
+  font: 700 10px/1.2 ui-monospace, SFMono-Regular, Consolas, monospace;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.debug-hud-shell.is-mobile:not(.is-expanded) .debug-mini-hud {
+  display: block;
+}
+
+.debug-toggle-button {
+  display: none;
+  min-width: 66px;
+  min-height: 34px;
+  margin-left: auto;
+  padding: 0 10px;
+  border-color: rgba(105, 236, 255, 0.78);
+  background: rgb(10 35 44 / 0.82);
+  color: #c9f9ff;
+  font-size: 11px;
+  pointer-events: auto;
+}
+
+.debug-hud-shell.is-mobile .debug-toggle-button {
+  display: block;
+}
+
+.debug-hud-readout {
+  min-height: 0;
+  margin: 0;
+  overflow: hidden;
+  white-space: pre-wrap;
+  font: 700 12px/1.35 ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono',
+    monospace;
+  letter-spacing: 0;
+  text-align: left;
+  text-shadow: 0 1px 8px #071016;
+}
+
+.debug-hud-actions {
+  position: sticky;
+  bottom: -11px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+  margin: 9px -3px -3px;
+  padding: 6px 3px 3px;
+  background: rgb(5 18 24 / 0.92);
+}
+
+.debug-hud-button {
+  min-width: 0;
+  min-height: 42px;
+  padding: 0 10px;
+  border: 2px solid rgba(215, 251, 255, 0.72);
+  border-radius: 6px;
+  background: #14333d;
+  color: #f3fdff;
+  font: 800 13px/1 Inter, ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 0;
+  touch-action: manipulation;
+}
+
+.debug-hud-button:active {
+  background: #245666;
+  transform: translateY(1px);
+}
+
+.debug-reset-button {
+  border-color: rgba(255, 213, 112, 0.88);
+  color: #ffe9a9;
+}
+
+.debug-mode-button {
+  border-color: rgba(105, 236, 255, 0.88);
+  color: #baf7ff;
+}
+
+.touch-controls {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.virtual-joystick-base,
+.virtual-joystick-knob,
+.touch-aim-indicator {
+  position: absolute;
+  left: 0;
+  top: 0;
+  box-sizing: border-box;
+  border-radius: 50%;
+  transform-origin: center;
+}
+
+.virtual-joystick-base {
+  width: var(--joystick-size);
+  height: var(--joystick-size);
+  margin: calc(-1 * var(--joystick-radius)) 0 0
+    calc(-1 * var(--joystick-radius));
+  border: 3px solid rgba(215, 251, 255, 0.48);
+  background: rgba(10, 39, 48, 0.24);
+  box-shadow: inset 0 0 24px rgba(53, 218, 241, 0.12);
+}
+
+.virtual-joystick-knob {
+  width: var(--joystick-knob-size);
+  height: var(--joystick-knob-size);
+  margin:
+    calc((var(--joystick-size) - var(--joystick-knob-size)) / 2) 0 0
+    calc((var(--joystick-size) - var(--joystick-knob-size)) / 2);
+  border: 2px solid rgba(255, 226, 132, 0.82);
+  background: rgba(255, 207, 104, 0.28);
+}
+
+.touch-aim-indicator {
+  width: var(--aim-indicator-size);
+  height: var(--aim-indicator-size);
+  margin: calc(-1 * var(--aim-indicator-radius)) 0 0
+    calc(-1 * var(--aim-indicator-radius));
+  border: 3px solid rgba(255, 207, 104, 0.52);
+  background: rgba(255, 207, 104, 0.08);
+}
+
+.touch-aim-indicator::before,
+.touch-aim-indicator::after {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  content: '';
+  background: rgba(255, 226, 132, 0.7);
+  transform: translate(-50%, -50%);
+}
+
+.touch-aim-indicator::before {
+  width: 26px;
+  height: 2px;
+}
+
+.touch-aim-indicator::after {
+  width: 2px;
+  height: 26px;
+}
+
+.touch-aim-indicator.is-active {
+  border-color: rgba(255, 226, 132, 0.95);
+  background: rgba(255, 207, 104, 0.2);
+}
+
 canvas {
   display: block;
   width: 100%;
   height: 100%;
   image-rendering: auto;
+  touch-action: none;
+}
+
+@media (max-width: 600px) and (orientation: portrait) {
+  .scoreboard {
+    min-width: 130px;
+    font-size: 15px;
+    line-height: 1.25;
+  }
+
+  .debug-hud-shell {
+    top: calc(8px + env(safe-area-inset-top, 0px)) !important;
+    right: calc(8px + env(safe-area-inset-right, 0px)) !important;
+    width: min(255px, calc(100vw - 16px));
+  }
+
+  .debug-hud-panel {
+    max-height: var(--debug-hud-max-height);
+    padding: 8px;
+  }
+
+  .debug-hud-readout {
+    font-size: var(--debug-hud-mobile-font-size);
+    line-height: 1.25;
+  }
+
+  .debug-hud-button {
+    min-height: 40px;
+    font-size: 12px;
+  }
+
+  .debug-toggle-button {
+    min-height: 32px;
+    font-size: 10px;
+  }
 }

@@ -4,6 +4,15 @@ export type TeamSide = 'A' | 'B'
 export type PlayerRole = 'keeper' | 'striker' | 'support' | 'brute'
 export type PlayerControllerType = 'human' | 'ai'
 export type PlayerArchetypeId = 'keeper' | 'striker' | 'support' | 'brute'
+export type StickActionState =
+  | 'IDLE'
+  | 'CATCH_READY'
+  | 'CRADLED_STABLE'
+  | 'CRADLED_CHARGING'
+  | 'CRADLED_OVERCHARGED'
+  | 'SWINGING'
+  | 'RELEASE_RECOVERY'
+  | 'FUMBLED_COOLDOWN'
 
 export type AIState =
   | 'IDLE'
@@ -65,6 +74,7 @@ export type PlayerControlIntent = {
   moveTarget: Point
   aimTarget: Point
   hold: boolean
+  swing?: boolean
   releaseTarget?: Point
   aiState: AIState
 }

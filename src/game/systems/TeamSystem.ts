@@ -1,4 +1,5 @@
 import type Phaser from 'phaser'
+import { gameplayConfig, type GameMode } from '../config/gameplayConfig'
 import { playerArchetypes } from '../data/playerArchetypes'
 import { teams } from '../data/teams'
 import type { Team, TeamSide } from '../data/matchTypes'
@@ -8,9 +9,22 @@ export class TeamSystem {
   readonly teams: Team[]
   readonly players: Player[]
 
-  constructor(scene: Phaser.Scene) {
-    this.teams = teams
-    this.players = teams.flatMap((team) =>
+  constructor(scene: Phaser.Scene, gameMode: GameMode) {
+    this.teams =
+      gameMode === 'stickLab'
+        ? teams
+            .filter((team) => team.side === 'A')
+            .map((team) => ({
+              ...team,
+              roster: team.roster
+                .filter((entry) => entry.id === gameplayConfig.stickLab.playerId)
+                .map((entry) => ({
+                  ...entry,
+                  spawn: { ...gameplayConfig.stickLab.playerSpawn },
+                })),
+            }))
+        : teams
+    this.players = this.teams.flatMap((team) =>
       team.roster.map(
         (entry) =>
           new Player(

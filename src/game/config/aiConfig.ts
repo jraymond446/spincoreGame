@@ -1,5 +1,4 @@
 export const aiConfig = {
-  decisionIntervalMs: 140,
   seekCoreRadius: 520,
   supportSpacing: 210,
   strikerAttackDistance: 310,
@@ -7,8 +6,8 @@ export const aiConfig = {
   keeperAggression: 0.62,
   brutePressureRadius: 145,
   bruteCheckRadius: 72,
-  bruteCheckCooldownMs: 1150,
-  bruteFumblePressure: 0.82,
+  bruteCheckCooldownMs: 1500,
+  bruteFumblePressure: 0.55,
   passPreference: 0.78,
   shotPreference: 0.86,
   aiCradleRadius: 118,

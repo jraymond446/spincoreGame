@@ -1,8 +1,14 @@
 import Phaser from 'phaser'
 import { aiConfig } from '../config/aiConfig'
 import { arenaConfig } from '../config/arenaConfig'
+import { coreSafetyConfig } from '../config/coreSafetyConfig'
 import { coreConfig } from '../config/entityConfig'
+import {
+  gameplayConfig,
+  type GameMode,
+} from '../config/gameplayConfig'
 import { goalConfigs } from '../config/goalConfig'
+import { inputConfig } from '../config/inputConfig'
 import { viewConfig } from '../config/viewConfig'
 import type { Point } from '../data/geometry'
 import type { MatchState, PlayerControlIntent, TeamSide } from '../data/matchTypes'
@@ -13,7 +19,10 @@ import type { Player } from '../entities/Player'
 import { GoalRule, type GoalCrossing } from '../rules/GoalRule'
 import { AISystem } from '../systems/AISystem'
 import { ArenaSystem } from '../systems/ArenaSystem'
-import { InputController } from '../systems/InputController'
+import { CoreRecoverySystem } from '../systems/CoreRecoverySystem'
+import { DebugHudSystem } from '../systems/DebugHudSystem'
+import { KeeperAreaSystem } from '../systems/KeeperAreaSystem'
+import { PlayerInputController } from '../systems/PlayerInputController'
 import { PlayerControlSystem } from '../systems/PlayerControlSystem'
 import {
   StickInteractionSystem,
@@ -25,46 +34,82 @@ export class GameScene extends Phaser.Scene {
   private core!: Core
   private goals: GoalGate[] = []
   private goalRules = new Map<string, GoalRule>()
-  private inputController!: InputController
+  private arenaSystem!: ArenaSystem
+  private keeperAreaSystem!: KeeperAreaSystem
+  private coreRecoverySystem!: CoreRecoverySystem
+  private inputController!: PlayerInputController
   private teamSystem!: TeamSystem
   private playerControlSystem!: PlayerControlSystem
   private aiSystem!: AISystem
   private stickInteractionSystem!: StickInteractionSystem
+  private debugHudSystem!: DebugHudSystem
   private scoreElement!: HTMLDivElement
   private matchState: MatchState = structuredClone(initialMatchState)
   private debugEnabled = false
+  private gameMode: GameMode = gameplayConfig.defaultMode
 
   constructor() {
     super('GameScene')
+  }
+
+  init(data?: { gameMode?: GameMode }): void {
+    this.gameMode = data?.gameMode ?? gameplayConfig.defaultMode
+    this.matchState = structuredClone(initialMatchState)
+    this.debugEnabled = false
   }
 
   create(): void {
     this.matter.world.setGravity(0, 0)
     this.cameras.main.setBackgroundColor('#071016')
 
-    new ArenaSystem(this)
-    this.goals = goalConfigs.map((config) => new GoalGate(this, config))
+    const hudRoot = this.getHudRoot()
+
+    this.arenaSystem = new ArenaSystem(this)
+    this.keeperAreaSystem = new KeeperAreaSystem(this)
+    this.keeperAreaSystem.setActive(this.gameMode === 'match3v3')
+    this.goals = goalConfigs
+      .filter(
+        (config) =>
+          this.gameMode === 'match3v3' ||
+          config.id === gameplayConfig.stickLab.goalId,
+      )
+      .map((config) => new GoalGate(this, config))
+    this.goalRules.clear()
     this.core = new Core(this)
-    this.teamSystem = new TeamSystem(this)
+    this.teamSystem = new TeamSystem(this, this.gameMode)
     this.playerControlSystem = new PlayerControlSystem()
     this.aiSystem = new AISystem(this)
-    this.inputController = new InputController(this)
+    this.inputController = new PlayerInputController(this, hudRoot)
     this.stickInteractionSystem = new StickInteractionSystem(this)
+    this.coreRecoverySystem = new CoreRecoverySystem()
+    this.debugHudSystem = new DebugHudSystem(hudRoot, {
+      onReset: this.resetPositions,
+      onToggleMode: this.toggleGameMode,
+      onToggleDebug: this.toggleDebug,
+    })
+    this.setDebugEnabled(this.debugHudSystem.isExpanded())
 
     for (const goal of this.goals) {
       this.goalRules.set(goal.id, new GoalRule(this.core.position))
     }
 
-    this.createHud()
+    this.createHud(hudRoot)
     this.layoutViewport()
     this.scale.on('resize', this.layoutViewport, this)
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off('resize', this.layoutViewport, this)
+      this.inputController.destroy()
+      this.debugHudSystem.destroy()
       this.scoreElement.remove()
     })
   }
 
   update(_time: number, delta: number): void {
+    if (this.inputController.consumeModeToggle()) {
+      this.toggleGameMode()
+      return
+    }
+
     const players = this.teamSystem.players
     const controlledPlayer = this.playerControlSystem.update(
       this.teamSystem.getPlayersForSide('A'),
@@ -81,13 +126,13 @@ export class GameScene extends Phaser.Scene {
     )
     const stickIntents = new Map<string, StickIntent>()
 
-    this.updateHumanPlayer(controlledPlayer, stickIntents)
+    this.updateHumanPlayer(controlledPlayer, stickIntents, delta)
     this.updateAIPlayers(players, controlledPlayer.id, aiIntents, stickIntents)
+    this.arenaSystem.containPlayers(players)
+    this.keeperAreaSystem.update(players)
 
     if (this.inputController.consumeDebugToggle()) {
-      this.debugEnabled = this.stickInteractionSystem.toggleDebug()
-      this.aiSystem.setDebugEnabled(this.debugEnabled)
-      this.teamSystem.setDebugVisible(this.debugEnabled)
+      this.toggleDebug()
     }
 
     this.stickInteractionSystem.update(
@@ -99,12 +144,18 @@ export class GameScene extends Phaser.Scene {
     )
 
     for (const request of this.aiSystem.consumeCheckRequests()) {
-      if (Math.random() <= aiConfig.bruteFumblePressure) {
+      if (
+        this.stickInteractionSystem.getStickState(request.bruteId) ===
+          'SWINGING' &&
+        Math.random() <= aiConfig.bruteFumblePressure
+      ) {
         this.stickInteractionSystem.forceFumble(this.core, players, request.targetId)
       }
     }
 
     this.core.update()
+
+    let goalScored = false
 
     for (const goal of this.goals) {
       goal.update(delta)
@@ -112,21 +163,32 @@ export class GameScene extends Phaser.Scene {
 
       if (crossing) {
         this.scoreGoal(goal, crossing)
+        goalScored = true
         break
       }
     }
+
+    if (!goalScored && this.coreRecoverySystem.update(this.core.position, delta)) {
+      this.recoverCoreToFaceoff()
+    }
+
+    this.updateDebugHud(controlledPlayer)
   }
 
   private updateHumanPlayer(
     player: Player,
     stickIntents: Map<string, StickIntent>,
+    deltaMs: number,
   ): void {
-    player.update(
-      this.inputController.getMovementVector(),
-      this.inputController.getAimAngle(player.position),
+    const input = this.inputController.update(
+      player.position,
+      player.getAimAngle(),
+      deltaMs,
     )
+
+    player.update(input.movement, input.aimAngle)
     stickIntents.set(player.id, {
-      hold: this.inputController.isPointerHeld(),
+      hold: input.hold,
     })
   }
 
@@ -150,36 +212,23 @@ export class GameScene extends Phaser.Scene {
       }
 
       const move = movementToward(player.position, intent.moveTarget)
-      let aimAngle = Phaser.Math.Angle.Between(
+      const aimAngle = Phaser.Math.Angle.Between(
         player.position.x,
         player.position.y,
         intent.aimTarget.x,
         intent.aimTarget.y,
       )
 
-      if (
-        intent.hold &&
-        this.stickInteractionSystem.getCarrierId() !== player.id &&
-        distance(player.position, this.core.position) <= aiConfig.aiCradleRadius
-      ) {
-        aimAngle -= 0.42
-      }
-
       player.update(move, aimAngle)
       stickIntents.set(player.id, {
         hold: intent.hold,
+        swing: intent.swing,
         releaseTarget: intent.releaseTarget,
       })
     }
   }
 
-  private createHud(): void {
-    const hudRoot = document.querySelector<HTMLDivElement>('#hud-root')
-
-    if (!hudRoot) {
-      throw new Error('Missing #hud-root element')
-    }
-
+  private createHud(hudRoot: HTMLDivElement): void {
     this.scoreElement = document.createElement('div')
     this.scoreElement.className = 'scoreboard'
     hudRoot.appendChild(this.scoreElement)
@@ -188,17 +237,22 @@ export class GameScene extends Phaser.Scene {
   }
 
   private layoutViewport(): void {
-    const width = Math.max(1, this.scale.width)
-    const height = Math.max(1, this.scale.height)
+    const safeLeft = getCssPixelValue('--safe-area-inset-left')
+    const safeRight = getCssPixelValue('--safe-area-inset-right')
+    const safeTop = getCssPixelValue('--safe-area-inset-top')
+    const safeBottom = getCssPixelValue('--safe-area-inset-bottom')
+    const width = Math.max(1, this.scale.width - safeLeft - safeRight)
+    const height = Math.max(1, this.scale.height - safeTop - safeBottom)
     const cameraPadding = viewConfig.camera.arenaPadding
     const targetWidth = arenaConfig.width + cameraPadding * 2
     const targetHeight = arenaConfig.height + cameraPadding * 2
     const fitZoom = Math.min(width / targetWidth, height / targetHeight)
     const zoom = Math.min(fitZoom, viewConfig.camera.maxZoom)
 
-    this.cameras.main.setViewport(0, 0, width, height)
+    this.cameras.main.setViewport(safeLeft, safeTop, width, height)
     this.cameras.main.setZoom(zoom)
     this.cameras.main.centerOn(arenaConfig.center.x, arenaConfig.center.y)
+    this.inputController.layout()
     this.layoutHud()
   }
 
@@ -207,8 +261,10 @@ export class GameScene extends Phaser.Scene {
       return
     }
 
-    this.scoreElement.style.left = `${viewConfig.hud.padding.x}px`
-    this.scoreElement.style.top = `${viewConfig.hud.padding.y}px`
+    this.scoreElement.style.left =
+      `calc(${viewConfig.hud.padding.x}px + env(safe-area-inset-left, 0px))`
+    this.scoreElement.style.top =
+      `calc(${viewConfig.hud.padding.y}px + env(safe-area-inset-top, 0px))`
   }
 
   private scoreGoal(goal: GoalGate, crossing: GoalCrossing): void {
@@ -229,7 +285,13 @@ export class GameScene extends Phaser.Scene {
   }
 
   private resetAfterGoal(): void {
+    this.resetPositions()
+  }
+
+  private resetPositions = (): void => {
+    this.inputController.reset()
     this.stickInteractionSystem.clearForReset(this.core)
+    this.coreRecoverySystem.reset()
     this.teamSystem.resetFormation()
     this.core.reset()
 
@@ -238,7 +300,101 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  private toggleGameMode = (): void => {
+    this.scene.restart({
+      gameMode: this.gameMode === 'stickLab' ? 'match3v3' : 'stickLab',
+    })
+  }
+
+  private toggleDebug = (): void => {
+    const enabled = !this.debugHudSystem.isExpanded()
+
+    this.debugHudSystem.setExpanded(enabled)
+    this.setDebugEnabled(enabled)
+  }
+
+  private setDebugEnabled(enabled: boolean): void {
+    this.debugEnabled = enabled
+    this.stickInteractionSystem.setDebugEnabled(enabled)
+    this.aiSystem.setDebugEnabled(enabled)
+    this.teamSystem.setDebugVisible(enabled)
+    this.keeperAreaSystem.setDebugEnabled(enabled)
+  }
+
+  private recoverCoreToFaceoff(): void {
+    this.stickInteractionSystem.clearForReset(this.core)
+    this.core.reset()
+
+    if (coreSafetyConfig.coreResetImpulseAfterRecovery > 0) {
+      this.core.setVelocity({
+        x: 0,
+        y: -coreSafetyConfig.coreResetImpulseAfterRecovery,
+      })
+    }
+
+    for (const rule of this.goalRules.values()) {
+      rule.reset(coreConfig.spawn)
+    }
+  }
+
+  private updateDebugHud(controlledPlayer: Player): void {
+    if (!this.debugEnabled && !inputConfig.debugTouchHud) {
+      return
+    }
+
+    const inputVectors = this.inputController.getDebugVectors()
+
+    this.debugHudSystem.update({
+      gameMode: this.gameMode,
+      score: this.matchState.score,
+      coreState: this.stickInteractionSystem.getState(),
+      stickState: this.stickInteractionSystem.getStickState(controlledPlayer.id),
+      possessionOwner: this.stickInteractionSystem.getCarrierId(),
+      inputMode: this.inputController.getMode(),
+      leftJoystickVector: inputVectors.leftJoystick,
+      rightAimVector: inputVectors.rightAim,
+      controlledPlayerId: controlledPlayer.id,
+      controlledPlayerRole: controlledPlayer.role,
+      chargeElapsedMs: this.stickInteractionSystem.getCradleElapsedMs(),
+      chargeNormalized: this.stickInteractionSystem.getChargeNormalized(),
+      releaseForcePreview:
+        this.stickInteractionSystem.getReleaseForcePreview(),
+      cradlePhase: this.stickInteractionSystem.getCradlePhase(),
+      stickVisualRotation: controlledPlayer.getStickVisualRotation(),
+      catchAutoOrientActive:
+        this.stickInteractionSystem.isCatchAutoOrientActive(
+          controlledPlayer.id,
+        ),
+      coreInCatchAssistRadius:
+        this.stickInteractionSystem.isCoreInCatchAssistRadius(
+          this.core,
+          controlledPlayer,
+        ),
+      cradleFailure: this.stickInteractionSystem.getCradleFailureReason(
+        controlledPlayer.id,
+      ),
+      lastInteraction: this.stickInteractionSystem.getLastInteraction(),
+      recoveryStatus: this.coreRecoverySystem.getDebugStatus(),
+    })
+  }
+
+  private getHudRoot(): HTMLDivElement {
+    const hudRoot = document.querySelector<HTMLDivElement>('#hud-root')
+
+    if (!hudRoot) {
+      throw new Error('Missing #hud-root element')
+    }
+
+    return hudRoot
+  }
+
   private updateHud(): void {
+    if (this.gameMode === 'stickLab') {
+      this.scoreElement.textContent =
+        `STICK LAB\nGOALS ${this.matchState.score.A}\nCORE CONTROL`
+      return
+    }
+
     const winner = this.matchState.winner
       ? `\n${scoreLabels.winner} TEAM ${this.matchState.winner}`
       : ''
@@ -282,6 +438,11 @@ function movementToward(position: Point, target: Point): Phaser.Math.Vector2 {
   return vector.normalize()
 }
 
-function distance(a: Point, b: Point): number {
-  return Math.hypot(a.x - b.x, a.y - b.y)
+function getCssPixelValue(propertyName: string): number {
+  const value = getComputedStyle(document.documentElement)
+    .getPropertyValue(propertyName)
+    .trim()
+  const parsed = Number.parseFloat(value)
+
+  return Number.isFinite(parsed) ? parsed : 0
 }

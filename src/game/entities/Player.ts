@@ -1,6 +1,6 @@
 import Phaser from 'phaser'
-import { stickInteractionConfig } from '../config/entityConfig'
 import { playerRuntimeConfig } from '../config/playerConfig'
+import { stickConfig } from '../config/stickConfig'
 import type { Point } from '../data/geometry'
 import type {
   AIState,
@@ -8,6 +8,7 @@ import type {
   PlayerControllerType,
   PlayerRole,
   PlayerRosterEntry,
+  StickActionState,
   TeamSide,
 } from '../data/matchTypes'
 import type { PlayerArchetype } from '../data/matchTypes'
@@ -44,8 +45,10 @@ export class Player {
   private controlledIndicator: Phaser.GameObjects.Arc
   private roleLabel: Phaser.GameObjects.Text
   private aiStateLabel: Phaser.GameObjects.Text
-  private aimAngle = 0
+  private releaseAimAngle = 0
+  private stickVisualRotation = 0
   private aiState: AIState = 'IDLE'
+  private stickState: StickActionState = 'IDLE'
 
   constructor(
     scene: Phaser.Scene,
@@ -127,7 +130,7 @@ export class Player {
   }
 
   update(moveVector: Phaser.Math.Vector2, aimAngle: number): void {
-    this.aimAngle = aimAngle
+    this.releaseAimAngle = aimAngle
     const maxSpeed = playerRuntimeConfig.baseMaxSpeed * this.attributes.speed
 
     this.scene.matter.body.setVelocity(this.body, {
@@ -145,8 +148,10 @@ export class Player {
     this.scene.matter.body.setPosition(this.body, this.spawn)
     this.scene.matter.body.setVelocity(this.body, { x: 0, y: 0 })
     this.scene.matter.body.setAngularVelocity(this.body, 0)
-    this.aimAngle = this.teamSide === 'A' ? -Math.PI / 2 : Math.PI / 2
+    this.releaseAimAngle = this.teamSide === 'A' ? -Math.PI / 2 : Math.PI / 2
+    this.stickVisualRotation = this.releaseAimAngle
     this.aiState = 'IDLE'
+    this.stickState = 'IDLE'
     this.syncVisuals()
   }
 
@@ -163,18 +168,47 @@ export class Player {
     this.aiStateLabel.setText(state)
   }
 
+  setStickState(state: StickActionState): void {
+    if (this.stickState === state) {
+      return
+    }
+
+    this.stickState = state
+    this.drawStick()
+  }
+
   getAIState(): AIState {
     return this.aiState
   }
 
   getAimAngle(): number {
-    return this.aimAngle
+    return this.releaseAimAngle
+  }
+
+  getReleaseAimAngle(): number {
+    return this.releaseAimAngle
+  }
+
+  getStickVisualRotation(): number {
+    return this.stickVisualRotation
+  }
+
+  setStickVisualRotation(rotation: number): void {
+    this.stickVisualRotation = Phaser.Math.Angle.Wrap(rotation)
+    this.syncVisuals()
+  }
+
+  getReleaseAimForward(): Point {
+    return {
+      x: Math.cos(this.releaseAimAngle),
+      y: Math.sin(this.releaseAimAngle),
+    }
   }
 
   getStickForward(): Point {
     return {
-      x: Math.cos(this.aimAngle),
-      y: Math.sin(this.aimAngle),
+      x: Math.cos(this.stickVisualRotation),
+      y: Math.sin(this.stickVisualRotation),
     }
   }
 
@@ -191,10 +225,10 @@ export class Player {
     const position = this.position
     const forward = this.getStickForward()
     const right = this.getStickRight()
-    const rootDistance = playerRuntimeConfig.radius - stickInteractionConfig.visual.rootOffset
-    const tipDistance = playerRuntimeConfig.radius + stickInteractionConfig.visual.length
+    const rootDistance = playerRuntimeConfig.radius - stickConfig.visual.rootOffset
+    const tipDistance = playerRuntimeConfig.radius + stickConfig.visual.length
     const controlDistance =
-      playerRuntimeConfig.radius + stickInteractionConfig.visual.length * 0.5
+      playerRuntimeConfig.radius + stickConfig.visual.length * 0.5
 
     return {
       root: {
@@ -205,11 +239,11 @@ export class Player {
         x:
           position.x +
           forward.x * controlDistance +
-          right.x * stickInteractionConfig.visual.curve,
+          right.x * stickConfig.visual.curve,
         y:
           position.y +
           forward.y * controlDistance +
-          right.y * stickInteractionConfig.visual.curve,
+          right.y * stickConfig.visual.curve,
       },
       tip: {
         x: position.x + forward.x * tipDistance,
@@ -224,10 +258,10 @@ export class Player {
 
     for (
       let index = 0;
-      index <= stickInteractionConfig.visual.sampleCount;
+      index <= stickConfig.visual.sampleCount;
       index += 1
     ) {
-      const t = index / stickInteractionConfig.visual.sampleCount
+      const t = index / stickConfig.visual.sampleCount
       points.push(quadraticPoint(curve.root, curve.control, curve.tip, t))
     }
 
@@ -236,19 +270,19 @@ export class Player {
 
   getCradleSocket(): Point {
     return this.stickLocalToWorld({
-      x: stickInteractionConfig.cradle.cradleSocketOffset.forward,
-      y: stickInteractionConfig.cradle.cradleSocketOffset.side,
+      x: stickConfig.cradleSocketOffset.forward,
+      y: stickConfig.cradleSocketOffset.side,
     })
   }
 
   getCradleZone(): CradleZone {
     return {
       center: this.position,
-      minRadius: stickInteractionConfig.cradle.cradleMinRadius,
-      maxRadius: stickInteractionConfig.cradle.cradleMaxRadius,
-      minAngle: Phaser.Math.DegToRad(stickInteractionConfig.cradle.cradleMinAngle),
-      maxAngle: Phaser.Math.DegToRad(stickInteractionConfig.cradle.cradleMaxAngle),
-      aimAngle: this.aimAngle,
+      minRadius: stickConfig.cradleMinRadius,
+      maxRadius: stickConfig.cradleMaxRadius,
+      minAngle: Phaser.Math.DegToRad(stickConfig.cradleMinAngle),
+      maxAngle: Phaser.Math.DegToRad(stickConfig.cradleMaxAngle),
+      aimAngle: this.stickVisualRotation,
     }
   }
 
@@ -308,14 +342,14 @@ export class Player {
 
     this.stick.clear()
     this.stick.lineStyle(
-      stickInteractionConfig.visual.width + 5,
-      stickInteractionConfig.visual.shadowColor,
+      stickConfig.visual.width + 5,
+      stickConfig.visual.shadowColor,
       0.5,
     )
     this.drawStickPath(curve, 24)
     this.stick.lineStyle(
-      stickInteractionConfig.visual.width,
-      stickInteractionConfig.visual.color,
+      stickConfig.visual.width,
+      stickColor(this.stickState),
       0.98,
     )
     this.drawStickPath(curve, 24)
@@ -352,4 +386,38 @@ function roleLabel(role: PlayerRole): string {
   }
 
   return 'B'
+}
+
+function stickColor(state: StickActionState): number {
+  const colors = stickConfig.feedbackColors
+
+  if (state === 'CATCH_READY') {
+    return colors.catchReady
+  }
+
+  if (state === 'CRADLED_STABLE') {
+    return colors.stable
+  }
+
+  if (state === 'CRADLED_CHARGING') {
+    return colors.charging
+  }
+
+  if (state === 'CRADLED_OVERCHARGED') {
+    return colors.overcharged
+  }
+
+  if (state === 'SWINGING') {
+    return colors.swinging
+  }
+
+  if (state === 'RELEASE_RECOVERY') {
+    return colors.recovery
+  }
+
+  if (state === 'FUMBLED_COOLDOWN') {
+    return colors.fumbled
+  }
+
+  return colors.idle
 }
