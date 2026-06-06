@@ -1,5 +1,5 @@
 export const coreConfig = {
-  radius: 18,
+  radius: 11,
   spawn: {
     x: 450,
     y: 700,
@@ -8,10 +8,10 @@ export const coreConfig = {
   strokeColor: 0x41e6ff,
   glowColor: 0x21f0ff,
   trailColor: 0xaefbff,
-  restitution: 0.92,
+  restitution: 0.86,
   friction: 0,
   frictionAir: 0.012,
-  density: 0.003,
+  density: 0.0026,
 } as const
 
 export const playerConfig = {

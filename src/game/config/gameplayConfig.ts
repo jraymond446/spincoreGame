@@ -1,7 +1,7 @@
 export type GameMode = 'stickLab' | 'match3v3'
 
 export const gameplayConfig = {
-  defaultMode: 'stickLab' as GameMode,
+  defaultMode: 'match3v3' as GameMode,
   stickLab: {
     playerId: 'a-striker',
     playerSpawn: {

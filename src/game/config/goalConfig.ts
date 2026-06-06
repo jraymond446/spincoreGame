@@ -12,8 +12,8 @@ export type GoalGateConfig = {
 }
 
 export const goalConfig = {
-  goalPostRadius: 16,
-  goalPostRestitution: 0.9,
+  goalPostRadius: 11,
+  goalPostRestitution: 0.82,
   goalPostFriction: 0.02,
   scoringPlaneTolerance: 5,
   scoringCooldownMs: 500,
@@ -22,7 +22,7 @@ export const goalConfig = {
 const sharedGoalConfig = {
   orientation: 'horizontal',
   x: arenaConfig.center.x,
-  length: 230,
+  length: 150,
   planeColor: 0xe8fbff,
   postColor: 0xffca62,
   flashColor: 0xffffff,
@@ -31,13 +31,13 @@ const sharedGoalConfig = {
 export const topGoalConfig: GoalGateConfig = {
   ...sharedGoalConfig,
   id: 'top-goal',
-  y: arenaConfig.center.y - arenaConfig.height / 2 + 190,
+  y: arenaConfig.center.y - arenaConfig.height / 2 + 330,
 }
 
 export const bottomGoalConfig: GoalGateConfig = {
   ...sharedGoalConfig,
   id: 'bottom-goal',
-  y: arenaConfig.center.y + arenaConfig.height / 2 - 190,
+  y: arenaConfig.center.y + arenaConfig.height / 2 - 330,
 }
 
 export const goalConfigs = [topGoalConfig, bottomGoalConfig] as const

@@ -63,6 +63,14 @@ export type LabStickTuning = {
   releaseForceMax: number
   chargeForceExponent: number
   overchargeAccuracyPenalty: number
+  releaseWindupMs: number
+  releaseSwingMs: number
+  releaseFollowThroughMs: number
+  releaseSwingArcRadians: number
+  releaseSwingPowerTiming: number
+  releaseTangentialForceMultiplier: number
+  releaseForwardForceMultiplier: number
+  releaseSpinInfluence: number
   aimSmoothing: number
   maxStickRotationSpeed: number
   cradleFacingOffsetRadians: number

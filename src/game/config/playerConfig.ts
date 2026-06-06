@@ -1,5 +1,5 @@
 export const playerRuntimeConfig = {
-  radius: 26,
+  radius: 23,
   baseMaxSpeed: 5.2,
   frictionAir: 0.18,
   restitution: 0.35,

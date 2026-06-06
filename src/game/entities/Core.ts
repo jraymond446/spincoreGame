@@ -102,6 +102,10 @@ export class Core {
     this.scene.matter.body.setAngularVelocity(this.body, 0)
   }
 
+  setAngularVelocity(angularVelocity: number): void {
+    this.scene.matter.body.setAngularVelocity(this.body, angularVelocity)
+  }
+
   setSensor(isSensor: boolean): void {
     this.scene.matter.body.set(this.body, 'isSensor', isSensor)
   }

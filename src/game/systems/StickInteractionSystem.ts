@@ -64,6 +64,19 @@ type ReleaseVector = {
   msRemaining: number
 }
 
+type PendingRelease = {
+  playerId: string
+  elapsedMs: number
+  aimDirection: Point
+  startRotation: number
+  windupRotation: number
+  endRotation: number
+  followRotation: number
+  swingSign: number
+  chargeElapsedMs: number
+  released: boolean
+}
+
 export class StickInteractionSystem {
   private coreState: CorePossessionState = 'FREE'
   private carrierId: string | null = null
@@ -80,11 +93,14 @@ export class StickInteractionSystem {
   private debugFocusPlayerId: string | null = null
   private debugGraphics: Phaser.GameObjects.Graphics
   private debugText: Phaser.GameObjects.Text
+  private releaseGraphics: Phaser.GameObjects.Graphics
   private releaseVector: ReleaseVector | null = null
+  private pendingRelease: PendingRelease | null = null
   private lastInteraction: StickInteractionResult = 'none'
   private releaseForcePreview: number = stickConfig.releaseForceMin
 
   constructor(scene: Phaser.Scene) {
+    this.releaseGraphics = scene.add.graphics().setDepth(19)
     this.debugGraphics = scene.add.graphics()
     this.debugGraphics.setDepth(20)
     this.debugText = scene.add.text(
@@ -113,9 +129,17 @@ export class StickInteractionSystem {
     this.ensurePlayers(players)
     this.updateTimers(deltaMs)
     this.updateActionStates(players, intents)
+    const hadPendingRelease = this.pendingRelease !== null
+
+    if (hadPendingRelease) {
+      this.advancePendingRelease(deltaMs)
+    }
+
     this.updateStickOrientations(core, players, deltaMs)
 
-    if (this.isCradled()) {
+    if (hadPendingRelease) {
+      this.resolvePendingRelease(core, players)
+    } else if (this.isCradled()) {
       this.updateCarrier(core, players, intents, deltaMs)
     } else {
       this.applyCradleAssist(core, players, preferredPlayerId, deltaMs)
@@ -133,6 +157,7 @@ export class StickInteractionSystem {
       player.setStickState(this.getStickState(player.id))
     }
 
+    this.drawReleaseSwing(players)
     this.drawDebug(core, players)
   }
 
@@ -248,8 +273,10 @@ export class StickInteractionSystem {
     this.catchAutoOrientActive.clear()
     this.cradleOpenDirections.clear()
     this.releaseVector = null
+    this.pendingRelease = null
     this.lastInteraction = 'none'
     this.releaseForcePreview = stickConfig.releaseForceMin
+    this.releaseGraphics.clear()
 
     for (const runtime of this.actionRuntimes.values()) {
       runtime.state = 'IDLE'
@@ -308,7 +335,10 @@ export class StickInteractionSystem {
     intents: Map<string, StickIntent>,
   ): void {
     for (const player of players) {
-      if (player.id === this.carrierId) {
+      if (
+        player.id === this.carrierId ||
+        player.id === this.pendingRelease?.playerId
+      ) {
         continue
       }
 
@@ -332,6 +362,13 @@ export class StickInteractionSystem {
 
       if (
         runtime.state === 'FUMBLED_COOLDOWN' &&
+        this.releaseCooldownMsRemaining > 0
+      ) {
+        continue
+      }
+
+      if (
+        runtime.state === 'RELEASE_COOLDOWN' &&
         this.releaseCooldownMsRemaining > 0
       ) {
         continue
@@ -368,6 +405,20 @@ export class StickInteractionSystem {
     const deltaSeconds = Math.max(0, deltaMs / 1000)
 
     for (const player of players) {
+      if (player.id === this.pendingRelease?.playerId) {
+        player.setStickVisualRotation(
+          this.getPendingReleaseRotation(this.pendingRelease),
+        )
+        this.catchAutoOrientActive.set(player.id, false)
+        this.cradleOpenDirections.set(
+          player.id,
+          player.getStickVisualRotation() -
+            stickConfig.cradleFacingOffsetRadians *
+              player.getHandednessMirror(),
+        )
+        continue
+      }
+
       const coreAngle = Phaser.Math.Angle.Between(
         player.position.x,
         player.position.y,
@@ -466,12 +517,73 @@ export class StickInteractionSystem {
       this.cradleElapsedMs >=
         (intent.aiReleaseDelayMs ?? aiConfig.aiReleaseDelayMs)
     ) {
-      this.releaseToward(core, carrier, intent.releaseTarget)
+      this.beginReleaseToward(carrier, intent.releaseTarget)
       return
     }
 
     if (released) {
-      this.releaseAlongAim(core, carrier)
+      this.beginReleaseAlongAim(carrier)
+    }
+  }
+
+  private advancePendingRelease(deltaMs: number): void {
+    const pending = this.pendingRelease
+
+    if (!pending) {
+      return
+    }
+
+    pending.elapsedMs += deltaMs
+
+    if (pending.elapsedMs < stickConfig.releaseWindupMs) {
+      this.setActionState(pending.playerId, 'RELEASE_WINDUP')
+      return
+    }
+
+    if (
+      pending.elapsedMs <
+      stickConfig.releaseWindupMs + stickConfig.releaseSwingMs
+    ) {
+      this.setActionState(pending.playerId, 'RELEASE_SWING')
+      return
+    }
+
+    this.setActionState(pending.playerId, 'RELEASE_FOLLOW_THROUGH')
+  }
+
+  private resolvePendingRelease(core: Core, players: Player[]): void {
+    const pending = this.pendingRelease
+
+    if (!pending) {
+      return
+    }
+
+    const carrier = players.find((player) => player.id === pending.playerId)
+
+    if (!carrier) {
+      this.clearForReset(core)
+      return
+    }
+
+    const releaseAtMs =
+      stickConfig.releaseWindupMs +
+      stickConfig.releaseSwingMs *
+        Phaser.Math.Clamp(stickConfig.releaseSwingPowerTiming, 0, 1)
+
+    if (!pending.released && pending.elapsedMs >= releaseAtMs) {
+      this.executePendingRelease(core, carrier, pending)
+    } else if (!pending.released) {
+      core.holdAt(carrier.getCradleSocket())
+    }
+
+    const totalDuration =
+      stickConfig.releaseWindupMs +
+      stickConfig.releaseSwingMs +
+      stickConfig.releaseFollowThroughMs
+
+    if (pending.elapsedMs >= totalDuration) {
+      this.pendingRelease = null
+      this.setActionState(carrier.id, 'RELEASE_COOLDOWN')
     }
   }
 
@@ -683,26 +795,96 @@ export class StickInteractionSystem {
     this.setActionState(carrierId, 'CRADLED_STABLE')
   }
 
-  private releaseAlongAim(core: Core, carrier: Player): void {
-    this.finishPossession(
-      core,
-      carrier,
-      this.calculateReleaseVelocity(carrier.getReleaseAimForward(), carrier),
-      'RELEASED_COOLDOWN',
-    )
+  private beginReleaseAlongAim(carrier: Player): void {
+    this.beginRelease(carrier, carrier.getReleaseAimForward())
   }
 
-  private releaseToward(core: Core, carrier: Player, target: Point): void {
+  private beginReleaseToward(carrier: Player, target: Point): void {
     const direction = normalized({
       x: target.x - carrier.position.x,
       y: target.y - carrier.position.y,
     })
-    this.finishPossession(
-      core,
-      carrier,
-      this.calculateReleaseVelocity(direction, carrier),
-      'RELEASED_COOLDOWN',
+    this.beginRelease(carrier, direction)
+  }
+
+  private beginRelease(carrier: Player, direction: Point): void {
+    const aimDirection = normalized(direction)
+    const aimAngle = Math.atan2(aimDirection.y, aimDirection.x)
+    const swingSign = carrier.getHandednessMirror()
+    const arc = stickConfig.releaseSwingArcRadians
+    const powerTiming = Phaser.Math.Clamp(
+      stickConfig.releaseSwingPowerTiming,
+      0,
+      1,
     )
+
+    this.pendingRelease = {
+      playerId: carrier.id,
+      elapsedMs: 0,
+      aimDirection,
+      startRotation: carrier.getStickVisualRotation(),
+      windupRotation: aimAngle - swingSign * arc * powerTiming,
+      endRotation: aimAngle + swingSign * arc * (1 - powerTiming),
+      followRotation:
+        aimAngle + swingSign * arc * (1 - powerTiming + 0.28),
+      swingSign,
+      chargeElapsedMs: this.cradleElapsedMs,
+      released: false,
+    }
+    this.releaseForcePreview = magnitude(
+      this.calculateReleaseVelocity(
+        aimDirection,
+        carrier,
+        this.cradleElapsedMs,
+        swingSign,
+      ),
+    )
+    this.setActionState(carrier.id, 'RELEASE_WINDUP')
+  }
+
+  private executePendingRelease(
+    core: Core,
+    carrier: Player,
+    pending: PendingRelease,
+  ): void {
+    const releasePoint = carrier.getCradleSocket()
+    const velocity = this.calculateReleaseVelocity(
+      pending.aimDirection,
+      carrier,
+      pending.chargeElapsedMs,
+      pending.swingSign,
+    )
+    const chargeNormalized = Phaser.Math.Clamp(
+      pending.chargeElapsedMs / stickConfig.overchargeMs,
+      0,
+      1,
+    )
+
+    core.setSensor(false)
+    core.setPosition(releasePoint)
+    core.setVelocity(velocity)
+    core.setAngularVelocity(
+      pending.swingSign *
+        magnitude(velocity) *
+        stickConfig.releaseSpinInfluence *
+        0.08 *
+        chargeNormalized,
+    )
+    pending.released = true
+    this.coreState = 'RELEASED_COOLDOWN'
+    this.carrierId = null
+    this.cradleElapsedMs = 0
+    this.releaseCooldownMsRemaining = stickConfig.releaseCooldownMs
+    this.lastInteraction = 'release'
+    this.releaseForcePreview = magnitude(velocity)
+    this.releaseVector = {
+      start: { ...releasePoint },
+      end: {
+        x: releasePoint.x + velocity.x * stickConfig.releaseVectorScale,
+        y: releasePoint.y + velocity.y * stickConfig.releaseVectorScale,
+      },
+      msRemaining: stickConfig.releaseVectorVisibleMs,
+    }
   }
 
   private fumble(
@@ -741,6 +923,8 @@ export class StickInteractionSystem {
   ): void {
     const releasePoint = carrier.getCradleSocket()
 
+    this.pendingRelease = null
+    this.releaseGraphics.clear()
     core.setSensor(false)
     core.setPosition(releasePoint)
     core.setVelocity(velocity)
@@ -763,8 +947,17 @@ export class StickInteractionSystem {
     }
   }
 
-  private calculateReleaseVelocity(direction: Point, carrier: Player): Point {
-    const chargeNormalized = this.getChargeNormalized()
+  private calculateReleaseVelocity(
+    direction: Point,
+    carrier: Player,
+    chargeElapsedMs = this.cradleElapsedMs,
+    swingSign = carrier.getHandednessMirror(),
+  ): Point {
+    const chargeNormalized = Phaser.Math.Clamp(
+      chargeElapsedMs / stickConfig.overchargeMs,
+      0,
+      1,
+    )
     const curvedCharge = Math.pow(
       chargeNormalized,
       stickConfig.chargeForceExponent,
@@ -775,12 +968,12 @@ export class StickInteractionSystem {
       curvedCharge,
     )
     const overchargeProgress = Phaser.Math.Clamp(
-      (this.cradleElapsedMs - stickConfig.chargeCradleMs) /
+      (chargeElapsedMs - stickConfig.chargeCradleMs) /
         Math.max(1, stickConfig.fumbleMs - stickConfig.chargeCradleMs),
       0,
       1,
     )
-    const instabilityWave = Math.sin(this.cradleElapsedMs * 0.021)
+    const instabilityWave = Math.sin(chargeElapsedMs * 0.021)
     const handlingInstability = Phaser.Math.Linear(
       1.25,
       0.75,
@@ -792,13 +985,22 @@ export class StickInteractionSystem {
       handlingInstability *
       overchargeProgress
     const aimedDirection = rotate(normalized(direction), accuracyOffset)
-    const sideDirection = {
-      x: -aimedDirection.y,
-      y: aimedDirection.x,
-    }
+    const sweepDirection = rotate(
+      aimedDirection,
+      swingSign * stickConfig.releaseSwingArcRadians * 0.5,
+    )
+    const releaseDirection = normalized({
+      x:
+        aimedDirection.x * stickConfig.releaseForwardForceMultiplier +
+        sweepDirection.x * stickConfig.releaseTangentialForceMultiplier,
+      y:
+        aimedDirection.y * stickConfig.releaseForwardForceMultiplier +
+        sweepDirection.y * stickConfig.releaseTangentialForceMultiplier,
+    })
+    const sideDirection = rotate(aimedDirection, Math.PI / 2)
     const velocity = {
       x:
-        aimedDirection.x * baseForce +
+        releaseDirection.x * baseForce +
         carrier.velocity.x * stickConfig.playerVelocityReleaseInfluence +
         sideDirection.x *
           instabilityWave *
@@ -806,7 +1008,7 @@ export class StickInteractionSystem {
           handlingInstability *
           overchargeProgress,
       y:
-        aimedDirection.y * baseForce +
+        releaseDirection.y * baseForce +
         carrier.velocity.y * stickConfig.playerVelocityReleaseInfluence +
         sideDirection.y *
           instabilityWave *
@@ -872,6 +1074,137 @@ export class StickInteractionSystem {
     )
   }
 
+  private getPendingReleaseRotation(pending: PendingRelease): number {
+    const windupEnd = stickConfig.releaseWindupMs
+    const swingEnd = windupEnd + stickConfig.releaseSwingMs
+
+    if (pending.elapsedMs < windupEnd) {
+      const progress = smoothStep(
+        Phaser.Math.Clamp(
+          pending.elapsedMs / Math.max(1, stickConfig.releaseWindupMs),
+          0,
+          1,
+        ),
+      )
+
+      return interpolateAngle(
+        pending.startRotation,
+        pending.windupRotation,
+        progress,
+      )
+    }
+
+    if (pending.elapsedMs < swingEnd) {
+      const progress = smoothStep(
+        Phaser.Math.Clamp(
+          (pending.elapsedMs - windupEnd) /
+            Math.max(1, stickConfig.releaseSwingMs),
+          0,
+          1,
+        ),
+      )
+
+      return interpolateAngle(
+        pending.windupRotation,
+        pending.endRotation,
+        progress,
+      )
+    }
+
+    const progress = smoothStep(
+      Phaser.Math.Clamp(
+        (pending.elapsedMs - swingEnd) /
+          Math.max(1, stickConfig.releaseFollowThroughMs),
+        0,
+        1,
+      ),
+    )
+
+    return interpolateAngle(
+      pending.endRotation,
+      pending.followRotation,
+      progress,
+    )
+  }
+
+  private drawReleaseSwing(players: Player[]): void {
+    this.releaseGraphics.clear()
+
+    const pending = this.pendingRelease
+
+    if (!pending) {
+      return
+    }
+
+    const player = players.find((candidate) => candidate.id === pending.playerId)
+
+    if (!player) {
+      return
+    }
+
+    const windupEnd = stickConfig.releaseWindupMs
+    const swingEnd = windupEnd + stickConfig.releaseSwingMs
+    const swingProgress = Phaser.Math.Clamp(
+      (pending.elapsedMs - windupEnd) / Math.max(1, stickConfig.releaseSwingMs),
+      0,
+      1,
+    )
+    const followProgress = Phaser.Math.Clamp(
+      (pending.elapsedMs - swingEnd) /
+        Math.max(1, stickConfig.releaseFollowThroughMs),
+      0,
+      1,
+    )
+    const visibleProgress =
+      pending.elapsedMs < windupEnd ? 0.08 : Math.max(0.12, swingProgress)
+    const alpha =
+      pending.elapsedMs < windupEnd
+        ? 0.18
+        : Phaser.Math.Linear(0.72, 0.08, followProgress)
+    const radius = stickConfig.visual.length * 0.92
+    const endAngle = interpolateAngle(
+      pending.windupRotation,
+      pending.endRotation,
+      visibleProgress,
+    )
+    const segments = 18
+
+    this.releaseGraphics.lineStyle(
+      Math.max(4, stickConfig.visual.width * 0.62),
+      stickConfig.feedbackColors.swinging,
+      alpha * 0.24,
+    )
+    this.releaseGraphics.beginPath()
+
+    for (let index = 0; index <= segments; index += 1) {
+      const progress = index / segments
+      const angle = interpolateAngle(
+        pending.windupRotation,
+        endAngle,
+        progress,
+      )
+      const point = radialPoint(player.position, angle, radius)
+
+      if (index === 0) {
+        this.releaseGraphics.moveTo(point.x, point.y)
+      } else {
+        this.releaseGraphics.lineTo(point.x, point.y)
+      }
+    }
+
+    this.releaseGraphics.strokePath()
+    const tip = radialPoint(
+      player.position,
+      player.getStickVisualRotation(),
+      radius,
+    )
+    this.releaseGraphics.fillStyle(
+      stickConfig.feedbackColors.swinging,
+      alpha,
+    )
+    this.releaseGraphics.fillCircle(tip.x, tip.y, 5)
+  }
+
   private drawDebug(core: Core, players: Player[]): void {
     if (!this.debugEnabled) {
       return
@@ -932,6 +1265,7 @@ export class StickInteractionSystem {
       `STICK ${focus ? this.getStickState(focus.id) : 'IDLE'}\n` +
         `CORE ${this.coreState}\n` +
         `PHASE ${this.getCradlePhase()}\n` +
+        `RELEASE ${this.getPendingReleasePhase()}\n` +
         `CHARGE ${Math.round(this.cradleElapsedMs)}ms / ${this
           .getChargeNormalized()
           .toFixed(2)}\n` +
@@ -945,6 +1279,27 @@ export class StickInteractionSystem {
         `CONTACT ${this.lastInteraction}\n` +
         `SPEED ${Math.hypot(core.velocity.x, core.velocity.y).toFixed(2)}`,
     )
+  }
+
+  private getPendingReleasePhase(): string {
+    const pending = this.pendingRelease
+
+    if (!pending) {
+      return 'NONE'
+    }
+
+    if (pending.elapsedMs < stickConfig.releaseWindupMs) {
+      return 'WINDUP'
+    }
+
+    if (
+      pending.elapsedMs <
+      stickConfig.releaseWindupMs + stickConfig.releaseSwingMs
+    ) {
+      return pending.released ? 'SWING / RELEASED' : 'SWING'
+    }
+
+    return 'FOLLOW THROUGH'
   }
 
   private drawCradleZone(zone: CradleZone): void {
@@ -1203,6 +1558,14 @@ function rotate(vector: Point, angle: number): Point {
     x: vector.x * cosine - vector.y * sine,
     y: vector.x * sine + vector.y * cosine,
   }
+}
+
+function interpolateAngle(start: number, end: number, progress: number): number {
+  return start + Phaser.Math.Angle.Wrap(end - start) * progress
+}
+
+function smoothStep(value: number): number {
+  return value * value * (3 - 2 * value)
 }
 
 function magnitude(vector: Point): number {

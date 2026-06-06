@@ -395,7 +395,7 @@ export class LabPanel {
       this.createRange(
         'Stick visual scale',
         field.stickVisualScale,
-        { min: 0.65, max: 1.2, step: 0.01, digits: 2 },
+        { min: 0.45, max: 1.2, step: 0.01, digits: 2 },
         (value) => {
           field.stickVisualScale = value
           this.markDraftChanged()
@@ -476,7 +476,7 @@ export class LabPanel {
       this.createRange(
         'Keeper zone radius',
         field.keeperZoneRadius,
-        { min: 120, max: 230, step: 5 },
+        { min: 90, max: 230, step: 2 },
         (value) => {
           field.keeperZoneRadius = value
           this.markDraftChanged()
@@ -541,6 +541,14 @@ export class LabPanel {
       ['Release force max', 'releaseForceMax', { min: 8, max: 28, step: 0.2, digits: 1 }],
       ['Charge force exponent', 'chargeForceExponent', { min: 0.4, max: 3.5, step: 0.05, digits: 2 }],
       ['Overcharge accuracy penalty', 'overchargeAccuracyPenalty', { min: 0, max: 0.6, step: 0.01, digits: 2 }],
+      ['Release windup ms', 'releaseWindupMs', { min: 0, max: 140, step: 5 }],
+      ['Release swing ms', 'releaseSwingMs', { min: 40, max: 220, step: 5 }],
+      ['Release follow-through ms', 'releaseFollowThroughMs', { min: 40, max: 300, step: 5 }],
+      ['Release swing arc', 'releaseSwingArcRadians', { min: 0.2, max: 1.5, step: 0.05, digits: 2 }],
+      ['Release power timing', 'releaseSwingPowerTiming', { min: 0.2, max: 0.9, step: 0.05, digits: 2 }],
+      ['Release tangential force', 'releaseTangentialForceMultiplier', { min: 0, max: 0.8, step: 0.05, digits: 2 }],
+      ['Release forward force', 'releaseForwardForceMultiplier', { min: 0.4, max: 1.2, step: 0.05, digits: 2 }],
+      ['Release spin influence', 'releaseSpinInfluence', { min: 0, max: 0.6, step: 0.02, digits: 2 }],
       ['Aim smoothing', 'aimSmoothing', { min: 1, max: 28, step: 0.5, digits: 1 }],
       ['Max rotation speed', 'maxStickRotationSpeed', { min: 1, max: 18, step: 0.2, digits: 1 }],
       ['Cradle facing offset', 'cradleFacingOffsetRadians', { min: -1.2, max: 1.2, step: 0.02, digits: 2 }],

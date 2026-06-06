@@ -139,6 +139,16 @@ export function applyLabSettings(state: LabTuningState): void {
     ),
     chargeForceExponent: stick.chargeForceExponent,
     overchargeAccuracyPenalty: stick.overchargeAccuracyPenalty,
+    releaseWindupMs: stick.releaseWindupMs,
+    releaseSwingMs: stick.releaseSwingMs,
+    releaseFollowThroughMs: stick.releaseFollowThroughMs,
+    releaseSwingArcRadians: stick.releaseSwingArcRadians,
+    releaseSwingPowerTiming: stick.releaseSwingPowerTiming,
+    releaseTangentialForceMultiplier:
+      stick.releaseTangentialForceMultiplier,
+    releaseForwardForceMultiplier:
+      stick.releaseForwardForceMultiplier,
+    releaseSpinInfluence: stick.releaseSpinInfluence,
     aimSmoothing: stick.aimSmoothing,
     maxStickRotationSpeed: stick.maxStickRotationSpeed,
     cradleFacingOffsetRadians: stick.cradleFacingOffsetRadians,

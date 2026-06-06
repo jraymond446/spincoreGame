@@ -1,8 +1,8 @@
 import { viewConfig } from './viewConfig'
 
 export const arenaDimensionsConfig = {
-  width: 900,
-  height: 1400,
+  width: 940,
+  height: 1460,
 } as const
 
 export const arenaConfig = {

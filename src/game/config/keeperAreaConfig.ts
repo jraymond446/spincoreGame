@@ -3,8 +3,8 @@ import { bottomGoalConfig, topGoalConfig } from './goalConfig'
 
 export const keeperAreaConfig = {
   keeperZoneRadius: aiConfig.keeperHomeRadius,
-  keeperZoneBoundaryBuffer: 6,
-  keeperZonePushStrength: 1,
+  keeperZoneBoundaryBuffer: 8,
+  keeperZonePushStrength: 0.85,
   keeperZoneVisualAlpha: 0.055,
   keeperZoneDebugAlpha: 0.14,
   normal: {

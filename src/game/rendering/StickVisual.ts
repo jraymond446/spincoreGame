@@ -114,7 +114,9 @@ export class StickVisual {
     const cradled =
       state === 'CRADLED_STABLE' ||
       state === 'CRADLED_CHARGING' ||
-      state === 'CRADLED_OVERCHARGED'
+      state === 'CRADLED_OVERCHARGED' ||
+      state === 'RELEASE_WINDUP' ||
+      state === 'RELEASE_SWING'
 
     if (!catchReady && !cradled) {
       return
@@ -312,10 +314,16 @@ export class StickVisual {
         return stickConfig.feedbackColors.charging
       case 'CRADLED_OVERCHARGED':
         return stickConfig.feedbackColors.overcharged
-      case 'SWINGING':
+      case 'RELEASE_WINDUP':
+        return stickConfig.feedbackColors.charging
+      case 'RELEASE_SWING':
         return stickConfig.feedbackColors.swinging
+      case 'RELEASE_FOLLOW_THROUGH':
+      case 'RELEASE_COOLDOWN':
       case 'RELEASE_RECOVERY':
         return stickConfig.feedbackColors.recovery
+      case 'SWINGING':
+        return stickConfig.feedbackColors.swinging
       case 'FUMBLED_COOLDOWN':
         return stickConfig.feedbackColors.fumbled
       default:

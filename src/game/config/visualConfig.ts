@@ -1,5 +1,5 @@
 export const visualConfig = {
-  playerScale: 0.9,
+  playerScale: 0.76,
   headRadius: 18,
   headForwardOffset: 12,
   torsoLength: 31,
