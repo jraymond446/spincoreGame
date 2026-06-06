@@ -14,9 +14,9 @@ export class BenchRenderer {
   constructor(scene: Phaser.Scene) {
     this.graphics = scene.add.graphics().setDepth(-8)
     this.labels = [
-      createLabel(scene, 'A BENCH'),
-      createLabel(scene, 'B BENCH'),
-      createLabel(scene, 'STATS'),
+      createLabel(scene, 'TEAM A'),
+      createLabel(scene, 'TEAM B'),
+      createLabel(scene, 'OFFICIAL'),
     ]
   }
 
@@ -31,12 +31,14 @@ export class BenchRenderer {
     }
 
     this.graphics.clear()
-    this.drawTeamBench('A', -1, simplified)
-    this.drawTeamBench('B', 1, simplified)
 
-    if (!simplified) {
-      this.drawScorekeeperTable()
+    if (simplified) {
+      return
     }
+
+    this.drawTeamBench('A', -1)
+    this.drawTeamBench('B', 1)
+    this.drawScorekeeperTable()
   }
 
   destroy(): void {
@@ -47,23 +49,21 @@ export class BenchRenderer {
   private drawTeamBench(
     side: TeamSide,
     direction: -1 | 1,
-    simplified: boolean,
   ): void {
     const palette = teamVisualPalettes[side]
     const courtEdge =
       arenaConfig.center.x + direction * arenaConfig.width / 2
+    const width = arenaPresentationConfig.bench.width
+    const height = arenaPresentationConfig.bench.height
     const benchX =
       courtEdge +
-      direction * (simplified ? 55 : 94)
-    const benchY = arenaConfig.height * 0.56
-    const width = simplified ? 34 : 86
-    const height = simplified ? 220 : 390
-    const count = simplified
-      ? Math.min(3, arenaPresentationConfig.benchHeadCount)
-      : arenaPresentationConfig.benchHeadCount
+      direction *
+        (arenaPresentationConfig.bench.courtGap + width / 2)
+    const benchY = arenaConfig.height * 0.55
+    const count = arenaPresentationConfig.benchHeadCount
 
     this.graphics.fillStyle(
-      arenaPresentationConfig.venue.seatingColor,
+      arenaPresentationConfig.venue.concourseColor,
       arenaPresentationConfig.bench.areaAlpha,
     )
     this.graphics.fillRoundedRect(
@@ -73,74 +73,66 @@ export class BenchRenderer {
       height,
       8,
     )
-    this.graphics.lineStyle(5, palette.shirt, 0.78)
-    this.graphics.lineBetween(
+    this.graphics.lineStyle(4, palette.shirt, 0.6)
+    this.graphics.strokeRoundedRect(
       benchX - width / 2,
       benchY - height / 2,
-      benchX - width / 2,
-      benchY + height / 2,
+      width,
+      height,
+      8,
     )
-    this.graphics.lineStyle(4, 0xb7d9dc, 0.48)
+    this.graphics.lineStyle(5, arenaPresentationConfig.venue.railColor, 0.42)
     this.graphics.lineBetween(
-      benchX - width * 0.22,
-      benchY - height * 0.38,
-      benchX - width * 0.22,
-      benchY + height * 0.38,
+      benchX - width * 0.37,
+      benchY + height * 0.14,
+      benchX + width * 0.37,
+      benchY + height * 0.14,
     )
 
     for (let index = 0; index < count; index += 1) {
-      const y = Phaser.Math.Linear(
-        benchY - height * 0.32,
-        benchY + height * 0.32,
-        count === 1 ? 0.5 : index / (count - 1),
+      const x = Phaser.Math.Linear(
+        benchX - width * 0.32,
+        benchX + width * 0.32,
+        index / Math.max(1, count - 1),
       )
       this.drawFigure(
-        benchX + direction * 5,
-        y,
+        x,
+        benchY - height * 0.05,
         palette.shirt,
         hairColorPalette[index % hairColorPalette.length],
-        0.86,
+        0.72,
       )
     }
 
-    if (!simplified) {
-      const coachX = courtEdge + direction * 43
-      this.drawFigure(
-        coachX,
-        benchY - 66,
-        palette.trim,
-        hairColorPalette[(side === 'A' ? 4 : 1) % hairColorPalette.length],
-        1.08,
-      )
-      this.drawFigure(
-        coachX,
-        benchY + 74,
-        palette.shirtShade,
-        hairColorPalette[(side === 'A' ? 2 : 5) % hairColorPalette.length],
-        1,
-      )
+    const coachX = courtEdge + direction * 46
+    this.drawFigure(
+      coachX,
+      benchY + height * 0.23,
+      palette.trim,
+      hairColorPalette[(side === 'A' ? 4 : 1) % hairColorPalette.length],
+      0.9,
+    )
 
-      const label = this.labels[side === 'A' ? 0 : 1]
-      label
-        .setPosition(benchX, benchY - height / 2 - 23)
-        .setColor(side === 'A' ? '#9eeeff' : '#ffb5aa')
-    }
+    const label = this.labels[side === 'A' ? 0 : 1]
+    label
+      .setPosition(benchX, benchY - height / 2 - 17)
+      .setColor(side === 'A' ? '#9eeeff' : '#ffb5aa')
   }
 
   private drawScorekeeperTable(): void {
-    const x = -82
-    const y = arenaConfig.height * 0.84
+    const x = arenaConfig.center.x
+    const y = arenaConfig.center.y + arenaConfig.height / 2 + 82
 
-    this.graphics.fillStyle(0x0b2c37, 0.88)
-    this.graphics.fillRoundedRect(x - 43, y - 27, 86, 54, 6)
-    this.graphics.lineStyle(3, 0xb7d9dc, 0.5)
-    this.graphics.strokeRoundedRect(x - 43, y - 27, 86, 54, 6)
+    this.graphics.fillStyle(0x1a5262, 0.68)
+    this.graphics.fillRoundedRect(x - 54, y - 20, 108, 40, 6)
+    this.graphics.lineStyle(2, 0xb7d9dc, 0.42)
+    this.graphics.strokeRoundedRect(x - 54, y - 20, 108, 40, 6)
     this.graphics.fillStyle(0xf4f0d6, 0.78)
-    this.graphics.fillRect(x - 25, y - 11, 22, 15)
+    this.graphics.fillRect(x - 27, y - 8, 24, 13)
     this.graphics.fillStyle(0xf2c96b, 0.78)
-    this.graphics.fillCircle(x + 22, y - 2, 6)
-    this.drawFigure(x, y - 40, 0xb8d8db, hairColorPalette[0], 0.82)
-    this.labels[2].setPosition(x, y + 39).setColor('#b8d8db')
+    this.graphics.fillCircle(x + 24, y - 1, 5)
+    this.drawFigure(x, y - 29, 0xb8d8db, hairColorPalette[0], 0.68)
+    this.labels[2].setPosition(x, y + 31).setColor('#b8d8db')
   }
 
   private drawFigure(
@@ -152,20 +144,20 @@ export class BenchRenderer {
   ): void {
     const alpha = arenaPresentationConfig.bench.figureAlpha
 
-    this.graphics.fillStyle(0x06151b, 0.3)
-    this.graphics.fillEllipse(x, y + 10 * scale, 24 * scale, 10 * scale)
+    this.graphics.fillStyle(0x06151b, 0.2)
+    this.graphics.fillEllipse(x, y + 7 * scale, 19 * scale, 7 * scale)
     this.graphics.fillStyle(shirtColor, alpha)
     this.graphics.fillRoundedRect(
-      x - 9 * scale,
-      y - 1 * scale,
-      18 * scale,
-      17 * scale,
+      x - 7 * scale,
+      y,
+      14 * scale,
+      11 * scale,
       5 * scale,
     )
     this.graphics.fillStyle(0xe4ad83, alpha)
-    this.graphics.fillCircle(x, y - 7 * scale, 8 * scale)
+    this.graphics.fillCircle(x, y - 5 * scale, 6.5 * scale)
     this.graphics.fillStyle(hairColor, alpha)
-    this.graphics.fillCircle(x, y - 10 * scale, 7.5 * scale)
+    this.graphics.fillCircle(x, y - 7 * scale, 6 * scale)
   }
 }
 
