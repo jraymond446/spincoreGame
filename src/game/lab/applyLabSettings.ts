@@ -159,11 +159,17 @@ export function applyLabSettings(state: LabTuningState): void {
     handednessMirrorMultiplier: stick.handednessMirrorMultiplier,
   })
   Object.assign(stickVisualConfig, {
+    totalStickLength: stick.stickTotalLength,
+    handleWidth: stick.stickHandleWidth,
     pocketWidthScale: stick.stickPocketWidth,
+    pocketDepth: stick.stickPocketDepth,
     lipThicknessScale: stick.stickLipThickness,
     handleLengthScale: stick.stickHandleLength,
     innerHighlightAlpha: stick.stickInnerHighlight,
+    innerHighlightWidth: stick.stickInnerHighlightWidth,
     outlineAlpha: stick.stickOutlineAlpha,
+    outlineWidth: stick.stickOutlineWidth,
+    woodGrainAlpha: stick.stickWoodGrainAlpha,
     swingTrailAlpha: stick.swingTrailAlpha,
     swingTrailDurationMs: stick.swingTrailDuration,
   })

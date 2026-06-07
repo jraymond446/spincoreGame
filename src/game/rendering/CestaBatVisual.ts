@@ -31,8 +31,8 @@ export class CestaBatVisual {
     this.style = cestaBatStyles[styleId]
     const textureKey = this.ensureGeneratedTexture()
 
-    // Swap this generated texture key for an atlas frame or PNG key when final
-    // art lands. Gameplay sockets and zones remain owned by Player/systems.
+    // Final PNG or atlas frames can replace this generated texture without
+    // changing gameplay sockets, zones, or action timing.
     this.image = scene.add
       .image(0, 0, textureKey)
       .setOrigin(
@@ -62,24 +62,34 @@ export class CestaBatVisual {
     const stateScale = this.getStateScale(data.state, elapsed)
     const thicknessScale = Phaser.Math.Clamp(
       visualConfig.stick.thickness / 12,
-      0.78,
-      1.28,
+      0.8,
+      1.16,
+    )
+    const styleScale =
+      stickVisualConfig.visualScaleByStyle[this.style.id]
+    const scaleX =
+      data.pose.stickScaleX * stateScale.x * styleScale
+    const scaleY =
+      mirror *
+      data.pose.stickScaleY *
+      stateScale.y *
+      styleScale *
+      thicknessScale
+    const imagePosition = this.positionPocketAtSocket(
+      data.cradleSocket,
+      angle,
+      scaleX,
+      scaleY,
     )
     const flicker =
       data.state === 'CRADLED_OVERCHARGED'
-        ? 0.92 + Math.sin(elapsed * 0.07) * 0.08
+        ? 0.94 + Math.sin(elapsed * 0.07) * 0.06
         : 1
 
     this.image
-      .setPosition(data.root.x, data.root.y)
+      .setPosition(imagePosition.x, imagePosition.y)
       .setRotation(angle)
-      .setScale(
-        data.pose.stickScaleX * stateScale.x,
-        mirror *
-          data.pose.stickScaleY *
-          stateScale.y *
-          thicknessScale,
-      )
+      .setScale(scaleX, scaleY)
       .setAlpha(flicker)
 
     this.drawEffects(data, elapsed, mirror)
@@ -97,6 +107,15 @@ export class CestaBatVisual {
     const key = [
       config.generatedTexturePrefix,
       style.id,
+      config.totalStickLength,
+      config.handleLength,
+      config.handleWidth,
+      config.pocketWidth,
+      config.pocketDepth,
+      config.lipThickness,
+      config.innerHighlightWidth,
+      config.outlineWidth,
+      config.woodGrainAlpha,
       config.pocketWidthScale,
       config.lipThicknessScale,
       config.handleLengthScale,
@@ -126,188 +145,439 @@ export class CestaBatVisual {
     const config = stickVisualConfig
     const root = { x: config.rootX, y: config.centerY }
     const handleLength =
-      style.handleLength * config.handleLengthScale
-    const handleEnd = { x: root.x + handleLength, y: root.y }
-    const pocketStart = {
-      x: handleEnd.x + 10,
-      y: handleEnd.y,
-    }
-    const pocketEnd = {
-      x: Math.min(
-        config.textureWidth - 15,
-        pocketStart.x + style.pocketLength,
-      ),
-      y: root.y + style.pocketDepth * 0.28,
-    }
-    const pocketControl = {
-      x: pocketStart.x + style.pocketLength * 0.62,
-      y: root.y + style.pocketDepth,
-    }
-    const outline = 0x172126
-    const shaftEndHalf = style.shaftWidth * style.taper * 0.5
-    const shaftStartHalf = style.shaftWidth * 0.5
+      config.handleLength *
+      config.handleLengthScale *
+      style.handleScale
+    const handleWidth =
+      config.handleWidth * style.handleWidthScale
+    const handleEndX = root.x + handleLength
+    const neckEndX = handleEndX + config.neckLength
+    const neckWidth = config.neckWidth * style.neckWidthScale
+    const lipX =
+      root.x + config.totalStickLength * style.lengthScale
+    const pocketDepth =
+      config.pocketDepth * style.pocketDepthScale
+    const pocketWidth =
+      config.pocketWidth *
+      config.pocketWidthScale *
+      style.pocketWidthScale
+    const lipThickness =
+      config.lipThickness *
+      config.lipThicknessScale *
+      style.lipScale
+    const openingLift =
+      pocketDepth * 0.34 * style.openingScale
 
-    graphics.lineStyle(
-      style.pocketBodyWidth * config.pocketWidthScale + 7,
-      outline,
-      config.outlineAlpha,
+    this.drawPocketShadow(
+      graphics,
+      neckEndX,
+      lipX,
+      pocketDepth,
+      pocketWidth,
+      openingLift,
+      style,
     )
-    this.drawQuadratic(graphics, pocketStart, pocketControl, pocketEnd)
-    graphics.lineStyle(
-      style.pocketBodyWidth * config.pocketWidthScale,
+    this.drawCavity(
+      graphics,
+      neckEndX,
+      lipX,
+      pocketDepth,
+      openingLift,
+      style,
+    )
+    this.drawPocket(
+      graphics,
+      neckEndX,
+      lipX,
+      pocketDepth,
+      pocketWidth,
+      openingLift,
+      style,
+    )
+    this.drawNeck(
+      graphics,
+      root,
+      handleEndX,
+      neckEndX,
+      handleWidth,
+      neckWidth,
+      style,
+    )
+    this.drawGrip(
+      graphics,
+      root,
+      handleLength,
+      handleWidth,
+      style,
+    )
+    this.drawLip(
+      graphics,
+      lipX,
+      pocketDepth,
+      lipThickness,
+      style,
+    )
+    this.drawInnerHighlight(
+      graphics,
+      neckEndX,
+      lipX,
+      pocketDepth,
+      openingLift,
+      style,
+    )
+    this.drawWoodGrain(
+      graphics,
+      handleEndX,
+      neckEndX,
+      style,
+    )
+  }
+
+  private drawPocketShadow(
+    graphics: Phaser.GameObjects.Graphics,
+    neckX: number,
+    lipX: number,
+    depth: number,
+    width: number,
+    openingLift: number,
+    style: CestaBatStyle,
+  ): void {
+    const points = this.createPocketPolygon(
+      neckX,
+      lipX,
+      depth,
+      width,
+      openingLift,
+      2,
+    )
+
+    this.fillAndStrokePolygon(
+      graphics,
+      points,
+      style.bodyShade,
+      style.bodyShade,
+      stickVisualConfig.shadowAlpha,
+      stickVisualConfig.outlineWidth + 1,
+    )
+  }
+
+  private drawPocket(
+    graphics: Phaser.GameObjects.Graphics,
+    neckX: number,
+    lipX: number,
+    depth: number,
+    width: number,
+    openingLift: number,
+    style: CestaBatStyle,
+  ): void {
+    const points = this.createPocketPolygon(
+      neckX,
+      lipX,
+      depth,
+      width,
+      openingLift,
+      0,
+    )
+
+    this.fillAndStrokePolygon(
+      graphics,
+      points,
       style.bodyColor,
+      0x172126,
+      1,
+      stickVisualConfig.outlineWidth,
+    )
+  }
+
+  private drawCavity(
+    graphics: Phaser.GameObjects.Graphics,
+    neckX: number,
+    lipX: number,
+    depth: number,
+    openingLift: number,
+    style: CestaBatStyle,
+  ): void {
+    const centerY = stickVisualConfig.centerY
+    const start = {
+      x: neckX + 5,
+      y: centerY + 1,
+    }
+    const end = {
+      x: lipX - 8,
+      y: centerY + openingLift * 0.72,
+    }
+    const upper = sampleQuadratic(
+      start,
+      {
+        x: Phaser.Math.Linear(neckX, lipX, 0.57),
+        y: centerY - depth * 0.31,
+      },
+      end,
+      8,
+    )
+    const lower = sampleQuadratic(
+      end,
+      {
+        x: Phaser.Math.Linear(neckX, lipX, 0.55),
+        y: centerY + openingLift + 5,
+      },
+      {
+        x: neckX + 7,
+        y: centerY + 6,
+      },
+      8,
+    )
+
+    this.fillAndStrokePolygon(
+      graphics,
+      [...upper, ...lower],
+      style.cavityColor,
+      style.cavityColor,
+      0.72,
       1,
     )
-    this.drawQuadratic(graphics, pocketStart, pocketControl, pocketEnd)
+  }
 
-    graphics.fillStyle(outline, config.outlineAlpha)
-    this.fillPolygon(graphics, [
-      { x: root.x, y: root.y - shaftStartHalf - 2 },
-      { x: handleEnd.x + 13, y: handleEnd.y - shaftEndHalf - 2 },
-      { x: handleEnd.x + 13, y: handleEnd.y + shaftEndHalf + 2 },
-      { x: root.x, y: root.y + shaftStartHalf + 2 },
-    ])
-    graphics.fillStyle(style.bodyColor, 1)
-    this.fillPolygon(graphics, [
-      { x: root.x, y: root.y - shaftStartHalf },
-      { x: handleEnd.x + 13, y: handleEnd.y - shaftEndHalf },
-      { x: handleEnd.x + 13, y: handleEnd.y + shaftEndHalf },
-      { x: root.x, y: root.y + shaftStartHalf },
-    ])
-
-    const cavityOffset = style.pocketBodyWidth * 0.22
-    graphics.lineStyle(
-      style.pocketBodyWidth * 0.5 * config.pocketWidthScale,
-      style.cavityColor,
-      0.92,
-    )
-    this.drawQuadratic(
-      graphics,
-      {
-        x: pocketStart.x + 7,
-        y: pocketStart.y + cavityOffset,
-      },
-      {
-        x: pocketControl.x,
-        y: pocketControl.y + cavityOffset,
-      },
-      {
-        x: pocketEnd.x - 5,
-        y: pocketEnd.y + cavityOffset,
-      },
-    )
-    graphics.lineStyle(
-      Math.max(2, style.pocketBodyWidth * 0.13),
-      style.accentColor,
-      config.innerHighlightAlpha,
-    )
-    this.drawQuadratic(
-      graphics,
-      {
-        x: pocketStart.x + 8,
-        y: pocketStart.y + cavityOffset - 1,
-      },
-      {
-        x: pocketControl.x,
-        y: pocketControl.y + cavityOffset - 1,
-      },
-      {
-        x: pocketEnd.x - 4,
-        y: pocketEnd.y + cavityOffset - 1,
-      },
-    )
-
-    graphics.lineStyle(3, style.bodyShade, 0.78)
-    this.drawQuadratic(
-      graphics,
-      { x: pocketStart.x + 1, y: pocketStart.y - 4 },
-      { x: pocketControl.x, y: pocketControl.y - 6 },
-      { x: pocketEnd.x, y: pocketEnd.y - 5 },
-    )
-
-    this.drawGrip(graphics, root, handleLength, style)
-    this.drawLip(graphics, pocketEnd, style)
-
-    if (style.forkGap > 0) {
-      this.drawForkLip(graphics, pocketEnd, style)
+  private createPocketPolygon(
+    neckX: number,
+    lipX: number,
+    depth: number,
+    width: number,
+    openingLift: number,
+    offsetY: number,
+  ): Point[] {
+    const centerY = stickVisualConfig.centerY
+    const outerStart = {
+      x: neckX - 2,
+      y: centerY - width * 0.26 + offsetY,
     }
+    const outerControl = {
+      x: Phaser.Math.Linear(neckX, lipX, 0.62),
+      y: centerY - depth + offsetY,
+    }
+    const outerEnd = {
+      x: lipX,
+      y: centerY + depth * 0.08 + offsetY,
+    }
+    const innerEnd = {
+      x: lipX - Math.max(7, width * 0.32),
+      y: centerY + openingLift + offsetY,
+    }
+    const innerControl = {
+      x: Phaser.Math.Linear(neckX, lipX, 0.58),
+      y: centerY - depth * 0.24 + openingLift + offsetY,
+    }
+    const innerStart = {
+      x: neckX + 2,
+      y: centerY + width * 0.28 + offsetY,
+    }
+    const outer = sampleQuadratic(
+      outerStart,
+      outerControl,
+      outerEnd,
+      10,
+    )
+    const inner = sampleQuadratic(
+      innerEnd,
+      innerControl,
+      innerStart,
+      9,
+    )
+
+    return [...outer, ...inner]
+  }
+
+  private drawNeck(
+    graphics: Phaser.GameObjects.Graphics,
+    root: Point,
+    handleEndX: number,
+    neckEndX: number,
+    handleWidth: number,
+    neckWidth: number,
+    style: CestaBatStyle,
+  ): void {
+    const centerY = root.y
+    const points = [
+      { x: handleEndX - 1, y: centerY - handleWidth * 0.45 },
+      { x: neckEndX + 4, y: centerY - neckWidth * 0.5 },
+      { x: neckEndX + 5, y: centerY + neckWidth * 0.5 },
+      { x: handleEndX - 1, y: centerY + handleWidth * 0.45 },
+    ]
+
+    this.fillAndStrokePolygon(
+      graphics,
+      points,
+      style.bodyColor,
+      0x172126,
+      1,
+      stickVisualConfig.outlineWidth,
+    )
+    graphics.lineStyle(2, style.bodyShade, 0.4)
+    graphics.lineBetween(
+      handleEndX + 3,
+      centerY + handleWidth * 0.2,
+      neckEndX,
+      centerY + neckWidth * 0.28,
+    )
   }
 
   private drawGrip(
     graphics: Phaser.GameObjects.Graphics,
     root: Point,
     handleLength: number,
+    handleWidth: number,
     style: CestaBatStyle,
   ): void {
-    const gripLength = Math.min(22, handleLength * 0.82)
+    const gripLength = Math.min(handleLength, 17)
+    const x = root.x - 2
+    const y = root.y - handleWidth * 0.5
 
-    graphics.lineStyle(style.shaftWidth + 3, 0x172126, 0.95)
-    graphics.lineBetween(
-      root.x - 2,
-      root.y,
-      root.x + gripLength,
-      root.y,
+    graphics.fillStyle(0x172126, stickVisualConfig.outlineAlpha)
+    graphics.fillRoundedRect(
+      x - stickVisualConfig.outlineWidth,
+      y - stickVisualConfig.outlineWidth,
+      gripLength + stickVisualConfig.outlineWidth * 2,
+      handleWidth + stickVisualConfig.outlineWidth * 2,
+      handleWidth * 0.48,
     )
-    graphics.lineStyle(style.shaftWidth, style.gripColor, 1)
-    graphics.lineBetween(
-      root.x - 1,
-      root.y,
-      root.x + gripLength,
-      root.y,
+    graphics.fillStyle(style.gripColor, 1)
+    graphics.fillRoundedRect(
+      x,
+      y,
+      gripLength,
+      handleWidth,
+      handleWidth * 0.42,
     )
 
-    for (let x = root.x + 3; x < root.x + gripLength; x += 6) {
-      graphics.lineStyle(2, style.accentColor, 0.72)
-      graphics.lineBetween(
-        x,
-        root.y - style.shaftWidth * 0.48,
-        x + 3,
-        root.y + style.shaftWidth * 0.48,
+    for (const bandX of [x + gripLength * 0.38, x + gripLength * 0.72]) {
+      graphics.fillStyle(style.accentColor, 0.68)
+      graphics.fillRect(
+        bandX,
+        y + 1,
+        2,
+        Math.max(2, handleWidth - 2),
       )
     }
 
+    graphics.fillStyle(0x172126, 1)
+    graphics.fillCircle(
+      root.x - 2,
+      root.y,
+      handleWidth * 0.62,
+    )
     graphics.fillStyle(style.accentColor, 1)
-    graphics.fillCircle(root.x, root.y, style.shaftWidth * 0.55)
+    graphics.fillCircle(
+      root.x - 2,
+      root.y,
+      handleWidth * 0.38,
+    )
   }
 
   private drawLip(
     graphics: Phaser.GameObjects.Graphics,
-    end: Point,
+    lipX: number,
+    depth: number,
+    thickness: number,
     style: CestaBatStyle,
   ): void {
-    const thickness =
-      style.lipThickness * stickVisualConfig.lipThicknessScale
+    const centerY = stickVisualConfig.centerY + depth * 0.08
+    const notch = style.tipNotch
 
-    graphics.lineStyle(thickness + 4, 0x172126, 0.96)
-    graphics.lineBetween(
-      end.x - 3,
-      end.y - thickness * 0.55,
-      end.x + 5,
-      end.y + thickness * 0.55,
+    graphics.lineStyle(
+      thickness + stickVisualConfig.outlineWidth * 2,
+      0x172126,
+      stickVisualConfig.outlineAlpha,
     )
-    graphics.lineStyle(thickness, style.accentColor, 1)
     graphics.lineBetween(
-      end.x - 3,
-      end.y - thickness * 0.55,
-      end.x + 5,
-      end.y + thickness * 0.55,
+      lipX - 2,
+      centerY - thickness * 0.45 - notch * 0.35,
+      lipX + 2,
+      centerY + thickness * 0.48,
     )
+    graphics.lineStyle(thickness, style.bodyShade, 1)
+    graphics.lineBetween(
+      lipX - 2,
+      centerY - thickness * 0.45 - notch * 0.35,
+      lipX + 2,
+      centerY + thickness * 0.48,
+    )
+
+    if (notch > 0) {
+      graphics.lineStyle(3, style.accentColor, 1)
+      graphics.lineBetween(
+        lipX - 1,
+        centerY - 2,
+        lipX + 6,
+        centerY - notch,
+      )
+      graphics.lineBetween(
+        lipX - 1,
+        centerY + 1,
+        lipX + 6,
+        centerY + notch,
+      )
+    } else {
+      graphics.fillStyle(style.accentColor, 0.9)
+      graphics.fillCircle(
+        lipX,
+        centerY - thickness * 0.18,
+        Math.max(2, thickness * 0.24),
+      )
+    }
   }
 
-  private drawForkLip(
+  private drawInnerHighlight(
     graphics: Phaser.GameObjects.Graphics,
-    end: Point,
+    neckX: number,
+    lipX: number,
+    depth: number,
+    openingLift: number,
     style: CestaBatStyle,
   ): void {
-    const length = 10
-    const gap = style.forkGap
+    const centerY = stickVisualConfig.centerY
+    const start = {
+      x: neckX + 5,
+      y: centerY + openingLift * 0.56,
+    }
+    const control = {
+      x: Phaser.Math.Linear(neckX, lipX, 0.58),
+      y: centerY - depth * 0.18 + openingLift,
+    }
+    const end = {
+      x: lipX - 8,
+      y: centerY + openingLift * 0.92,
+    }
 
-    graphics.lineStyle(6, 0x172126, 1)
-    graphics.lineBetween(end.x - 2, end.y, end.x + length, end.y - gap)
-    graphics.lineBetween(end.x - 2, end.y, end.x + length, end.y + gap)
-    graphics.lineStyle(3, style.accentColor, 1)
-    graphics.lineBetween(end.x - 2, end.y, end.x + length, end.y - gap)
-    graphics.lineBetween(end.x - 2, end.y, end.x + length, end.y + gap)
+    graphics.lineStyle(
+      stickVisualConfig.innerHighlightWidth,
+      style.accentColor,
+      stickVisualConfig.innerHighlightAlpha,
+    )
+    this.strokeQuadratic(graphics, start, control, end)
+  }
+
+  private drawWoodGrain(
+    graphics: Phaser.GameObjects.Graphics,
+    handleEndX: number,
+    neckEndX: number,
+    style: CestaBatStyle,
+  ): void {
+    if (stickVisualConfig.woodGrainAlpha <= 0) {
+      return
+    }
+
+    const y = stickVisualConfig.centerY
+    graphics.lineStyle(
+      1,
+      style.bodyShade,
+      stickVisualConfig.woodGrainAlpha,
+    )
+    graphics.lineBetween(
+      handleEndX + 6,
+      y - 2,
+      neckEndX - 5,
+      y - 1,
+    )
   }
 
   private drawEffects(
@@ -330,10 +600,10 @@ export class CestaBatVisual {
       data.state === 'RELEASE_FOLLOW_THROUGH' ||
       data.state === 'SWINGING'
     const poking = data.pose.impact > 0.7 && !cradled
-    const pulse = 1 + Math.sin(elapsed * 0.014) * 0.09
+    const pulse = 1 + Math.sin(elapsed * 0.014) * 0.07
 
     if (catchReady || cradled) {
-      const glowAlpha = cradled ? 0.28 : 0.13
+      const glowAlpha = cradled ? 0.24 : 0.1
       const radius = stickVisualConfig.pocketGlowRadius * pulse
 
       this.effects.fillStyle(this.style.accentColor, glowAlpha)
@@ -345,12 +615,12 @@ export class CestaBatVisual {
       this.effects.lineStyle(
         cradled ? 3 : 2,
         this.style.accentColor,
-        cradled ? 0.9 : 0.58,
+        cradled ? 0.82 : 0.48,
       )
       this.effects.strokeCircle(
         data.cradleSocket.x,
         data.cradleSocket.y,
-        radius * 0.62,
+        radius * 0.6,
       )
     }
 
@@ -361,20 +631,25 @@ export class CestaBatVisual {
         1,
       )
       const baseAngle = Math.atan2(data.forward.y, data.forward.x)
-      const arc = poking ? 0.48 : 0.92
+      const arc = poking ? 0.42 : 0.78
       const start = baseAngle - arc * mirror
-      const end = Phaser.Math.Linear(start, baseAngle + arc * 0.25 * mirror, progress)
+      const end = Phaser.Math.Linear(
+        start,
+        baseAngle + arc * 0.2 * mirror,
+        progress,
+      )
+      const radius = distance(data.root, data.cradleSocket)
 
       this.effects.lineStyle(
         stickVisualConfig.swingTrailWidth,
         this.style.accentColor,
-        stickVisualConfig.swingTrailAlpha * (1 - progress * 0.7),
+        stickVisualConfig.swingTrailAlpha * (1 - progress * 0.76),
       )
       this.effects.beginPath()
       this.effects.arc(
         data.root.x,
         data.root.y,
-        76,
+        radius,
         start,
         end,
         mirror < 0,
@@ -385,46 +660,63 @@ export class CestaBatVisual {
     if (cradled) {
       const forwardAngle = Math.atan2(data.forward.y, data.forward.x)
       const lipCenter = {
-        x:
-          data.cradleSocket.x +
-          data.cradleSide.x * 9 -
-          data.forward.x * 1,
-        y:
-          data.cradleSocket.y +
-          data.cradleSide.y * 9 -
-          data.forward.y * 1,
+        x: data.cradleSocket.x + data.cradleSide.x * 8,
+        y: data.cradleSocket.y + data.cradleSide.y * 8,
       }
 
       this.foreground.lineStyle(
         stickVisualConfig.pocketForegroundWidth + 3,
         0x172126,
-        0.92,
+        0.9,
       )
       this.foreground.beginPath()
       this.foreground.arc(
         lipCenter.x,
         lipCenter.y,
-        13,
-        forwardAngle - 1.15 * mirror,
-        forwardAngle + 1.15 * mirror,
+        12,
+        forwardAngle - 1.05 * mirror,
+        forwardAngle + 1.05 * mirror,
         mirror < 0,
       )
       this.foreground.strokePath()
       this.foreground.lineStyle(
         stickVisualConfig.pocketForegroundWidth,
-        this.style.accentColor,
-        0.92,
+        this.style.bodyShade,
+        0.94,
       )
       this.foreground.beginPath()
       this.foreground.arc(
         lipCenter.x,
         lipCenter.y,
-        13,
-        forwardAngle - 1.15 * mirror,
-        forwardAngle + 1.15 * mirror,
+        12,
+        forwardAngle - 1.05 * mirror,
+        forwardAngle + 1.05 * mirror,
         mirror < 0,
       )
       this.foreground.strokePath()
+    }
+  }
+
+  private positionPocketAtSocket(
+    socket: Point,
+    rotation: number,
+    scaleX: number,
+    scaleY: number,
+  ): Point {
+    const localX =
+      stickVisualConfig.pocketAnchorX - stickVisualConfig.rootX
+    const localY =
+      stickVisualConfig.pocketAnchorY - stickVisualConfig.centerY
+    const cosine = Math.cos(rotation)
+    const sine = Math.sin(rotation)
+    const worldX =
+      cosine * localX * scaleX - sine * localY * scaleY
+    const worldY =
+      sine * localX * scaleX + cosine * localY * scaleY
+
+    return {
+      x: socket.x - worldX,
+      y: socket.y - worldY,
     }
   }
 
@@ -433,49 +725,59 @@ export class CestaBatVisual {
     elapsed: number,
   ): Point {
     if (state === 'CATCH_READY') {
-      return { x: 1.01, y: 1.08 }
+      return { x: 1, y: 1.05 }
     }
 
     if (
       state === 'CRADLED_CHARGING' ||
       state === 'CRADLED_OVERCHARGED'
     ) {
-      const pulse = Math.sin(elapsed * 0.014) * 0.025
+      const pulse = Math.sin(elapsed * 0.014) * 0.018
       return { x: 1 + pulse, y: 1 - pulse }
     }
 
     if (state === 'RELEASE_SWING' || state === 'SWINGING') {
-      return { x: 1.1, y: 0.94 }
+      return { x: 1.06, y: 0.96 }
     }
 
     if (state === 'FUMBLED_COOLDOWN') {
-      return { x: 0.96, y: 1.08 }
+      return { x: 0.97, y: 1.04 }
     }
 
     return { x: 1, y: 1 }
   }
 
-  private drawQuadratic(
+  private strokeQuadratic(
     graphics: Phaser.GameObjects.Graphics,
     start: Point,
     control: Point,
     end: Point,
   ): void {
+    const points = sampleQuadratic(start, control, end, 12)
     graphics.beginPath()
-    graphics.moveTo(start.x, start.y)
+    graphics.moveTo(points[0].x, points[0].y)
 
-    for (let index = 1; index <= 20; index += 1) {
-      const point = quadraticPoint(start, control, end, index / 20)
+    for (const point of points.slice(1)) {
       graphics.lineTo(point.x, point.y)
     }
 
     graphics.strokePath()
   }
 
-  private fillPolygon(
+  private fillAndStrokePolygon(
     graphics: Phaser.GameObjects.Graphics,
     points: Point[],
+    fillColor: number,
+    strokeColor: number,
+    alpha: number,
+    strokeWidth: number,
   ): void {
+    graphics.fillStyle(fillColor, alpha)
+    graphics.lineStyle(
+      strokeWidth,
+      strokeColor,
+      stickVisualConfig.outlineAlpha,
+    )
     graphics.beginPath()
     graphics.moveTo(points[0].x, points[0].y)
 
@@ -485,25 +787,36 @@ export class CestaBatVisual {
 
     graphics.closePath()
     graphics.fillPath()
+    graphics.strokePath()
   }
 }
 
-function quadraticPoint(
+function sampleQuadratic(
   start: Point,
   control: Point,
   end: Point,
-  progress: number,
-): Point {
-  const inverse = 1 - progress
+  segments: number,
+): Point[] {
+  const points: Point[] = []
 
-  return {
-    x:
-      inverse * inverse * start.x +
-      2 * inverse * progress * control.x +
-      progress * progress * end.x,
-    y:
-      inverse * inverse * start.y +
-      2 * inverse * progress * control.y +
-      progress * progress * end.y,
+  for (let index = 0; index <= segments; index += 1) {
+    const progress = index / segments
+    const inverse = 1 - progress
+    points.push({
+      x:
+        inverse * inverse * start.x +
+        2 * inverse * progress * control.x +
+        progress * progress * end.x,
+      y:
+        inverse * inverse * start.y +
+        2 * inverse * progress * control.y +
+        progress * progress * end.y,
+    })
   }
+
+  return points
+}
+
+function distance(a: Point, b: Point): number {
+  return Math.hypot(a.x - b.x, a.y - b.y)
 }

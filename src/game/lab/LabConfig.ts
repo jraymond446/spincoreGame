@@ -71,11 +71,17 @@ export type LabStickTuning = {
   releaseTangentialForceMultiplier: number
   releaseForwardForceMultiplier: number
   releaseSpinInfluence: number
+  stickTotalLength: number
+  stickHandleWidth: number
   stickPocketWidth: number
+  stickPocketDepth: number
   stickLipThickness: number
   stickHandleLength: number
   stickInnerHighlight: number
+  stickInnerHighlightWidth: number
   stickOutlineAlpha: number
+  stickOutlineWidth: number
+  stickWoodGrainAlpha: number
   swingTrailAlpha: number
   swingTrailDuration: number
   aimSmoothing: number
