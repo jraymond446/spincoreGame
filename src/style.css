@@ -84,11 +84,12 @@ body {
   height: var(--sports-scoreboard-height);
   box-sizing: border-box;
   overflow: hidden;
-  border: 3px solid #dcefed;
+  border: 3px solid #173641;
   border-radius: 6px;
-  background: #f2f7e9;
+  background: #fff8dc;
   box-shadow:
-    0 4px 0 rgba(4, 25, 32, 0.66),
+    0 4px 0 #0b2730,
+    inset 0 0 0 2px #f2d778,
     0 9px 22px rgba(1, 13, 17, 0.3);
   color: #12333c;
   font-weight: 900;
@@ -107,14 +108,22 @@ body {
   display: grid;
   align-content: center;
   padding: 0 13px;
-  color: #f4fbf7;
-  background: #174f61;
+  border-right: 3px solid #102f39;
+  color: #fff9db;
+  background:
+    repeating-linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.04) 0 5px,
+      transparent 5px 10px
+    ),
+    #215d68;
 }
 
 .sports-scoreboard-brand strong {
   overflow: hidden;
   font-size: 18px;
   line-height: 1;
+  text-shadow: 0 2px 0 #0a2b34;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -133,14 +142,17 @@ body {
   justify-content: center;
   gap: 10px;
   padding: 0 10px;
+  background: #fff8dc;
 }
 
 .sports-scoreboard-team.is-team-a {
   border-left: 7px solid #42c9ee;
+  box-shadow: inset 0 -5px 0 rgba(66, 201, 238, 0.16);
 }
 
 .sports-scoreboard-team.is-team-b {
   border-right: 7px solid #f26763;
+  box-shadow: inset 0 -5px 0 rgba(242, 103, 99, 0.16);
 }
 
 .sports-scoreboard-team-name {
@@ -153,7 +165,10 @@ body {
 .sports-scoreboard-score {
   flex: 0 0 auto;
   min-width: 30px;
-  color: #0c2932;
+  border: 2px solid #173641;
+  border-radius: 3px;
+  color: #fff8dc;
+  background: #173641;
   font-size: 32px;
   line-height: 1;
   text-align: center;
@@ -166,7 +181,8 @@ body {
   padding: 0 8px;
   border-right: 1px solid rgba(18, 51, 60, 0.16);
   border-left: 1px solid rgba(18, 51, 60, 0.16);
-  color: #a43f3f;
+  color: #8b3f38;
+  background: #f4e6ad;
   font-size: 10px;
   line-height: 1.1;
   text-align: center;
@@ -185,7 +201,14 @@ body {
   gap: 5px;
   padding: 0 10px;
   color: #dcefed;
-  background: #12333c;
+  border-top: 2px solid #f2d778;
+  background:
+    repeating-linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.025) 0 4px,
+      transparent 4px 8px
+    ),
+    #173641;
   font-size: 9px;
   line-height: 1;
   text-align: center;
@@ -226,8 +249,8 @@ body {
   color: #f8feff;
   text-align: center;
   text-shadow:
-    0 2px 0 #071016,
-    0 0 20px rgba(65, 230, 255, 0.78);
+    0 4px 0 #173641,
+    0 7px 0 rgba(7, 16, 22, 0.44);
   pointer-events: none;
 }
 
@@ -236,6 +259,14 @@ body {
 }
 
 .match-flow-title {
+  padding: 8px 18px 12px;
+  border: 4px solid #173641;
+  border-radius: 6px;
+  background: #fff8dc;
+  box-shadow:
+    inset 0 0 0 3px #f2d778,
+    0 7px 0 rgba(7, 16, 22, 0.56);
+  color: #d9504f;
   font-size: clamp(54px, 11vh, 112px);
   font-weight: 950;
   line-height: 0.92;
@@ -243,7 +274,11 @@ body {
 
 .match-flow-subtitle {
   margin-top: 12px;
-  color: #ffdc83;
+  padding: 5px 13px;
+  border: 2px solid #173641;
+  border-radius: 4px;
+  color: #173641;
+  background: #f2d778;
   font-size: clamp(15px, 2.5vh, 28px);
   font-weight: 900;
 }

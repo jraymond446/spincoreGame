@@ -18,6 +18,8 @@ import type {
   TeamSide,
 } from '../data/matchTypes'
 import type { StickCurve } from '../entities/Player'
+import type { DefensiveVisualState, PlayerAnimationPose } from './AnimationState'
+import { PlayerAnimationController } from './PlayerAnimationController'
 import { StickVisual } from './StickVisual'
 
 type Point = { x: number; y: number }
@@ -31,6 +33,7 @@ export type PlayerVisualUpdate = {
   stickSide: Point
   cradleSocket: Point
   stickState: StickActionState
+  defenseState: DefensiveVisualState
 }
 
 type PlayerVisualOptions = {
@@ -52,6 +55,7 @@ export class PlayerVisual {
   private readonly roleLabel: Phaser.GameObjects.Text
   private readonly aiStateLabel: Phaser.GameObjects.Text
   private readonly stick: StickVisual
+  private readonly animation = new PlayerAnimationController()
   private readonly palette: TeamVisualPalette
   private readonly hairStyle: HairStyle
   private readonly animationPhase: number
@@ -101,30 +105,46 @@ export class PlayerVisual {
       visualConfig.idleBobAmplitude,
       visualConfig.movementBobAmplitude,
       movementFactor,
-    )
+    ) * (data.stickState === 'IDLE' ? 0.72 : 0.42)
     const bob =
       Math.sin(
         this.scene.time.now * visualConfig.idleBobSpeed + this.animationPhase,
       ) * bobAmplitude
+    const pose = this.animation.update(
+      data.stickState,
+      data.defenseState,
+      this.options.handedness === 'left' ? -1 : 1,
+      this.scene.time.now,
+    )
+    const bodyRotation = data.facingRotation + pose.bodyRotationOffset
     const forward = {
-      x: Math.cos(data.facingRotation),
-      y: Math.sin(data.facingRotation),
+      x: Math.cos(bodyRotation),
+      y: Math.sin(bodyRotation),
     }
     const right = { x: -forward.y, y: forward.x }
     const visualPosition = {
-      x: data.position.x,
-      y: data.position.y + bob,
+      x:
+        data.position.x +
+        forward.x * pose.bodyForwardOffset +
+        right.x * pose.bodySideOffset,
+      y:
+        data.position.y +
+        bob +
+        forward.y * pose.bodyForwardOffset +
+        right.y * pose.bodySideOffset,
     }
 
-    this.drawShadow(data.position, speed)
+    this.drawShadow(data.position, speed, pose)
     this.drawControlledIndicator(data.position)
-    this.drawCharacter(visualPosition, forward, right)
+    this.drawCharacter(visualPosition, forward, right, pose)
     this.stick.update(
       data.stickCurve,
       data.stickForward,
       data.stickSide,
       data.cradleSocket,
       data.stickState,
+      pose,
+      this.scene.time.now,
     )
 
     this.roleLabel.setPosition(
@@ -157,7 +177,11 @@ export class PlayerVisual {
     )
   }
 
-  private drawShadow(position: Point, speed: number): void {
+  private drawShadow(
+    position: Point,
+    speed: number,
+    pose: PlayerAnimationPose,
+  ): void {
     const roleScale = visualConfig.roleScale[this.options.role]
     const visualScale = visualConfig.playerScale
     const stretch = Phaser.Math.Clamp(speed * 0.7, 0, 10)
@@ -166,8 +190,11 @@ export class PlayerVisual {
     this.shadow.fillEllipse(
       position.x,
       position.y + visualConfig.shadowOffsetY,
-      (visualConfig.shadowWidth + stretch) * visualScale * roleScale.shadow,
-      visualConfig.shadowHeight * visualScale,
+      (visualConfig.shadowWidth + stretch) *
+        visualScale *
+        roleScale.shadow *
+        pose.shadowScale,
+      visualConfig.shadowHeight * visualScale * pose.shadowScale,
     )
   }
 
@@ -202,12 +229,20 @@ export class PlayerVisual {
     position: Point,
     forward: Point,
     right: Point,
+    pose: PlayerAnimationPose,
   ): void {
     const roleScale = visualConfig.roleScale[this.options.role]
     const visualScale = visualConfig.playerScale
     const bodyLength =
-      visualConfig.torsoLength * roleScale.bodyY * visualScale
-    const bodyWidth = visualConfig.torsoWidth * roleScale.bodyX * visualScale
+      visualConfig.torsoLength *
+      roleScale.bodyY *
+      visualScale *
+      pose.bodyScaleY
+    const bodyWidth =
+      visualConfig.torsoWidth *
+      roleScale.bodyX *
+      visualScale *
+      pose.bodyScaleX
     const headRadius =
       visualConfig.headRadius * roleScale.head * visualScale
     const bodyCenter = this.offset(
@@ -220,7 +255,8 @@ export class PlayerVisual {
     const headCenter = this.offset(
       position,
       forward,
-      visualConfig.headForwardOffset * visualScale,
+      visualConfig.headForwardOffset * visualScale +
+        pose.headForwardOffset,
       right,
       0,
     )
@@ -228,7 +264,58 @@ export class PlayerVisual {
     this.character.clear()
     this.drawTorso(bodyCenter, forward, right, bodyLength, bodyWidth)
     this.drawRoleAccent(bodyCenter, forward, right, bodyLength, bodyWidth)
+    this.drawAthleticStance(
+      bodyCenter,
+      forward,
+      right,
+      bodyLength,
+      bodyWidth,
+      pose,
+    )
     this.drawHead(headCenter, forward, right, headRadius)
+  }
+
+  private drawAthleticStance(
+    center: Point,
+    forward: Point,
+    right: Point,
+    length: number,
+    width: number,
+    pose: PlayerAnimationPose,
+  ): void {
+    const mirror = this.options.handedness === 'left' ? -1 : 1
+    const handSide = width * 0.48 * mirror
+    const rearSide = -width * 0.4 * mirror
+    const frontHand = this.offset(
+      center,
+      forward,
+      length * (0.32 + pose.impact * 0.12),
+      right,
+      handSide,
+    )
+    const rearHand = this.offset(
+      center,
+      forward,
+      -length * 0.08,
+      right,
+      rearSide,
+    )
+    const armColor = visualConfig.skinColor
+    const armWidth = Math.max(4, visualConfig.playerScale * 6)
+
+    this.character.lineStyle(
+      armWidth + 3,
+      visualConfig.outlineColor,
+      visualConfig.outlineAlpha,
+    )
+    this.character.lineBetween(center.x, center.y, frontHand.x, frontHand.y)
+    this.character.lineBetween(center.x, center.y, rearHand.x, rearHand.y)
+    this.character.lineStyle(armWidth, armColor, 1)
+    this.character.lineBetween(center.x, center.y, frontHand.x, frontHand.y)
+    this.character.lineBetween(center.x, center.y, rearHand.x, rearHand.y)
+    this.character.fillStyle(this.palette.trim, 1)
+    this.character.fillCircle(frontHand.x, frontHand.y, armWidth * 0.55)
+    this.character.fillCircle(rearHand.x, rearHand.y, armWidth * 0.55)
   }
 
   private drawTorso(
@@ -250,6 +337,17 @@ export class PlayerVisual {
     ]
 
     this.fillAndStrokePolygon(points, this.palette.shirt)
+    this.drawLocalLine(
+      center,
+      forward,
+      right,
+      halfLength * 0.62,
+      -halfWidth * 0.62,
+      halfLength * 0.62,
+      halfWidth * 0.62,
+      this.palette.trim,
+      Math.max(2.5, visualConfig.playerScale * 4),
+    )
 
     const shadePoints = [
       this.offset(center, forward, halfLength * 0.82, right, 0),

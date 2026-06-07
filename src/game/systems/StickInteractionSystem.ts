@@ -157,6 +157,10 @@ export class StickInteractionSystem {
       player.setStickState(this.getStickState(player.id))
     }
 
+    core.setPossessionVisual(
+      this.isCradled() ? this.getChargeNormalized() : 0,
+      this.coreState === 'CRADLED_OVERCHARGED',
+    )
     this.drawReleaseSwing(players)
     this.drawDebug(core, players)
   }
@@ -285,6 +289,7 @@ export class StickInteractionSystem {
     }
 
     core.setSensor(false)
+    core.setPossessionVisual(0, false)
   }
 
   private ensurePlayers(players: Player[]): void {
@@ -870,6 +875,10 @@ export class StickInteractionSystem {
         0.08 *
         chargeNormalized,
     )
+    core.setReleaseVisualCharge(
+      chargeNormalized,
+      pending.chargeElapsedMs >= stickConfig.chargeCradleMs,
+    )
     pending.released = true
     this.coreState = 'RELEASED_COOLDOWN'
     this.carrierId = null
@@ -928,6 +937,9 @@ export class StickInteractionSystem {
     core.setSensor(false)
     core.setPosition(releasePoint)
     core.setVelocity(velocity)
+    if (nextState === 'FUMBLED') {
+      core.setReleaseVisualCharge(0.35, true)
+    }
     this.coreState = nextState
     this.carrierId = null
     this.cradleElapsedMs = 0

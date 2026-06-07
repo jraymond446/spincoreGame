@@ -13,6 +13,7 @@ import { keeperAreaConfig } from '../config/keeperAreaConfig'
 import { matchFlowConfig } from '../config/matchFlowConfig'
 import { playerRuntimeConfig } from '../config/playerConfig'
 import { stickConfig } from '../config/stickConfig'
+import { stickVisualConfig } from '../config/stickVisualConfig'
 import { visualConfig } from '../config/visualConfig'
 import type { LabTuningState } from './LabConfig'
 
@@ -156,6 +157,15 @@ export function applyLabSettings(state: LabTuningState): void {
     rightHandedStickOffset: Math.abs(stick.handednessStickOffset),
     leftHandedStickOffset: -Math.abs(stick.handednessStickOffset),
     handednessMirrorMultiplier: stick.handednessMirrorMultiplier,
+  })
+  Object.assign(stickVisualConfig, {
+    pocketWidthScale: stick.stickPocketWidth,
+    lipThicknessScale: stick.stickLipThickness,
+    handleLengthScale: stick.stickHandleLength,
+    innerHighlightAlpha: stick.stickInnerHighlight,
+    outlineAlpha: stick.stickOutlineAlpha,
+    swingTrailAlpha: stick.swingTrailAlpha,
+    swingTrailDurationMs: stick.swingTrailDuration,
   })
   Object.assign(defenseConfig, state.defense)
   Object.assign(matchFlowConfig, state.matchFlow)

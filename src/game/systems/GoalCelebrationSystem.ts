@@ -110,5 +110,19 @@ export class GoalCelebrationSystem {
       this.effectPoint.y,
       58 + progress * 150,
     )
+
+    const rayRadius = 34 + progress * 118
+    this.graphics.lineStyle(5, 0xffdc83, alpha * 0.74)
+    for (let index = 0; index < 10; index += 1) {
+      const angle = (Math.PI * 2 * index) / 10 + progress * 0.22
+      const inner = rayRadius - 12
+      const outer = rayRadius + 15
+      this.graphics.lineBetween(
+        this.effectPoint.x + Math.cos(angle) * inner,
+        this.effectPoint.y + Math.sin(angle) * inner,
+        this.effectPoint.x + Math.cos(angle) * outer,
+        this.effectPoint.y + Math.sin(angle) * outer,
+      )
+    }
   }
 }

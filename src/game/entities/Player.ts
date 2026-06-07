@@ -16,6 +16,7 @@ import type {
 } from '../data/matchTypes'
 import type { PlayerArchetype } from '../data/matchTypes'
 import { createPlayerVisualProfile } from '../data/playerVisualProfiles'
+import type { DefensiveVisualState } from '../rendering/AnimationState'
 import { PlayerVisual } from '../rendering/PlayerVisual'
 
 export type StickCurve = {
@@ -52,6 +53,7 @@ export class Player {
   private stickVisualRotation = 0
   private aiState: AIState = 'IDLE'
   private stickState: StickActionState = 'IDLE'
+  private defenseVisualState: DefensiveVisualState = 'IDLE'
 
   constructor(
     scene: Phaser.Scene,
@@ -140,6 +142,7 @@ export class Player {
     this.stickVisualRotation = this.releaseAimAngle
     this.aiState = 'IDLE'
     this.stickState = 'IDLE'
+    this.defenseVisualState = 'IDLE'
     this.syncVisuals()
   }
 
@@ -163,6 +166,15 @@ export class Player {
     }
 
     this.stickState = state
+    this.syncVisuals()
+  }
+
+  setDefenseVisualState(state: DefensiveVisualState): void {
+    if (this.defenseVisualState === state) {
+      return
+    }
+
+    this.defenseVisualState = state
     this.syncVisuals()
   }
 
@@ -350,6 +362,7 @@ export class Player {
       stickSide: this.getCradleSideDirection(),
       cradleSocket: this.getCradleSocket(),
       stickState: this.stickState,
+      defenseState: this.defenseVisualState,
     })
   }
 }

@@ -1,0 +1,20 @@
+export const stickVisualConfig = {
+  generatedTexturePrefix: 'spincore-cesta-bat',
+  textureWidth: 132,
+  textureHeight: 92,
+  rootX: 14,
+  centerY: 46,
+  pocketWidthScale: 1,
+  lipThicknessScale: 1,
+  handleLengthScale: 1,
+  innerHighlightAlpha: 0.78,
+  outlineAlpha: 0.94,
+  shadowAlpha: 0.28,
+  swingTrailAlpha: 0.62,
+  swingTrailDurationMs: 180,
+  swingTrailWidth: 9,
+  pocketGlowRadius: 17,
+  pocketForegroundWidth: 5,
+  impactFlashMs: 90,
+} as const
+

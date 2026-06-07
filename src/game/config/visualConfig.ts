@@ -5,8 +5,8 @@ export const visualConfig = {
   torsoLength: 31,
   torsoWidth: 31,
   outlineColor: 0x071016,
-  outlineAlpha: 0.9,
-  outlineWidth: 2.5,
+  outlineAlpha: 0.94,
+  outlineWidth: 3,
   skinColor: 0xf2bf91,
   skinShadeColor: 0xd89469,
   shadowColor: 0x02070a,
@@ -18,9 +18,9 @@ export const visualConfig = {
   controlledRingColor: 0xffffff,
   controlledRingAlpha: 0.92,
   controlledRingWidth: 3,
-  idleBobAmplitude: 1.8,
-  idleBobSpeed: 0.0045,
-  movementBobAmplitude: 2.8,
+  idleBobAmplitude: 1.15,
+  idleBobSpeed: 0.0054,
+  movementBobAmplitude: 2.15,
   roleScale: {
     keeper: {
       bodyX: 1.18,

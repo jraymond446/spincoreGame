@@ -4,6 +4,7 @@ import type { Point } from '../data/geometry'
 import type { TeamSide } from '../data/matchTypes'
 import type { Core } from '../entities/Core'
 import type { Player } from '../entities/Player'
+import type { DefensiveVisualState } from '../rendering/AnimationState'
 import type { FumbleSystem } from './FumbleSystem'
 import type { StickInteractionSystem } from './StickInteractionSystem'
 
@@ -12,14 +13,7 @@ export type DefenseIntent = {
   stickSwipe: boolean
 }
 
-export type DefensiveActionState =
-  | 'IDLE'
-  | 'CHECK_STARTUP'
-  | 'CHECK_ACTIVE'
-  | 'CHECK_RECOVERY'
-  | 'SWIPE_STARTUP'
-  | 'SWIPE_ACTIVE'
-  | 'SWIPE_RECOVERY'
+export type DefensiveActionState = DefensiveVisualState
 
 export type DefenseEvent = {
   type: 'bodyCheckConnected'
@@ -137,6 +131,8 @@ export class DefenseSystem {
             recoveryMovementMultiplier(player),
         })
       }
+
+      player.setDefenseVisualState(runtime.state)
     }
 
     this.applyShoves(players, deltaMs)
