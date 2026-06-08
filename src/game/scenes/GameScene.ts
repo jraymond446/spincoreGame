@@ -29,6 +29,7 @@ import { GoalRule, type GoalCrossing } from '../rules/GoalRule'
 import { AISystem } from '../systems/AISystem'
 import { ArenaSystem } from '../systems/ArenaSystem'
 import { CoreRecoverySystem } from '../systems/CoreRecoverySystem'
+import { CreaseBattleSystem } from '../systems/CreaseBattleSystem'
 import {
   DefenseSystem,
   type DefenseIntent,
@@ -49,6 +50,7 @@ import {
   type StickIntent,
 } from '../systems/StickInteractionSystem'
 import { TeamSystem } from '../systems/TeamSystem'
+import { TacticalGuideRenderer } from '../systems/TacticalGuideRenderer'
 
 export class GameScene extends Phaser.Scene {
   private core!: Core
@@ -58,12 +60,14 @@ export class GameScene extends Phaser.Scene {
   private arenaSystem!: ArenaSystem
   private keeperAreaSystem!: KeeperAreaSystem
   private coreRecoverySystem!: CoreRecoverySystem
+  private creaseBattleSystem!: CreaseBattleSystem
   private inputController!: PlayerInputController
   private teamSystem!: TeamSystem
   private playerControlSystem!: PlayerControlSystem
   private keeperControlAssistSystem!: KeeperControlAssistSystem
   private keeperSaveSystem!: KeeperSaveSystem
   private aiSystem!: AISystem
+  private tacticalGuideRenderer!: TacticalGuideRenderer
   private stickInteractionSystem!: StickInteractionSystem
   private defenseSystem!: DefenseSystem
   private fumbleSystem!: FumbleSystem
@@ -120,11 +124,13 @@ export class GameScene extends Phaser.Scene {
       this.teamSystem.getFormationBiases(),
       this.teamSystem.getStrategies(),
     )
+    this.tacticalGuideRenderer = new TacticalGuideRenderer(this)
     this.inputController = new PlayerInputController(this, hudRoot)
     this.stickInteractionSystem = new StickInteractionSystem(this)
     this.defenseSystem = new DefenseSystem(this)
     this.fumbleSystem = new FumbleSystem()
     this.coreRecoverySystem = new CoreRecoverySystem()
+    this.creaseBattleSystem = new CreaseBattleSystem(this)
     this.matchFlowSystem = new MatchFlowSystem(
       new GoalCelebrationSystem(this, hudRoot),
       {
@@ -160,6 +166,7 @@ export class GameScene extends Phaser.Scene {
       this.matchFlowSystem.destroy()
       this.scoreboardOverlay.destroy()
       this.arenaDressing.destroy()
+      this.tacticalGuideRenderer.destroy()
     })
   }
 
@@ -229,6 +236,13 @@ export class GameScene extends Phaser.Scene {
       delta,
       keeperHumanBias,
     )
+    this.tacticalGuideRenderer.update(
+      players,
+      this.aiSystem.getTacticalAssignments(),
+      time,
+      this.debugEnabled,
+      this.gameMode,
+    )
     const stickIntents = new Map<string, StickIntent>()
     const defenseIntents = new Map<string, DefenseIntent>()
 
@@ -253,10 +267,19 @@ export class GameScene extends Phaser.Scene {
       controlledPlayer.id,
       delta,
     )
+    const interactionEvent =
+      this.stickInteractionSystem.consumeInteractionEvent()
     const savedSide = this.keeperSaveSystem.update(
       this.core,
       players,
-      this.stickInteractionSystem.consumeInteractionEvent(),
+      interactionEvent,
+      delta,
+    )
+    this.creaseBattleSystem.update(
+      this.core,
+      players,
+      this.stickInteractionSystem.getCarrierId(),
+      interactionEvent,
       delta,
     )
     this.defenseSystem.update(
@@ -521,10 +544,12 @@ export class GameScene extends Phaser.Scene {
     this.keeperControlAssistSystem.reset()
     this.keeperSaveSystem.reset()
     this.aiSystem.reset()
+    this.tacticalGuideRenderer.clear()
     this.stickInteractionSystem.clearForReset(this.core)
     this.defenseSystem.clear()
     this.fumbleSystem.clear()
     this.coreRecoverySystem.reset()
+    this.creaseBattleSystem.reset()
     this.matchStatsTracker.clearPossession()
     this.teamSystem.resetFormation()
     this.playerControlSystem.reset(
@@ -561,10 +586,12 @@ export class GameScene extends Phaser.Scene {
     this.keeperControlAssistSystem.reset()
     this.keeperSaveSystem.reset()
     this.aiSystem.reset()
+    this.tacticalGuideRenderer.clear()
     this.stickInteractionSystem.clearForReset(this.core)
     this.defenseSystem.clear()
     this.fumbleSystem.clear()
     this.coreRecoverySystem.reset()
+    this.creaseBattleSystem.reset()
     this.matchStatsTracker.clearPossession()
     this.playerControlSystem.reset(
       this.teamSystem.getPlayersForSide('A'),
@@ -590,14 +617,17 @@ export class GameScene extends Phaser.Scene {
     this.aiSystem.setDebugEnabled(enabled)
     this.teamSystem.setDebugVisible(enabled)
     this.keeperAreaSystem.setDebugEnabled(enabled)
+    this.creaseBattleSystem.setDebugEnabled(enabled)
   }
 
   private beginGoalSequence(): void {
     this.inputController.reset()
+    this.tacticalGuideRenderer.clear()
     this.stickInteractionSystem.clearForReset(this.core)
     this.defenseSystem.clear()
     this.fumbleSystem.clear()
     this.coreRecoverySystem.reset()
+    this.creaseBattleSystem.reset()
     this.freezeEntities(this.teamSystem.players)
   }
 
@@ -717,6 +747,7 @@ export class GameScene extends Phaser.Scene {
       controlledTacticalJob:
         this.aiSystem.getTacticalAssignment(controlledPlayer.id)?.job ??
         null,
+      creaseBattle: this.creaseBattleSystem.getDebugState(),
       defenseState: this.defenseSystem.getState(controlledPlayer.id),
       defenseAction:
         this.defenseSystem.getActionLabel(controlledPlayer.id),

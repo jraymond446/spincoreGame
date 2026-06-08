@@ -4,6 +4,7 @@ import {
 } from '../config/arenaConfig'
 import { coreConfig } from '../config/entityConfig'
 import { controlConfig } from '../config/controlConfig'
+import { creaseBattleConfig } from '../config/creaseBattleConfig'
 import { defenseConfig } from '../config/defenseConfig'
 import {
   bottomGoalConfig,
@@ -19,6 +20,7 @@ import { possessionFeelConfig } from '../config/possessionFeelConfig'
 import { stickConfig } from '../config/stickConfig'
 import { spacingConfig } from '../config/spacingConfig'
 import { tacticsConfig } from '../config/tacticsConfig'
+import { tacticalGuideConfig } from '../config/tacticalGuideConfig'
 import { stickStanceConfig } from '../config/stickStanceConfig'
 import { stickVisualConfig } from '../config/stickVisualConfig'
 import { visualConfig } from '../config/visualConfig'
@@ -180,7 +182,16 @@ export function applyLabSettings(state: LabTuningState): void {
       state.spacing.tacticalJobSwitchCooldownMs,
     highPressAggression: state.spacing.highPressAggression,
     lowBlockDepth: state.spacing.lowBlockDepth,
+    tacticalOverrideEnabled:
+      state.aiTactics.tacticalOverrideEnabled,
+    jobTargetStrictness: state.aiTactics.jobTargetStrictness,
+    emergencyGatherRadius: state.aiTactics.emergencyGatherRadius,
+    receiverCatchRadius: state.aiTactics.receiverCatchRadius,
+    passLaneMinScore: state.aiTactics.passLaneMinScore,
+    supportPassBias: state.aiTactics.supportPassBias,
   })
+  Object.assign(tacticalGuideConfig, state.tacticalGuides)
+  Object.assign(creaseBattleConfig, state.creaseBattle)
   for (const side of ['A', 'B'] as const) {
     Object.assign(tacticsConfig.teamStrategies[side], {
       formation: state.formations[side],

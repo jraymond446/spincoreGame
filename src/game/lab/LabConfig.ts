@@ -202,6 +202,31 @@ export type LabSpacingTuning = {
   lowBlockDepth: number
 }
 
+export type LabAITacticsTuning = {
+  tacticalOverrideEnabled: boolean
+  jobTargetStrictness: number
+  emergencyGatherRadius: number
+  receiverCatchRadius: number
+  passLaneMinScore: number
+  supportPassBias: number
+}
+
+export type LabTacticalGuideTuning = {
+  tacticalGuidesEnabled: boolean
+  tacticalGuideAlpha: number
+  tacticalGuideRadius: number
+  tacticalGuideShowLabels: boolean
+  tacticalGuideOnlyHumanTeam: boolean
+}
+
+export type LabCreaseBattleTuning = {
+  creaseBattleBreakerEnabled: boolean
+  creaseBattleTimeMs: number
+  creaseBattleLowSpeedThreshold: number
+  creaseBattleClearImpulse: number
+  creaseBattleSideBias: number
+}
+
 export type LabDefenseTuning = {
   truckEnabled: boolean
   slashEnabled: boolean
@@ -259,6 +284,9 @@ export type LabTuningState = {
   field: LabFieldTuning
   keeper: LabKeeperTuning
   spacing: LabSpacingTuning
+  aiTactics: LabAITacticsTuning
+  tacticalGuides: LabTacticalGuideTuning
+  creaseBattle: LabCreaseBattleTuning
   stick: LabStickTuning
   defense: LabDefenseTuning
   matchFlow: LabMatchFlowTuning

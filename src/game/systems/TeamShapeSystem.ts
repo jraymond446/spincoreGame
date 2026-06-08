@@ -113,6 +113,18 @@ export class TeamShapeSystem {
       : null
   }
 
+  getAssignments(): Map<string, TacticalAssignment> {
+    return new Map(
+      [...this.assignments].map(([playerId, assignment]) => [
+        playerId,
+        {
+          ...assignment,
+          target: { ...assignment.target },
+        },
+      ]),
+    )
+  }
+
   getActivePresser(side: TeamSide): string | null {
     return this.pressers[side].playerId
   }

@@ -148,6 +148,28 @@ export function createDefaultLabTuning(): LabTuningState {
       highPressAggression: 0.82,
       lowBlockDepth: 0.34,
     },
+    aiTactics: {
+      tacticalOverrideEnabled: true,
+      jobTargetStrictness: 0.55,
+      emergencyGatherRadius: 75,
+      receiverCatchRadius: 95,
+      passLaneMinScore: 0.45,
+      supportPassBias: 0.25,
+    },
+    tacticalGuides: {
+      tacticalGuidesEnabled: true,
+      tacticalGuideAlpha: 0.18,
+      tacticalGuideRadius: 24,
+      tacticalGuideShowLabels: false,
+      tacticalGuideOnlyHumanTeam: false,
+    },
+    creaseBattle: {
+      creaseBattleBreakerEnabled: true,
+      creaseBattleTimeMs: 1400,
+      creaseBattleLowSpeedThreshold: 1.8,
+      creaseBattleClearImpulse: 7.5,
+      creaseBattleSideBias: 0.35,
+    },
     stick: {
       stanceResetEnabled: true,
       stanceResetDelayMs: 120,

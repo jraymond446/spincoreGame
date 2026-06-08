@@ -21,6 +21,7 @@ import type { DefensiveActionState } from './DefenseSystem'
 import type { MatchFlowState } from './MatchFlowSystem'
 import type { KeeperLegalState } from './KeeperAreaSystem'
 import type { ControlSwitchReason } from './ControlOwnershipSystem'
+import type { CreaseBattleDebugState } from './CreaseBattleSystem'
 import type {
   TacticalJob,
   TeamPhase,
@@ -70,6 +71,7 @@ type DebugHudState = {
   strategies: Record<TeamSide, TeamStrategy>
   tacticalPhases: Record<TeamSide, TeamPhase>
   controlledTacticalJob: TacticalJob | null
+  creaseBattle: CreaseBattleDebugState
   defenseState: DefensiveActionState
   defenseAction: string
   defenseCooldowns: {
@@ -213,6 +215,9 @@ export class DebugHudSystem {
       `INTENT   ${state.inputIntent}\n` +
       `PLAYER   ${state.controlledPlayerId} / ${state.controlledPlayerRole}\n` +
       `JOB      ${state.controlledTacticalJob ?? '-'}\n` +
+      `CREASE   ${state.creaseBattle.side ?? '-'} ${Math.round(state.creaseBattle.timerMs)}ms / ${state.creaseBattle.contactCount} contacts\n` +
+      `BREAKER  ${state.creaseBattle.triggered ? 'TRIGGERED' : 'IDLE'} / CD ${Math.round(state.creaseBattle.cooldownMs)}ms\n` +
+      `C CLEAR  ${formatOptionalVector(state.creaseBattle.clearDirection)}\n` +
       `SWITCH   ${state.switchReason}\n` +
       `AUTO WHY ${state.lastAutoSwitchReason ?? '-'}\n` +
       `LOCK     ${Math.ceil(state.controlLockRemainingMs)}ms / CD ${Math.ceil(state.switchCooldownRemainingMs)}ms\n` +

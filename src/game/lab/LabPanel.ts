@@ -131,6 +131,9 @@ export class LabPanel {
       this.createFieldSection(),
       this.createKeeperSection(),
       this.createSpacingSection(),
+      this.createAITacticsSection(),
+      this.createTacticalGuidesSection(),
+      this.createCreaseBattleSection(),
       this.createStickSection(),
       this.createDefenseSection(),
       this.createMatchFlowSection(),
@@ -806,6 +809,175 @@ export class LabPanel {
     }
 
     return this.createSection('Team Shape / Spacing', content)
+  }
+
+  private createAITacticsSection(): HTMLElement {
+    const tactics = this.draft.aiTactics
+    const content = document.createElement('div')
+    content.className = 'lab-range-list'
+    content.append(
+      this.createCheckbox(
+        'Tactical overrides enabled',
+        tactics.tacticalOverrideEnabled,
+        (value) => {
+          tactics.tacticalOverrideEnabled = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Job target strictness',
+        tactics.jobTargetStrictness,
+        { min: 0, max: 1, step: 0.05, digits: 2 },
+        (value) => {
+          tactics.jobTargetStrictness = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Emergency gather radius',
+        tactics.emergencyGatherRadius,
+        { min: 30, max: 180, step: 5 },
+        (value) => {
+          tactics.emergencyGatherRadius = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Receiver catch radius',
+        tactics.receiverCatchRadius,
+        { min: 40, max: 200, step: 5 },
+        (value) => {
+          tactics.receiverCatchRadius = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Pass lane minimum score',
+        tactics.passLaneMinScore,
+        { min: 0, max: 1, step: 0.05, digits: 2 },
+        (value) => {
+          tactics.passLaneMinScore = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Support pass bias',
+        tactics.supportPassBias,
+        { min: 0, max: 0.6, step: 0.05, digits: 2 },
+        (value) => {
+          tactics.supportPassBias = value
+          this.markDraftChanged()
+        },
+      ),
+    )
+
+    return this.createSection('AI / Tactical Overrides', content)
+  }
+
+  private createTacticalGuidesSection(): HTMLElement {
+    const guides = this.draft.tacticalGuides
+    const content = document.createElement('div')
+    content.className = 'lab-range-list'
+    content.append(
+      this.createCheckbox(
+        'Show tactical guides',
+        guides.tacticalGuidesEnabled,
+        (value) => {
+          guides.tacticalGuidesEnabled = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createCheckbox(
+        'Show guide labels',
+        guides.tacticalGuideShowLabels,
+        (value) => {
+          guides.tacticalGuideShowLabels = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createCheckbox(
+        'Show human team only',
+        guides.tacticalGuideOnlyHumanTeam,
+        (value) => {
+          guides.tacticalGuideOnlyHumanTeam = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Guide opacity',
+        guides.tacticalGuideAlpha,
+        { min: 0.03, max: 0.5, step: 0.01, digits: 2 },
+        (value) => {
+          guides.tacticalGuideAlpha = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Guide radius',
+        guides.tacticalGuideRadius,
+        { min: 10, max: 60, step: 2 },
+        (value) => {
+          guides.tacticalGuideRadius = value
+          this.markDraftChanged()
+        },
+      ),
+    )
+
+    return this.createSection('Tactical Guides', content)
+  }
+
+  private createCreaseBattleSection(): HTMLElement {
+    const crease = this.draft.creaseBattle
+    const content = document.createElement('div')
+    content.className = 'lab-range-list'
+    content.append(
+      this.createCheckbox(
+        'Crease battle breaker',
+        crease.creaseBattleBreakerEnabled,
+        (value) => {
+          crease.creaseBattleBreakerEnabled = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Battle time ms',
+        crease.creaseBattleTimeMs,
+        { min: 500, max: 4000, step: 100 },
+        (value) => {
+          crease.creaseBattleTimeMs = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Low speed threshold',
+        crease.creaseBattleLowSpeedThreshold,
+        { min: 0.4, max: 5, step: 0.1, digits: 1 },
+        (value) => {
+          crease.creaseBattleLowSpeedThreshold = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Clear impulse',
+        crease.creaseBattleClearImpulse,
+        { min: 2, max: 14, step: 0.25, digits: 2 },
+        (value) => {
+          crease.creaseBattleClearImpulse = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Clear side bias',
+        crease.creaseBattleSideBias,
+        { min: 0, max: 1, step: 0.05, digits: 2 },
+        (value) => {
+          crease.creaseBattleSideBias = value
+          this.markDraftChanged()
+        },
+      ),
+    )
+
+    return this.createSection('Crease Battle', content)
   }
 
   private createStickSection(): HTMLElement {
