@@ -487,7 +487,7 @@ export class LabPanel {
       this.createRange(
         'Keeper zone radius',
         field.keeperZoneRadius,
-        { min: 100, max: 210, step: 1 },
+        { min: 100, max: 260, step: 1 },
         (value) => {
           field.keeperZoneRadius = value
           this.markDraftChanged()
@@ -558,10 +558,42 @@ export class LabPanel {
         },
       ),
       this.createCheckbox(
-        'Auto-switch enabled',
-        keeper.keeperAutoSwitchEnabled,
+        'Auto-switch on loose ball',
+        keeper.autoSwitchOnLooseBall,
         (value) => {
-          keeper.keeperAutoSwitchEnabled = value
+          keeper.autoSwitchOnLooseBall = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createCheckbox(
+        'Keeper switch on possession',
+        keeper.keeperAutoSwitchOnPossession,
+        (value) => {
+          keeper.keeperAutoSwitchOnPossession = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createCheckbox(
+        'Keeper switch on threat',
+        keeper.keeperAutoSwitchOnThreat,
+        (value) => {
+          keeper.keeperAutoSwitchOnThreat = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createCheckbox(
+        'Keeper switch on loose ball',
+        keeper.keeperAutoSwitchOnLooseBall,
+        (value) => {
+          keeper.keeperAutoSwitchOnLooseBall = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createCheckbox(
+        'Prevent rapid switching',
+        keeper.preventRapidSwitching,
+        (value) => {
+          keeper.preventRapidSwitching = value
           this.markDraftChanged()
         },
       ),
@@ -573,11 +605,19 @@ export class LabPanel {
           this.markDraftChanged()
         },
       ),
+      this.createCheckbox(
+        'Own-goal prevention',
+        keeper.keeperOwnGoalPreventionEnabled,
+        (value) => {
+          keeper.keeperOwnGoalPreventionEnabled = value
+          this.markDraftChanged()
+        },
+      ),
     )
     const modeDescription = document.createElement('p')
     modeDescription.className = 'lab-empty'
     modeDescription.textContent =
-      'AI only keeps full keeper automation. Bias assist shades the AI from human movement. Auto switch takes control during direct threats. Manual when selected enables explicit keeper control.'
+      'Field + keeper bias keeps ownership on a field player. Keeper on possession hands control over only after a keeper catch, then returns to the previous field player. Manual all respects Lab selection. Auto nearest is retained for testing.'
     content.appendChild(modeDescription)
 
     const controls: Array<
@@ -587,8 +627,13 @@ export class LabPanel {
           keyof LabTuningState['keeper'],
           | 'keeperControlMode'
           | 'keeperHumanBiasEnabled'
-          | 'keeperAutoSwitchEnabled'
+          | 'autoSwitchOnLooseBall'
+          | 'keeperAutoSwitchOnPossession'
+          | 'keeperAutoSwitchOnThreat'
+          | 'keeperAutoSwitchOnLooseBall'
+          | 'preventRapidSwitching'
           | 'keeperClearUsesThreatVector'
+          | 'keeperOwnGoalPreventionEnabled'
         >,
         RangeOptions,
       ]
@@ -601,6 +646,9 @@ export class LabPanel {
       ['Return home speed', 'keeperReturnHomeSpeed', { min: 0.2, max: 1.4, step: 0.05, digits: 2 }],
       ['Clear aggression', 'keeperClearAggression', { min: 0, max: 1.5, step: 0.05, digits: 2 }],
       ['Deflect aggression', 'keeperDeflectAggression', { min: 0, max: 1.5, step: 0.05, digits: 2 }],
+      ['Clear minimum away dot', 'keeperClearMinAwayDot', { min: 0, max: 0.95, step: 0.05, digits: 2 }],
+      ['Clear lateral variance', 'keeperClearLateralVariance', { min: 0, max: 0.8, step: 0.05, digits: 2 }],
+      ['Clear center bias', 'keeperClearTowardCenterBias', { min: 0.1, max: 1, step: 0.05, digits: 2 }],
       ['Orbit smoothing', 'keeperOrbitSmoothing', { min: 0.5, max: 8, step: 0.1, digits: 1 }],
       ['Max lateral speed', 'keeperMaxLateralSpeed', { min: 2, max: 9, step: 0.1, digits: 1 }],
       ['Human bias strength', 'keeperHumanBiasStrength', { min: 0, max: 1, step: 0.05, digits: 2 }],
@@ -608,9 +656,13 @@ export class LabPanel {
       ['Human depth bias', 'keeperHumanDepthBiasStrength', { min: 0, max: 1, step: 0.05, digits: 2 }],
       ['Human bias max offset', 'keeperHumanBiasMaxOffset', { min: 0, max: 70, step: 1 }],
       ['Human bias decay', 'keeperHumanBiasDecay', { min: 1, max: 16, step: 0.5, digits: 1 }],
+      ['Control switch cooldown ms', 'controlSwitchCooldownMs', { min: 0, max: 2500, step: 50 }],
+      ['Loose-ball switch cooldown', 'looseBallSwitchCooldownMs', { min: 0, max: 3500, step: 50 }],
+      ['Minimum ownership ms', 'minControlOwnershipMs', { min: 0, max: 3000, step: 50 }],
+      ['Keeper possession switch delay', 'keeperPossessionSwitchDelayMs', { min: 0, max: 1000, step: 25 }],
+      ['Return to field after release', 'keeperReturnToFieldAfterReleaseMs', { min: 0, max: 2500, step: 50 }],
+      ['Auto-switch distance advantage', 'autoSwitchDistanceAdvantageRequired', { min: 0, max: 10000, step: 100 }],
       ['Auto-switch threat radius', 'keeperAutoSwitchThreatRadius', { min: 100, max: 360, step: 5 }],
-      ['Auto-switch delay ms', 'keeperAutoSwitchDelayMs', { min: 0, max: 600, step: 10 }],
-      ['Manual override ms', 'keeperManualOverrideDurationMs', { min: 100, max: 2200, step: 50 }],
     ]
 
     for (const [label, key, options] of controls) {

@@ -7,6 +7,7 @@ import type { Player } from '../entities/Player'
 import type { DefensiveVisualState } from '../rendering/AnimationState'
 import type { FumbleSystem } from './FumbleSystem'
 import type { StickInteractionSystem } from './StickInteractionSystem'
+import { sanitizeKeeperClearDirection } from './KeeperClearSafetySystem'
 
 export type DefenseIntent = {
   truck: boolean
@@ -109,6 +110,7 @@ export class DefenseSystem {
         ) {
           this.startSlash(
             runtime,
+            player,
             intent.aimDirection ?? player.getReleaseAimForward(),
           )
         }
@@ -266,12 +268,19 @@ export class DefenseSystem {
 
   private startSlash(
     runtime: DefenseRuntime,
+    player: Player,
     direction: Point,
   ): void {
     runtime.state = 'SLASH_STARTUP'
     runtime.elapsedMs = 0
     runtime.connected = false
-    runtime.actionDirection = normalized(direction)
+    runtime.actionDirection =
+      player.role === 'keeper'
+        ? sanitizeKeeperClearDirection(
+            direction,
+            player.teamSide,
+          ).direction
+        : normalized(direction)
     runtime.slashCooldownMs = defenseConfig.slashCooldownMs
   }
 
@@ -473,10 +482,24 @@ export class DefenseSystem {
         powerMultiplier *
         stickSlashMultiplier(attacker)
 
-      core.setVelocity({
+      const nextVelocity = {
         x: core.velocity.x + direction.x * impulse,
         y: core.velocity.y + direction.y * impulse,
-      })
+      }
+
+      if (attacker.role === 'keeper') {
+        const speed = Math.hypot(nextVelocity.x, nextVelocity.y)
+        const safe = sanitizeKeeperClearDirection(
+          nextVelocity,
+          attacker.teamSide,
+        )
+        core.setVelocity({
+          x: safe.direction.x * speed,
+          y: safe.direction.y * speed,
+        })
+      } else {
+        core.setVelocity(nextVelocity)
+      }
     }
   }
 

@@ -17,7 +17,6 @@ export class KeeperControlAssistSystem {
     deltaMs: number,
   ): Point {
     const active =
-      keeperConfig.controlMode === 'biasAssist' &&
       keeperConfig.keeperHumanBiasEnabled &&
       controlledPlayer.teamSide === 'A' &&
       controlledPlayer.role !== 'keeper'

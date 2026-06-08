@@ -20,6 +20,7 @@ import type { InputMode } from './PlayerInputController'
 import type { DefensiveActionState } from './DefenseSystem'
 import type { MatchFlowState } from './MatchFlowSystem'
 import type { KeeperLegalState } from './KeeperAreaSystem'
+import type { ControlSwitchReason } from './ControlOwnershipSystem'
 
 type DebugHudState = {
   gameMode: GameMode
@@ -89,6 +90,14 @@ type DebugHudState = {
   keeperHumanBias: Point
   keeperThreatActive: boolean
   keeperAutoSwitchThreat: boolean
+  switchReason: ControlSwitchReason
+  lastAutoSwitchReason: ControlSwitchReason | null
+  controlLockRemainingMs: number
+  switchCooldownRemainingMs: number
+  keeperHasPossession: boolean
+  keeperInputLatched: boolean
+  keeperClearDirection: Point
+  ownGoalPreventionCorrected: boolean
   keeperLegalState: KeeperLegalState
   keeperLastViolation: KeeperLegalState
 }
@@ -193,6 +202,9 @@ export class DebugHudSystem {
       `RIGHT    ${formatVector(state.rightAimVector)}\n` +
       `INTENT   ${state.inputIntent}\n` +
       `PLAYER   ${state.controlledPlayerId} / ${state.controlledPlayerRole}\n` +
+      `SWITCH   ${state.switchReason}\n` +
+      `AUTO WHY ${state.lastAutoSwitchReason ?? '-'}\n` +
+      `LOCK     ${Math.ceil(state.controlLockRemainingMs)}ms / CD ${Math.ceil(state.switchCooldownRemainingMs)}ms\n` +
       `HAND     ${state.controlledPlayerHandedness.toUpperCase()}\n` +
       `MOUNT    ${signed(state.handednessMountSign)}\n` +
       `POCKET   ${signed(state.pocketFacingSign)}\n` +
@@ -202,6 +214,8 @@ export class DebugHudSystem {
       `K TARGET ${formatVector(state.keeperTarget)} @ ${state.keeperTargetRatio.toFixed(2)}\n` +
       `K BIAS   ${formatVector(state.keeperHumanBias)}\n` +
       `K THREAT ${state.keeperThreatActive ? 'ACTIVE' : 'CLEAR'} / SWITCH ${state.keeperAutoSwitchThreat ? 'HOT' : 'IDLE'}\n` +
+      `K HAS    ${state.keeperHasPossession ? 'YES' : 'NO'} / LATCH ${state.keeperInputLatched ? 'ON' : 'OFF'}\n` +
+      `K CLEAR  ${formatVector(state.keeperClearDirection)} / SAFE ${state.ownGoalPreventionCorrected ? 'CORRECTED' : 'CLEAN'}\n` +
       `K LEGAL  ${state.keeperLegalState} / LAST ${state.keeperLastViolation}\n` +
       `STICK    ${state.stickState}\n` +
       `CORE     ${state.coreState}\n` +

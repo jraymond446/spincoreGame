@@ -2,7 +2,7 @@ export const aiConfig = {
   seekCoreRadius: 520,
   supportSpacing: 230,
   strikerAttackDistance: 310,
-  keeperHomeRadius: 125,
+  keeperHomeRadius: 210,
   keeperAggression: 0.62,
   brutePressureRadius: 132,
   bruteCheckRadius: 72,

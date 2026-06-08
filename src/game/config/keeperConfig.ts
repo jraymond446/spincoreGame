@@ -1,7 +1,6 @@
-import type { KeeperControlMode, PlayerPlayStyle } from '../data/matchTypes'
+import type { PlayerPlayStyle } from '../data/matchTypes'
 
 export const keeperConfig = {
-  controlMode: 'biasAssist' as KeeperControlMode,
   keeperTightTargetRadiusRatio: 0.25,
   keeperBalancedTargetRadiusRatio: 0.5,
   keeperSweeperTargetRadiusRatio: 0.75,
@@ -11,6 +10,10 @@ export const keeperConfig = {
   keeperClearAggression: 0.86,
   keeperDeflectAggression: 0.9,
   keeperClearUsesThreatVector: true,
+  keeperOwnGoalPreventionEnabled: true,
+  keeperClearMinAwayDot: 0.25,
+  keeperClearLateralVariance: 0.2,
+  keeperClearTowardCenterBias: 0.6,
   keeperOrbitSmoothing: 3.4,
   keeperMaxLateralSpeed: 5.6,
   keeperHumanBiasEnabled: true,
@@ -19,10 +22,7 @@ export const keeperConfig = {
   keeperHumanDepthBiasStrength: 0.2,
   keeperHumanBiasMaxOffset: 25,
   keeperHumanBiasDecay: 7,
-  keeperAutoSwitchEnabled: true,
   keeperAutoSwitchThreatRadius: 205,
-  keeperAutoSwitchDelayMs: 120,
-  keeperManualOverrideDurationMs: 800,
   saveDetectionCooldownMs: 650,
   debug: {
     targetColor: 0xffd24f,

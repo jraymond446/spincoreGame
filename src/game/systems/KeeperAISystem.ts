@@ -1,6 +1,7 @@
 import Phaser from 'phaser'
 import type { AIDecisionContext } from '../ai/AIDecisionContext'
 import { aiConfig } from '../config/aiConfig'
+import { controlConfig } from '../config/controlConfig'
 import { goalConfigs } from '../config/goalConfig'
 import {
   getKeeperTargetRatio,
@@ -22,6 +23,7 @@ import {
   getKeeperLegalRadii,
   getKeeperStyleRadius,
 } from '../rules/KeeperGeometry'
+import { KeeperClearSafetySystem } from './KeeperClearSafetySystem'
 
 export type KeeperAIDebugState = {
   target: Point
@@ -32,6 +34,8 @@ export type KeeperAIDebugState = {
   targetRatio: number
   controlMode: KeeperControlMode
   threatActive: boolean
+  clearDirection: Point
+  ownGoalPreventionCorrected: boolean
 }
 
 export class KeeperAISystem {
@@ -40,6 +44,7 @@ export class KeeperAISystem {
   private readonly labels = new Map<TeamSide, Phaser.GameObjects.Text>()
   private readonly debugStates = new Map<TeamSide, KeeperAIDebugState>()
   private readonly nextSwingAt = new Map<string, number>()
+  private readonly clearSafety = new KeeperClearSafetySystem()
   private debugEnabled = false
 
   constructor(scene: Phaser.Scene) {
@@ -54,12 +59,19 @@ export class KeeperAISystem {
     const { player, core, attackGoal, ownGoal } = context
     const threat = predictThreat(context)
     const target = this.getTarget(context, threat, humanBias)
-    const clearTarget = getKeeperClearTarget(
-      player.position,
+    const rawClearDirection = getKeeperClearDirection(
       core.position,
       ownGoal,
       player.teamSide,
     )
+    const clearResult = this.clearSafety.sanitize(
+      rawClearDirection,
+      player.teamSide,
+    )
+    const clearTarget = {
+      x: player.position.x + clearResult.direction.x * 360,
+      y: player.position.y + clearResult.direction.y * 360,
+    }
     const moveVector = this.getOrbitMovement(player.position, target, player.teamSide)
     const farFromGoal =
       distance(core.position, ownGoal) >
@@ -84,7 +96,14 @@ export class KeeperAISystem {
       1.35,
     )
 
-    this.recordDebug(context, target, threat, humanBias)
+    this.recordDebug(
+      context,
+      target,
+      threat,
+      humanBias,
+      clearResult.direction,
+      clearResult.corrected,
+    )
 
     if (context.isCarrier) {
       const releaseTarget = keeperConfig.keeperClearUsesThreatVector
@@ -217,7 +236,9 @@ export class KeeperAISystem {
         .setPosition(state.target.x + 14, state.target.y - 14)
         .setText(
           `${side} ${state.style.toUpperCase()} ${state.targetRatio.toFixed(2)}\n` +
-            `${state.controlMode}${state.threatActive ? ' / THREAT' : ''}`,
+            `${state.controlMode}${state.threatActive ? ' / THREAT' : ''}\n` +
+            `CLEAR ${state.clearDirection.x.toFixed(2)},${state.clearDirection.y.toFixed(2)}` +
+            `${state.ownGoalPreventionCorrected ? ' / SAFE' : ''}`,
         )
         .setVisible(true)
     }
@@ -233,6 +254,7 @@ export class KeeperAISystem {
           threatStart: { ...state.threatStart },
           threatEnd: { ...state.threatEnd },
           humanBias: { ...state.humanBias },
+          clearDirection: { ...state.clearDirection },
         }
       : null
   }
@@ -321,6 +343,8 @@ export class KeeperAISystem {
     target: Point,
     threat: KeeperThreat,
     humanBias: Point,
+    clearDirection: Point,
+    ownGoalPreventionCorrected: boolean,
   ): void {
     this.debugStates.set(context.player.teamSide, {
       target: { ...target },
@@ -329,8 +353,10 @@ export class KeeperAISystem {
       humanBias: { ...humanBias },
       style: context.style.effectiveStyle,
       targetRatio: getKeeperTargetRatio(context.style.effectiveStyle),
-      controlMode: keeperConfig.controlMode,
+      controlMode: controlConfig.keeperControlMode,
       threatActive: threat.active,
+      clearDirection: { ...clearDirection },
+      ownGoalPreventionCorrected,
     })
   }
 
@@ -430,8 +456,7 @@ function distance(a: Point, b: Point): number {
   return Math.hypot(a.x - b.x, a.y - b.y)
 }
 
-function getKeeperClearTarget(
-  keeperPosition: Point,
+function getKeeperClearDirection(
   corePosition: Point,
   ownGoal: Point,
   side: TeamSide,
@@ -453,8 +478,5 @@ function getKeeperClearTarget(
       )
     : fieldward
 
-  return {
-    x: keeperPosition.x + clearDirection.x * 360,
-    y: keeperPosition.y + clearDirection.y * 360,
-  }
+  return clearDirection
 }

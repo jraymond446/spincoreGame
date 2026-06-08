@@ -7,6 +7,10 @@ import type { StickActionState } from '../data/matchTypes'
 import type { Core } from '../entities/Core'
 import type { CradleZone, Player } from '../entities/Player'
 import type { HandednessSign } from '../rules/Handedness'
+import {
+  KeeperClearSafetySystem,
+  type KeeperClearSafetyResult,
+} from './KeeperClearSafetySystem'
 
 export type CorePossessionState =
   | 'FREE'
@@ -123,6 +127,7 @@ export class StickInteractionSystem {
   private currentChargeIntensity = 0
   private gatherRipple: GatherRipple | null = null
   private lastReleaseImpulseDirection: Point | null = null
+  private readonly keeperClearSafety = new KeeperClearSafetySystem()
 
   constructor(scene: Phaser.Scene) {
     this.releaseGraphics = scene.add.graphics().setDepth(19)
@@ -275,6 +280,12 @@ export class StickInteractionSystem {
       : null
   }
 
+  getKeeperClearSafetyResult(
+    side: 'A' | 'B',
+  ): KeeperClearSafetyResult | null {
+    return this.keeperClearSafety.getLastResult(side)
+  }
+
   getCradlePhase(): string {
     if (this.coreState === 'CRADLED_OVERCHARGED') {
       return 'OVERCHARGED'
@@ -374,6 +385,7 @@ export class StickInteractionSystem {
     this.gatherRipple = null
     this.pendingRelease = null
     this.lastReleaseImpulseDirection = null
+    this.keeperClearSafety.reset()
     this.clearCarryControl()
     this.lastInteraction = 'none'
     this.interactionEvent = null
@@ -1107,7 +1119,14 @@ export class StickInteractionSystem {
   }
 
   private beginRelease(carrier: Player, direction: Point): void {
-    const releaseAimDirection = normalized(direction)
+    const intendedDirection = normalized(direction)
+    const releaseAimDirection =
+      carrier.role === 'keeper'
+        ? this.keeperClearSafety.sanitize(
+            intendedDirection,
+            carrier.teamSide,
+          ).direction
+        : intendedDirection
     let releaseImpulseDirection =
       possessionFeelConfig.visualStickControlsImpulse
         ? carrier.getStickForward()
@@ -1359,12 +1378,18 @@ export class StickInteractionSystem {
           ? stickConfig.catchReadyDeflectMultiplier *
             possessionFeelConfig.gatherDeflectSuppression
           : 1)
-    const direction = active
+    let direction = active
       ? normalized({
           x: player.getStickForward().x * 0.82 + hit.normal.x * 0.42,
           y: player.getStickForward().y * 0.82 + hit.normal.y * 0.42,
         })
       : hit.normal
+    if (player.role === 'keeper') {
+      direction = this.keeperClearSafety.sanitize(
+        direction,
+        player.teamSide,
+      ).direction
+    }
     const impulse = clampVector(
       {
         x: direction.x * force + (active ? player.velocity.x * 0.2 : 0),
@@ -1372,11 +1397,25 @@ export class StickInteractionSystem {
       },
       stickConfig.maxDeflectImpulse,
     )
-
-    core.setVelocity({
+    const nextVelocity = {
       x: core.velocity.x + impulse.x,
       y: core.velocity.y + impulse.y,
-    })
+    }
+
+    if (player.role === 'keeper') {
+      const speed = magnitude(nextVelocity)
+      const safe = this.keeperClearSafety.sanitize(
+        nextVelocity,
+        player.teamSide,
+      )
+      core.setVelocity({
+        x: safe.direction.x * speed,
+        y: safe.direction.y * speed,
+      })
+      return
+    }
+
+    core.setVelocity(nextVelocity)
   }
 
   private setActionState(playerId: string, state: StickActionState): void {

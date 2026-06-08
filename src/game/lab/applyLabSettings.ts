@@ -3,6 +3,7 @@ import {
   arenaDimensionsConfig,
 } from '../config/arenaConfig'
 import { coreConfig } from '../config/entityConfig'
+import { controlConfig } from '../config/controlConfig'
 import { defenseConfig } from '../config/defenseConfig'
 import {
   bottomGoalConfig,
@@ -107,7 +108,6 @@ export function applyLabSettings(state: LabTuningState): void {
     keeperZonePushStrength: field.keeperZonePushStrength,
   })
   Object.assign(keeperConfig, {
-    controlMode: state.keeper.keeperControlMode,
     keeperTightTargetRadiusRatio:
       state.keeper.keeperTightTargetRadiusRatio,
     keeperBalancedTargetRadiusRatio:
@@ -126,6 +126,14 @@ export function applyLabSettings(state: LabTuningState): void {
       state.keeper.keeperDeflectAggression,
     keeperClearUsesThreatVector:
       state.keeper.keeperClearUsesThreatVector,
+    keeperOwnGoalPreventionEnabled:
+      state.keeper.keeperOwnGoalPreventionEnabled,
+    keeperClearMinAwayDot:
+      state.keeper.keeperClearMinAwayDot,
+    keeperClearLateralVariance:
+      state.keeper.keeperClearLateralVariance,
+    keeperClearTowardCenterBias:
+      state.keeper.keeperClearTowardCenterBias,
     keeperOrbitSmoothing:
       state.keeper.keeperOrbitSmoothing,
     keeperMaxLateralSpeed:
@@ -142,14 +150,32 @@ export function applyLabSettings(state: LabTuningState): void {
       state.keeper.keeperHumanBiasMaxOffset,
     keeperHumanBiasDecay:
       state.keeper.keeperHumanBiasDecay,
-    keeperAutoSwitchEnabled:
-      state.keeper.keeperAutoSwitchEnabled,
     keeperAutoSwitchThreatRadius:
       state.keeper.keeperAutoSwitchThreatRadius,
-    keeperAutoSwitchDelayMs:
-      state.keeper.keeperAutoSwitchDelayMs,
-    keeperManualOverrideDurationMs:
-      state.keeper.keeperManualOverrideDurationMs,
+  })
+  Object.assign(controlConfig, {
+    keeperControlMode: state.keeper.keeperControlMode,
+    autoSwitchOnLooseBall: state.keeper.autoSwitchOnLooseBall,
+    looseBallSwitchCooldownMs:
+      state.keeper.looseBallSwitchCooldownMs,
+    keeperAutoSwitchOnPossession:
+      state.keeper.keeperAutoSwitchOnPossession,
+    keeperAutoSwitchOnThreat:
+      state.keeper.keeperAutoSwitchOnThreat,
+    keeperAutoSwitchOnLooseBall:
+      state.keeper.keeperAutoSwitchOnLooseBall,
+    preventRapidSwitching:
+      state.keeper.preventRapidSwitching,
+    controlSwitchCooldownMs:
+      state.keeper.controlSwitchCooldownMs,
+    minControlOwnershipMs:
+      state.keeper.minControlOwnershipMs,
+    keeperPossessionSwitchDelayMs:
+      state.keeper.keeperPossessionSwitchDelayMs,
+    keeperReturnToFieldAfterReleaseMs:
+      state.keeper.keeperReturnToFieldAfterReleaseMs,
+    autoSwitchDistanceAdvantageRequired:
+      state.keeper.autoSwitchDistanceAdvantageRequired,
   })
   Object.assign(keeperAreaConfig.areas.A, {
     x: bottomGoalConfig.x,

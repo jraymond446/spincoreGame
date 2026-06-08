@@ -2,6 +2,7 @@ import Phaser from 'phaser'
 import { arenaConfig } from '../config/arenaConfig'
 import { arenaPresentationConfig } from '../config/arenaPresentationConfig'
 import { coreSafetyConfig } from '../config/coreSafetyConfig'
+import { controlConfig } from '../config/controlConfig'
 import { defenseConfig } from '../config/defenseConfig'
 import { coreConfig } from '../config/entityConfig'
 import {
@@ -10,7 +11,6 @@ import {
 } from '../config/gameplayConfig'
 import { goalConfigs } from '../config/goalConfig'
 import { inputConfig } from '../config/inputConfig'
-import { keeperConfig } from '../config/keeperConfig'
 import { matchFlowConfig } from '../config/matchFlowConfig'
 import { stickConfig } from '../config/stickConfig'
 import { viewConfig } from '../config/viewConfig'
@@ -178,7 +178,6 @@ export class GameScene extends Phaser.Scene {
       this.core.velocity,
       delta,
       getLabState().controlledPlayer,
-      this.gameMode === 'stickLab',
     )
     const controlledIsCarrier =
       this.stickInteractionSystem.getCarrierId() === controlledPlayer.id
@@ -325,6 +324,13 @@ export class GameScene extends Phaser.Scene {
   ): void {
     const isCarrier =
       this.stickInteractionSystem.getCarrierId() === player.id
+    const keeperPossessionLatch =
+      this.playerControlSystem.shouldLatchKeeperPossession()
+    this.playerControlSystem.acknowledgeKeeperPossessionInput(
+      input.primaryStickAction,
+    )
+    const primaryStickAction =
+      input.primaryStickAction || keeperPossessionLatch
     const movement =
       player.role === 'keeper'
         ? this.keeperControlAssistSystem.getManualMovement(
@@ -335,7 +341,7 @@ export class GameScene extends Phaser.Scene {
 
     player.update(movement, input.aimAngle)
     stickIntents.set(player.id, {
-      hold: input.primaryStickAction,
+      hold: primaryStickAction,
       suppressEmptyReleaseSwing: !isCarrier,
       chargeIntensity: input.primaryIntensity,
     })
@@ -353,7 +359,7 @@ export class GameScene extends Phaser.Scene {
     this.currentInputIntent = isCarrier
       ? input.releasePrimaryStickAction
         ? 'RELEASE'
-        : input.primaryStickAction
+        : primaryStickAction
           ? 'AIM / CHARGE'
           : 'CARRYING'
       : input.truckAction
@@ -361,7 +367,7 @@ export class GameScene extends Phaser.Scene {
         : input.primaryStickActionStarted ||
             input.explicitSlashAction
           ? 'SLASH'
-          : input.primaryStickAction
+          : primaryStickAction
             ? 'CATCH READY'
             : 'IDLE'
   }
@@ -495,6 +501,9 @@ export class GameScene extends Phaser.Scene {
     this.coreRecoverySystem.reset()
     this.matchStatsTracker.clearPossession()
     this.teamSystem.resetFormation()
+    this.playerControlSystem.reset(
+      this.teamSystem.getPlayersForSide('A'),
+    )
     this.core.reset()
 
     for (const rule of this.goalRules.values()) {
@@ -530,6 +539,9 @@ export class GameScene extends Phaser.Scene {
     this.fumbleSystem.clear()
     this.coreRecoverySystem.reset()
     this.matchStatsTracker.clearPossession()
+    this.playerControlSystem.reset(
+      this.teamSystem.getPlayersForSide('A'),
+    )
     this.core.reset()
 
     for (const rule of this.goalRules.values()) {
@@ -612,6 +624,9 @@ export class GameScene extends Phaser.Scene {
       .find((player) => player.role === 'keeper')
     const keeperDebug = this.aiSystem.getKeeperDebugState('A')
     const defenseTarget = this.defenseSystem.getTargetDebug()
+    const ownershipDebug = this.playerControlSystem.getDebugState()
+    const stickKeeperClear =
+      this.stickInteractionSystem.getKeeperClearSafetyResult('A')
 
     this.debugHudSystem.update({
       gameMode: this.gameMode,
@@ -714,7 +729,7 @@ export class GameScene extends Phaser.Scene {
         defenseConfig.slashEnabled &&
         this.stickInteractionSystem.getCarrierId() !== controlledPlayer.id,
       inputIntent: this.currentInputIntent,
-      keeperControlMode: keeperConfig.controlMode,
+      keeperControlMode: controlConfig.keeperControlMode,
       keeperStyle: keeper?.playStyle ?? 'balanced',
       keeperTarget: keeperDebug?.target ?? { x: 0, y: 0 },
       keeperTargetRatio: keeperDebug?.targetRatio ?? 0,
@@ -723,9 +738,28 @@ export class GameScene extends Phaser.Scene {
         this.keeperControlAssistSystem.getBias(),
       keeperThreatActive:
         keeperDebug?.threatActive ??
-        this.playerControlSystem.isKeeperThreatActive(),
+        ownershipDebug.keeperThreatActive,
       keeperAutoSwitchThreat:
-        this.playerControlSystem.isKeeperThreatActive(),
+        controlConfig.keeperAutoSwitchOnThreat,
+      switchReason: ownershipDebug.switchReason,
+      lastAutoSwitchReason:
+        ownershipDebug.lastAutoSwitchReason,
+      controlLockRemainingMs:
+        ownershipDebug.controlLockRemainingMs,
+      switchCooldownRemainingMs:
+        ownershipDebug.switchCooldownRemainingMs,
+      keeperHasPossession:
+        ownershipDebug.keeperHasPossession,
+      keeperInputLatched:
+        ownershipDebug.keeperInputLatched,
+      keeperClearDirection:
+        stickKeeperClear?.direction ??
+        keeperDebug?.clearDirection ??
+        { x: 0, y: -1 },
+      ownGoalPreventionCorrected:
+        stickKeeperClear?.corrected ??
+        keeperDebug?.ownGoalPreventionCorrected ??
+        false,
       keeperLegalState: keeper
         ? this.keeperAreaSystem.getKeeperLegalState(keeper.id)
         : 'legal',

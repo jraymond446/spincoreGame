@@ -59,6 +59,10 @@ export type LabKeeperTuning = {
   keeperClearAggression: number
   keeperDeflectAggression: number
   keeperClearUsesThreatVector: boolean
+  keeperOwnGoalPreventionEnabled: boolean
+  keeperClearMinAwayDot: number
+  keeperClearLateralVariance: number
+  keeperClearTowardCenterBias: number
   keeperOrbitSmoothing: number
   keeperMaxLateralSpeed: number
   keeperHumanBiasEnabled: boolean
@@ -67,10 +71,18 @@ export type LabKeeperTuning = {
   keeperHumanDepthBiasStrength: number
   keeperHumanBiasMaxOffset: number
   keeperHumanBiasDecay: number
-  keeperAutoSwitchEnabled: boolean
+  autoSwitchOnLooseBall: boolean
+  looseBallSwitchCooldownMs: number
+  keeperAutoSwitchOnPossession: boolean
+  keeperAutoSwitchOnThreat: boolean
+  keeperAutoSwitchOnLooseBall: boolean
+  preventRapidSwitching: boolean
+  controlSwitchCooldownMs: number
+  minControlOwnershipMs: number
+  keeperPossessionSwitchDelayMs: number
+  keeperReturnToFieldAfterReleaseMs: number
+  autoSwitchDistanceAdvantageRequired: number
   keeperAutoSwitchThreatRadius: number
-  keeperAutoSwitchDelayMs: number
-  keeperManualOverrideDurationMs: number
 }
 
 export type LabStickTuning = {
@@ -224,10 +236,10 @@ export const labOptions = {
     { value: 'flex', label: 'Flex' },
   ] satisfies Array<{ value: ControlledPlayerSelection; label: string }>,
   keeperControlModes: [
-    { value: 'aiOnly', label: 'AI only' },
-    { value: 'biasAssist', label: 'Bias assist' },
-    { value: 'autoSwitch', label: 'Auto switch' },
-    { value: 'manualWhenSelected', label: 'Manual when selected' },
+    { value: 'fieldOnlyBiasKeeper', label: 'Field + keeper bias' },
+    { value: 'keeperOnPossession', label: 'Keeper on possession' },
+    { value: 'manualAll', label: 'Manual all' },
+    { value: 'autoNearest', label: 'Auto nearest' },
   ] satisfies Array<{ value: KeeperControlMode; label: string }>,
   roles: [
     'keeper',
