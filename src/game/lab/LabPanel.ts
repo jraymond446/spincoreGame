@@ -198,6 +198,66 @@ export class LabPanel {
           this.markDraftChanged()
         },
       ),
+      this.createSelect(
+        'Team A offense',
+        this.draft.strategies.A.offenseScheme,
+        stringOptions(labOptions.offenseSchemes),
+        (value) => {
+          this.draft.strategies.A.offenseScheme =
+            value as LabTuningState['strategies']['A']['offenseScheme']
+          this.markDraftChanged()
+        },
+      ),
+      this.createSelect(
+        'Team A defense',
+        this.draft.strategies.A.defenseScheme,
+        stringOptions(labOptions.defenseSchemes),
+        (value) => {
+          this.draft.strategies.A.defenseScheme =
+            value as LabTuningState['strategies']['A']['defenseScheme']
+          this.markDraftChanged()
+        },
+      ),
+      this.createSelect(
+        'Team A transition',
+        this.draft.strategies.A.transitionScheme,
+        stringOptions(labOptions.transitionSchemes),
+        (value) => {
+          this.draft.strategies.A.transitionScheme =
+            value as LabTuningState['strategies']['A']['transitionScheme']
+          this.markDraftChanged()
+        },
+      ),
+      this.createSelect(
+        'Team B offense',
+        this.draft.strategies.B.offenseScheme,
+        stringOptions(labOptions.offenseSchemes),
+        (value) => {
+          this.draft.strategies.B.offenseScheme =
+            value as LabTuningState['strategies']['B']['offenseScheme']
+          this.markDraftChanged()
+        },
+      ),
+      this.createSelect(
+        'Team B defense',
+        this.draft.strategies.B.defenseScheme,
+        stringOptions(labOptions.defenseSchemes),
+        (value) => {
+          this.draft.strategies.B.defenseScheme =
+            value as LabTuningState['strategies']['B']['defenseScheme']
+          this.markDraftChanged()
+        },
+      ),
+      this.createSelect(
+        'Team B transition',
+        this.draft.strategies.B.transitionScheme,
+        stringOptions(labOptions.transitionSchemes),
+        (value) => {
+          this.draft.strategies.B.transitionScheme =
+            value as LabTuningState['strategies']['B']['transitionScheme']
+          this.markDraftChanged()
+        },
+      ),
     )
 
     const actions = document.createElement('div')
@@ -729,7 +789,11 @@ export class LabPanel {
       ['Teammate repulsion', 'teammateRepulsionStrength', { min: 0, max: 1, step: 0.05, digits: 2 }],
       ['Support behind-goal chance', 'behindGoalCutChanceSupport', { min: 0, max: 1, step: 0.05, digits: 2 }],
       ['Striker behind-goal chance', 'behindGoalCutChanceStriker', { min: 0, max: 1, step: 0.05, digits: 2 }],
+      ['Front-slot spacing', 'frontSlotSpacing', { min: 70, max: 220, step: 5 }],
       ['Bank-shot preference', 'bankShotPreference', { min: 0, max: 1, step: 0.05, digits: 2 }],
+      ['Tactical job switch cooldown', 'tacticalJobSwitchCooldownMs', { min: 0, max: 2500, step: 50 }],
+      ['High-press aggression', 'highPressAggression', { min: 0, max: 1.5, step: 0.05, digits: 2 }],
+      ['Low-block depth', 'lowBlockDepth', { min: 0.1, max: 0.65, step: 0.02, digits: 2 }],
     ]
 
     for (const [label, key, options] of controls) {

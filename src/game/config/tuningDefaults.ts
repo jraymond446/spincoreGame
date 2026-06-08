@@ -54,6 +54,18 @@ export function createDefaultLabTuning(): LabTuningState {
       A: 'balanced',
       B: 'brutePress',
     },
+    strategies: {
+      A: {
+        offenseScheme: 'behindNet',
+        defenseScheme: 'zoneTriangle',
+        transitionScheme: 'safeOutlet',
+      },
+      B: {
+        offenseScheme: 'crashNet',
+        defenseScheme: 'highPress',
+        transitionScheme: 'counterAttack',
+      },
+    },
     players,
     field: {
       arenaWidth: 940,
@@ -130,7 +142,11 @@ export function createDefaultLabTuning(): LabTuningState {
       enableBehindGoalCuts: true,
       behindGoalCutChanceSupport: 0.35,
       behindGoalCutChanceStriker: 0.45,
+      frontSlotSpacing: 120,
       bankShotPreference: 0.35,
+      tacticalJobSwitchCooldownMs: 700,
+      highPressAggression: 0.82,
+      lowBlockDepth: 0.34,
     },
     stick: {
       stanceResetEnabled: true,

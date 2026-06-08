@@ -1,4 +1,5 @@
 import type { Point } from './geometry'
+import type { TeamStrategy } from '../tactics/TeamStrategy'
 
 export type TeamSide = 'A' | 'B'
 export type PlayerRole = 'keeper' | 'striker' | 'support' | 'brute'
@@ -123,6 +124,7 @@ export type Team = {
   defendedGoalId: string
   attackedGoalId: string
   formation: FormationId
+  strategy: TeamStrategy
   roster: PlayerRosterEntry[]
 }
 

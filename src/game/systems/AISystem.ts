@@ -4,8 +4,10 @@ import { decideDefenseActions } from '../ai/DefenseBehavior'
 import { getPlayStyleModifiers } from '../ai/PlayStyleModifiers'
 import { decideRoleIntent } from '../ai/RoleBehaviors'
 import { aiConfig } from '../config/aiConfig'
+import { defenseConfig } from '../config/defenseConfig'
 import { keeperAreaConfig } from '../config/keeperAreaConfig'
 import { stickConfig } from '../config/stickConfig'
+import { tacticsConfig } from '../config/tacticsConfig'
 import type { Point } from '../data/geometry'
 import type {
   FormationAIBias,
@@ -14,6 +16,8 @@ import type {
 } from '../data/matchTypes'
 import type { Core } from '../entities/Core'
 import type { Player } from '../entities/Player'
+import type { TacticalAssignment, TacticalJob } from '../tactics/TacticalJobs'
+import type { TeamStrategy } from '../tactics/TeamStrategy'
 import {
   KeeperAISystem,
   type KeeperAIDebugState,
@@ -32,11 +36,12 @@ export class AISystem {
   constructor(
     scene: Phaser.Scene,
     formationBiases: Record<TeamSide, FormationAIBias>,
+    strategies: Record<TeamSide, TeamStrategy>,
   ) {
     this.formationBiases = formationBiases
     this.debugGraphics = scene.add.graphics().setDepth(18)
     this.keeperAI = new KeeperAISystem(scene)
-    this.teamShape = new TeamShapeSystem(scene)
+    this.teamShape = new TeamShapeSystem(scene, strategies)
   }
 
   update(
@@ -84,6 +89,18 @@ export class AISystem {
 
   getKeeperDebugState(side: TeamSide): KeeperAIDebugState | null {
     return this.keeperAI.getDebugState(side)
+  }
+
+  getTeamStrategy(side: TeamSide): TeamStrategy {
+    return this.teamShape.getStrategy(side)
+  }
+
+  getTeamPhase(side: TeamSide) {
+    return this.teamShape.getPhase(side)
+  }
+
+  getTacticalAssignment(playerId: string): TacticalAssignment | null {
+    return this.teamShape.getAssignment(playerId)
   }
 
   reset(): void {
@@ -153,13 +170,29 @@ export class AISystem {
         goalPoint(player.teamSide === 'A' ? 'B' : 'A'),
         this.formationBiases[player.teamSide],
       )
-      const intent = decideRoleIntent(context)
+      const baseIntent = decideRoleIntent(context)
+      const bankTarget = this.teamShape.getBankAimTarget(
+        player.teamSide,
+        player.position,
+      )
+      const intent =
+        context.isCarrier && bankTarget && baseIntent.releaseTarget
+          ? {
+              ...baseIntent,
+              aimTarget: bankTarget,
+              releaseTarget: bankTarget,
+            }
+          : baseIntent
       const assignment = this.teamShape.getAssignment(player.id)
       const followsShape =
         !context.isCarrier &&
         assignment !== null &&
-        assignment.role !== 'presser' &&
-        assignment.role !== 'keeper'
+        assignment.job !== 'primaryPresser' &&
+        assignment.job !== 'keeper'
+      const highPressing =
+        assignment?.job === 'primaryPresser' &&
+        this.teamShape.getStrategy(player.teamSide).defenseScheme ===
+          'highPress'
       const shapedIntent = followsShape
         ? {
             ...intent,
@@ -170,14 +203,25 @@ export class AISystem {
             releaseTarget: undefined,
             aiReleaseDelayMs: undefined,
             aiState:
-              assignment.role === 'cover'
+              isDefensiveJob(assignment.job)
                 ? ('MARK_CARRIER' as const)
                 : ('SUPPORT_ATTACK' as const),
           }
-        : intent
-      const defense = followsShape
+        : highPressing
+          ? {
+              ...intent,
+              moveSpeedMultiplier: Math.max(
+                intent.moveSpeedMultiplier ?? 1,
+                1 + tacticsConfig.highPressAggression * 0.12,
+              ),
+            }
+          : intent
+      const baseDefense = followsShape
         ? { truck: false, slash: false }
         : decideDefenseActions(context)
+      const defense = highPressing
+        ? boostHighPressDefense(context, baseDefense)
+        : baseDefense
 
       this.intents.set(player.id, {
         ...shapedIntent,
@@ -234,6 +278,45 @@ export class AISystem {
         )
       }
     }
+  }
+}
+
+function isDefensiveJob(job: TacticalJob): boolean {
+  return (
+    job === 'defensiveCover' ||
+    job === 'zoneGuard' ||
+    job === 'manMark'
+  )
+}
+
+function boostHighPressDefense(
+  context: ReturnType<typeof createAIDecisionContext>,
+  decision: { truck: boolean; slash: boolean },
+): { truck: boolean; slash: boolean } {
+  if (
+    decision.truck ||
+    decision.slash ||
+    !context.opponentCarrier
+  ) {
+    return decision
+  }
+
+  const carrierDistance = Math.hypot(
+    context.player.position.x - context.opponentCarrier.position.x,
+    context.player.position.y - context.opponentCarrier.position.y,
+  )
+  const aggression = tacticsConfig.highPressAggression
+  const canTruck =
+    context.player.role === 'brute' &&
+    context.player.defenseTendencies.truckAggression >= 0.25 &&
+    carrierDistance <= defenseConfig.truckRange * (1 + aggression * 0.25)
+  const canSlash =
+    context.player.defenseTendencies.slashAggression >= 0.2 &&
+    carrierDistance <= defenseConfig.slashRange * (1 + aggression * 0.3)
+
+  return {
+    truck: canTruck,
+    slash: !canTruck && canSlash,
   }
 }
 

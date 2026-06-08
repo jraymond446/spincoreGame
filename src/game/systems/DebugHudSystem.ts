@@ -21,6 +21,11 @@ import type { DefensiveActionState } from './DefenseSystem'
 import type { MatchFlowState } from './MatchFlowSystem'
 import type { KeeperLegalState } from './KeeperAreaSystem'
 import type { ControlSwitchReason } from './ControlOwnershipSystem'
+import type {
+  TacticalJob,
+  TeamPhase,
+} from '../tactics/TacticalJobs'
+import type { TeamStrategy } from '../tactics/TeamStrategy'
 
 type DebugHudState = {
   gameMode: GameMode
@@ -62,6 +67,9 @@ type DebugHudState = {
   cradleFailure: CradleFailureReason
   lastInteraction: StickInteractionResult
   formations: Record<TeamSide, FormationId>
+  strategies: Record<TeamSide, TeamStrategy>
+  tacticalPhases: Record<TeamSide, TeamPhase>
+  controlledTacticalJob: TacticalJob | null
   defenseState: DefensiveActionState
   defenseAction: string
   defenseCooldowns: {
@@ -197,11 +205,14 @@ export class DebugHudSystem {
       `SCORER   ${state.lastScorer ?? '-'}\n` +
       `Team A Formation: ${state.formations.A}\n` +
       `Team B Formation: ${state.formations.B}\n` +
+      `A TACTIC ${state.tacticalPhases.A} | ${formatStrategy(state.strategies.A)}\n` +
+      `B TACTIC ${state.tacticalPhases.B} | ${formatStrategy(state.strategies.B)}\n` +
       `INPUT    ${state.inputMode}\n` +
       `LEFT     ${formatVector(state.leftJoystickVector)}\n` +
       `RIGHT    ${formatVector(state.rightAimVector)}\n` +
       `INTENT   ${state.inputIntent}\n` +
       `PLAYER   ${state.controlledPlayerId} / ${state.controlledPlayerRole}\n` +
+      `JOB      ${state.controlledTacticalJob ?? '-'}\n` +
       `SWITCH   ${state.switchReason}\n` +
       `AUTO WHY ${state.lastAutoSwitchReason ?? '-'}\n` +
       `LOCK     ${Math.ceil(state.controlLockRemainingMs)}ms / CD ${Math.ceil(state.switchCooldownRemainingMs)}ms\n` +
@@ -311,6 +322,13 @@ function scoreText(state: DebugHudState): string {
   return state.gameMode === 'stickLab'
     ? `GOALS ${state.score.A}`
     : `A ${state.score.A}-${state.score.B} B`
+}
+
+function formatStrategy(strategy: TeamStrategy): string {
+  return (
+    `${strategy.offenseScheme} / ${strategy.defenseScheme} / ` +
+    strategy.transitionScheme
+  )
 }
 
 function formatVector(vector: Point): string {

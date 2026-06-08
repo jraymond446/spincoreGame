@@ -118,6 +118,7 @@ export class GameScene extends Phaser.Scene {
     this.aiSystem = new AISystem(
       this,
       this.teamSystem.getFormationBiases(),
+      this.teamSystem.getStrategies(),
     )
     this.inputController = new PlayerInputController(this, hudRoot)
     this.stickInteractionSystem = new StickInteractionSystem(this)
@@ -705,6 +706,17 @@ export class GameScene extends Phaser.Scene {
       lastInteraction: this.stickInteractionSystem.getLastInteraction(),
       recoveryStatus: this.coreRecoverySystem.getDebugStatus(),
       formations: this.teamSystem.getFormationIds(),
+      strategies: {
+        A: this.aiSystem.getTeamStrategy('A'),
+        B: this.aiSystem.getTeamStrategy('B'),
+      },
+      tacticalPhases: {
+        A: this.aiSystem.getTeamPhase('A'),
+        B: this.aiSystem.getTeamPhase('B'),
+      },
+      controlledTacticalJob:
+        this.aiSystem.getTacticalAssignment(controlledPlayer.id)?.job ??
+        null,
       defenseState: this.defenseSystem.getState(controlledPlayer.id),
       defenseAction:
         this.defenseSystem.getActionLabel(controlledPlayer.id),

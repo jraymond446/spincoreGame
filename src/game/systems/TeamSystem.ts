@@ -11,6 +11,7 @@ import type {
   Team,
   TeamSide,
 } from '../data/matchTypes'
+import type { TeamStrategy } from '../tactics/TeamStrategy'
 import { Player } from '../entities/Player'
 import { getLabState } from '../lab/LabState'
 import { FormationSystem } from './FormationSystem'
@@ -120,6 +121,13 @@ export class TeamSystem {
   getFormationBiases(): Record<TeamSide, FormationAIBias> {
     return this.formationSystem.getFormationBiases()
   }
+
+  getStrategies(): Record<TeamSide, TeamStrategy> {
+    return {
+      A: structuredClone(this.getTeam('A').strategy),
+      B: structuredClone(this.getTeam('B').strategy),
+    }
+  }
 }
 
 function createRuntimeTeams(): Team[] {
@@ -128,6 +136,10 @@ function createRuntimeTeams(): Team[] {
   return teams.map((team) => ({
     ...team,
     formation: labState.formations[team.side],
+    strategy: {
+      formation: labState.formations[team.side],
+      ...labState.strategies[team.side],
+    },
     roster: team.roster.map((entry) => {
       const tuning = labState.players[entry.id]
 

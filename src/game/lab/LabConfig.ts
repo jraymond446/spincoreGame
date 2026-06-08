@@ -11,6 +11,12 @@ import type {
   StickStyle,
   TeamSide,
 } from '../data/matchTypes'
+import type {
+  DefenseScheme,
+  LabTeamStrategy,
+  OffenseScheme,
+  TransitionScheme,
+} from '../tactics/TeamStrategy'
 
 export type ControlledPlayerSelection =
   | 'auto'
@@ -189,7 +195,11 @@ export type LabSpacingTuning = {
   enableBehindGoalCuts: boolean
   behindGoalCutChanceSupport: number
   behindGoalCutChanceStriker: number
+  frontSlotSpacing: number
   bankShotPreference: number
+  tacticalJobSwitchCooldownMs: number
+  highPressAggression: number
+  lowBlockDepth: number
 }
 
 export type LabDefenseTuning = {
@@ -244,6 +254,7 @@ export type LabTuningState = {
   mode: GameMode
   controlledPlayer: ControlledPlayerSelection
   formations: Record<TeamSide, FormationId>
+  strategies: Record<TeamSide, LabTeamStrategy>
   players: Record<string, LabPlayerTuning>
   field: LabFieldTuning
   keeper: LabKeeperTuning
@@ -308,6 +319,30 @@ export const labOptions = {
     'staggeredRight',
     'brutePress',
   ] satisfies FormationId[],
+  offenseSchemes: [
+    'balanced',
+    'behindNet',
+    'sideSpread',
+    'verticalStack',
+    'crashNet',
+    'bankHunter',
+    'giveAndGo',
+  ] satisfies OffenseScheme[],
+  defenseSchemes: [
+    'zoneTriangle',
+    'manMark',
+    'lowBlock',
+    'highPress',
+    'trapBehindGoal',
+    'bruteShadow',
+  ] satisfies DefenseScheme[],
+  transitionSchemes: [
+    'balanced',
+    'safeOutlet',
+    'counterAttack',
+    'regroup',
+    'pressAfterLoss',
+  ] satisfies TransitionScheme[],
   attributes: [
     'speed',
     'control',

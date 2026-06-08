@@ -1,4 +1,5 @@
 import { playerRuntimeConfig } from '../config/playerConfig'
+import { defaultTeamStrategies } from '../config/tacticsConfig'
 import type { Team } from './matchTypes'
 
 export const teams: Team[] = [
@@ -11,6 +12,7 @@ export const teams: Team[] = [
     defendedGoalId: 'bottom-goal',
     attackedGoalId: 'top-goal',
     formation: 'balanced',
+    strategy: structuredClone(defaultTeamStrategies.A),
     roster: [
       {
         id: 'a-keeper',
@@ -56,6 +58,7 @@ export const teams: Team[] = [
     defendedGoalId: 'top-goal',
     attackedGoalId: 'bottom-goal',
     formation: 'brutePress',
+    strategy: structuredClone(defaultTeamStrategies.B),
     roster: [
       {
         id: 'b-keeper',

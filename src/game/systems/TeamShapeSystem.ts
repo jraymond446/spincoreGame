@@ -3,43 +3,73 @@ import { arenaConfig } from '../config/arenaConfig'
 import { keeperAreaConfig } from '../config/keeperAreaConfig'
 import { playerRuntimeConfig } from '../config/playerConfig'
 import { spacingConfig } from '../config/spacingConfig'
+import { tacticsConfig } from '../config/tacticsConfig'
 import type { Point } from '../data/geometry'
 import type { TeamSide } from '../data/matchTypes'
 import type { Core } from '../entities/Core'
 import type { Player } from '../entities/Player'
-
-export type TeamShapeRole =
-  | 'presser'
-  | 'outlet'
-  | 'cover'
-  | 'behindGoalCut'
-  | 'frontSlot'
-  | 'keeper'
-
-export type TeamShapeAssignment = {
-  role: TeamShapeRole
-  target: Point
-}
+import type {
+  TacticalAssignment,
+  TacticalJob,
+  TeamPhase,
+} from '../tactics/TacticalJobs'
+import type {
+  DefenseScheme,
+  TeamStrategy,
+} from '../tactics/TeamStrategy'
 
 type PresserState = {
   playerId: string | null
   cooldownMs: number
 }
 
+type JobState = {
+  job: TacticalJob
+  cooldownMs: number
+}
+
 export class TeamShapeSystem {
   private readonly scene: Phaser.Scene
   private readonly graphics: Phaser.GameObjects.Graphics
+  private readonly strategies: Record<TeamSide, TeamStrategy>
   private readonly labels = new Map<string, Phaser.GameObjects.Text>()
-  private readonly assignments = new Map<string, TeamShapeAssignment>()
+  private readonly strategyLabels: Record<
+    TeamSide,
+    Phaser.GameObjects.Text
+  >
+  private readonly assignments = new Map<string, TacticalAssignment>()
+  private readonly jobStates = new Map<string, JobState>()
   private readonly pressers: Record<TeamSide, PresserState> = {
     A: { playerId: null, cooldownMs: 0 },
     B: { playerId: null, cooldownMs: 0 },
   }
+  private readonly phases: Record<TeamSide, TeamPhase> = {
+    A: 'LOOSE',
+    B: 'LOOSE',
+  }
+  private readonly transitionTimers: Record<TeamSide, number> = {
+    A: 0,
+    B: 0,
+  }
+  private readonly previousCarrierIds: Record<TeamSide, string | null> = {
+    A: null,
+    B: null,
+  }
+  private lastCarrierId: string | null = null
+  private lastPossessionSide: TeamSide | null = null
   private debugEnabled = false
 
-  constructor(scene: Phaser.Scene) {
+  constructor(
+    scene: Phaser.Scene,
+    strategies: Record<TeamSide, TeamStrategy>,
+  ) {
     this.scene = scene
+    this.strategies = strategies
     this.graphics = scene.add.graphics().setDepth(18)
+    this.strategyLabels = {
+      A: this.createStrategyLabel(),
+      B: this.createStrategyLabel(),
+    }
   }
 
   update(
@@ -51,6 +81,9 @@ export class TeamShapeSystem {
   ): void {
     const carrier =
       players.find((player) => player.id === carrierId) ?? null
+
+    this.updatePossession(carrier, deltaMs)
+    this.updateJobCooldowns(deltaMs)
 
     for (const side of ['A', 'B'] as const) {
       this.pressers[side].cooldownMs = Math.max(
@@ -69,12 +102,12 @@ export class TeamShapeSystem {
     this.drawDebug(players)
   }
 
-  getAssignment(playerId: string): TeamShapeAssignment | null {
+  getAssignment(playerId: string): TacticalAssignment | null {
     const assignment = this.assignments.get(playerId)
 
     return assignment
       ? {
-          role: assignment.role,
+          ...assignment,
           target: { ...assignment.target },
         }
       : null
@@ -84,11 +117,44 @@ export class TeamShapeSystem {
     return this.pressers[side].playerId
   }
 
+  getPhase(side: TeamSide): TeamPhase {
+    return this.phases[side]
+  }
+
+  getStrategy(side: TeamSide): TeamStrategy {
+    return structuredClone(this.strategies[side])
+  }
+
+  getBankAimTarget(side: TeamSide, origin: Point): Point | null {
+    if (
+      this.phases[side] !== 'OFFENSE' ||
+      this.strategies[side].offenseScheme !== 'bankHunter'
+    ) {
+      return null
+    }
+
+    const attackGoal = this.attackGoal(side)
+    const left = arenaConfig.center.x - arenaConfig.width / 2
+    const right = arenaConfig.center.x + arenaConfig.width / 2
+    const wallX =
+      origin.x < arenaConfig.center.x
+        ? left + tacticsConfig.bankReboundWallInset
+        : right - tacticsConfig.bankReboundWallInset
+
+    return {
+      x: wallX,
+      y: Phaser.Math.Linear(origin.y, attackGoal.y, 0.72),
+    }
+  }
+
   setDebugEnabled(enabled: boolean): void {
     this.debugEnabled = enabled
     this.graphics.setVisible(enabled)
 
-    for (const label of this.labels.values()) {
+    for (const label of [
+      ...this.labels.values(),
+      ...Object.values(this.strategyLabels),
+    ]) {
       label.setVisible(enabled)
     }
 
@@ -99,8 +165,65 @@ export class TeamShapeSystem {
 
   reset(): void {
     this.assignments.clear()
+    this.jobStates.clear()
     this.pressers.A = { playerId: null, cooldownMs: 0 }
     this.pressers.B = { playerId: null, cooldownMs: 0 }
+    this.phases.A = 'LOOSE'
+    this.phases.B = 'LOOSE'
+    this.transitionTimers.A = 0
+    this.transitionTimers.B = 0
+    this.previousCarrierIds.A = null
+    this.previousCarrierIds.B = null
+    this.lastCarrierId = null
+    this.lastPossessionSide = null
+  }
+
+  private updatePossession(carrier: Player | null, deltaMs: number): void {
+    for (const side of ['A', 'B'] as const) {
+      this.transitionTimers[side] = Math.max(
+        0,
+        this.transitionTimers[side] - deltaMs,
+      )
+    }
+
+    const possessionSide = carrier?.teamSide ?? null
+
+    if (carrier?.id !== this.lastCarrierId) {
+      if (
+        this.lastCarrierId &&
+        this.lastPossessionSide &&
+        this.lastPossessionSide === possessionSide
+      ) {
+        this.previousCarrierIds[possessionSide] = this.lastCarrierId
+      }
+      this.lastCarrierId = carrier?.id ?? null
+    }
+
+    if (
+      possessionSide &&
+      possessionSide !== this.lastPossessionSide
+    ) {
+      this.transitionTimers.A = tacticsConfig.transitionWindowMs
+      this.transitionTimers.B = tacticsConfig.transitionWindowMs
+    }
+    this.lastPossessionSide = possessionSide
+
+    for (const side of ['A', 'B'] as const) {
+      if (this.transitionTimers[side] > 0) {
+        this.phases[side] = 'TRANSITION'
+      } else if (!possessionSide) {
+        this.phases[side] = 'LOOSE'
+      } else {
+        this.phases[side] =
+          possessionSide === side ? 'OFFENSE' : 'DEFENSE'
+      }
+    }
+  }
+
+  private updateJobCooldowns(deltaMs: number): void {
+    for (const state of this.jobStates.values()) {
+      state.cooldownMs = Math.max(0, state.cooldownMs - deltaMs)
+    }
   }
 
   private assignTeam(
@@ -112,53 +235,72 @@ export class TeamShapeSystem {
   ): void {
     const teammates = players.filter((player) => player.teamSide === side)
     const fieldPlayers = teammates.filter((player) => player.role !== 'keeper')
-    const teamCarrier =
-      carrier?.teamSide === side ? carrier : null
+    const opponents = players.filter((player) => player.teamSide !== side)
+    const teamCarrier = carrier?.teamSide === side ? carrier : null
     const opponentCarrier =
       carrier && carrier.teamSide !== side ? carrier : null
     const pressurePoint = opponentCarrier?.position ?? core.position
-    let presser: Player | null
+    const phase = this.phases[side]
+    const strategy = this.strategies[side]
+    const needsPresser =
+      phase === 'DEFENSE' ||
+      phase === 'LOOSE' ||
+      (phase === 'TRANSITION' && !teamCarrier)
+    const presser = needsPresser
+      ? this.selectPresser(
+          side,
+          fieldPlayers,
+          pressurePoint,
+          controlledPlayerId,
+          strategy.defenseScheme,
+        )
+      : null
 
-    if (teamCarrier) {
-      presser = teamCarrier.role === 'keeper' ? null : teamCarrier
-      if (presser && this.pressers[side].playerId !== presser.id) {
-        this.setPresser(side, presser.id)
-      } else if (!presser) {
-        this.pressers[side].playerId = null
-      }
-    } else {
-      presser = this.selectPresser(
-        side,
-        fieldPlayers,
-        pressurePoint,
-        controlledPlayerId,
-      )
+    if (!needsPresser) {
+      this.pressers[side].playerId = null
     }
 
     for (const player of teammates) {
       if (player.role === 'keeper') {
-        this.assignments.set(player.id, {
-          role: 'keeper',
-          target: { ...player.position },
-        })
+        this.setAssignment(player, 'keeper', player.position)
         continue
       }
 
       if (player.id === presser?.id) {
-        this.assignments.set(player.id, {
-          role: 'presser',
-          target: { ...pressurePoint },
-        })
+        this.setAssignment(player, 'primaryPresser', pressurePoint)
         continue
       }
 
-      const role = this.chooseSupportRole(player, teamCarrier, core)
+      const desiredJob = this.chooseJob(
+        player,
+        phase,
+        strategy,
+        teamCarrier,
+        opponentCarrier,
+        core,
+      )
+      const job = this.stabilizeJob(player.id, desiredJob)
+      const tacticalTarget = this.getJobTarget(
+        job,
+        player,
+        teammates,
+        opponents,
+        teamCarrier,
+        opponentCarrier,
+        core,
+        strategy.defenseScheme,
+      )
       const target = this.applySpacing(
-        this.getRoleTarget(role, player, teamCarrier, core),
+        tacticalTarget.target,
         player,
         teammates,
       )
-      this.assignments.set(player.id, { role, target })
+
+      this.assignments.set(player.id, {
+        job,
+        target,
+        markTargetId: tacticalTarget.markTargetId,
+      })
     }
   }
 
@@ -167,22 +309,27 @@ export class TeamShapeSystem {
     players: Player[],
     target: Point,
     controlledPlayerId: string,
+    defenseScheme: DefenseScheme,
   ): Player | null {
     if (spacingConfig.maxCorePressersPerTeam <= 0 || players.length === 0) {
       this.pressers[side].playerId = null
       return null
     }
 
+    const controlled = players.find(
+      (player) => player.id === controlledPlayerId,
+    )
+    const brute =
+      defenseScheme === 'bruteShadow'
+        ? players.find((player) => player.role === 'brute')
+        : null
     const sorted = [...players].sort(
       (a, b) => distance(a.position, target) - distance(b.position, target),
     )
     const current = players.find(
       (player) => player.id === this.pressers[side].playerId,
     )
-    const controlled = players.find(
-      (player) => player.id === controlledPlayerId,
-    )
-    const preferred = controlled ?? sorted[0]
+    const preferred = controlled ?? brute ?? sorted[0]
 
     if (!current) {
       this.setPresser(side, preferred.id)
@@ -193,28 +340,19 @@ export class TeamShapeSystem {
       return current
     }
 
-    const challenger = sorted[0]
+    const challenger = controlled ?? brute ?? sorted[0]
     const advantage =
       distance(current.position, target) -
       distance(challenger.position, target)
 
     if (
       challenger.id !== current.id &&
-      advantage >= spacingConfig.presserDistanceAdvantageRequired
+      (controlled ||
+        brute ||
+        advantage >= spacingConfig.presserDistanceAdvantageRequired)
     ) {
       this.setPresser(side, challenger.id)
       return challenger
-    }
-
-    if (
-      controlled &&
-      current.id !== controlled.id &&
-      distance(controlled.position, target) <=
-        distance(current.position, target) +
-          spacingConfig.presserDistanceAdvantageRequired
-    ) {
-      this.setPresser(side, controlled.id)
-      return controlled
     }
 
     return current
@@ -227,122 +365,459 @@ export class TeamShapeSystem {
     }
   }
 
-  private chooseSupportRole(
+  private chooseJob(
     player: Player,
+    phase: TeamPhase,
+    strategy: TeamStrategy,
     teamCarrier: Player | null,
+    opponentCarrier: Player | null,
     core: Core,
-  ): TeamShapeRole {
-    if (!teamCarrier) {
-      return player.role === 'brute' ? 'cover' : 'outlet'
+  ): TacticalJob {
+    if (phase === 'OFFENSE') {
+      return this.chooseOffenseJob(player, strategy, teamCarrier, core)
     }
 
-    const attackGoal = keeperAreaConfig.areas[
-      player.teamSide === 'A' ? 'B' : 'A'
-    ]
-    const nearAttackEnd =
-      distance(teamCarrier.position, attackGoal) <=
-      keeperAreaConfig.keeperZoneRadius * 2.35
-    const cutChance =
-      player.role === 'support'
-        ? spacingConfig.behindGoalCutChanceSupport
-        : spacingConfig.behindGoalCutChanceStriker
-    const wantsBehindGoal =
-      spacingConfig.enableBehindGoalCuts &&
-      nearAttackEnd &&
-      stableChance(player.id, core.position) < cutChance
-
-    if (wantsBehindGoal) {
-      return 'behindGoalCut'
+    if (phase === 'DEFENSE') {
+      return this.chooseDefenseJob(
+        player,
+        strategy.defenseScheme,
+        opponentCarrier,
+      )
     }
 
-    if (
-      nearAttackEnd &&
-      (player.role === 'striker' || teamCarrier.role === 'support')
-    ) {
-      return 'frontSlot'
+    if (phase === 'TRANSITION') {
+      return this.chooseTransitionJob(
+        player,
+        strategy,
+        Boolean(teamCarrier),
+      )
     }
 
-    return player.role === 'brute' ? 'cover' : 'outlet'
+    return player.role === 'brute' ? 'defensiveCover' : 'supportOutlet'
   }
 
-  private getRoleTarget(
-    role: TeamShapeRole,
+  private chooseOffenseJob(
     player: Player,
+    strategy: TeamStrategy,
     carrier: Player | null,
     core: Core,
-  ): Point {
-    const attackDirection = {
-      x: 0,
-      y: player.teamSide === 'A' ? -1 : 1,
+  ): TacticalJob {
+    if (carrier?.id === player.id) {
+      return 'strongSideLane'
     }
-    const right = { x: -attackDirection.y, y: attackDirection.x }
-    const ownGoal = keeperAreaConfig.areas[player.teamSide]
-    const attackGoal = keeperAreaConfig.areas[
-      player.teamSide === 'A' ? 'B' : 'A'
-    ]
-    const laneSign = stableChance(`${player.id}:lane`, core.position) < 0.5
-      ? -1
-      : 1
 
-    if (role === 'behindGoalCut') {
-      const radialDistance =
-        keeperAreaConfig.keeperZoneRadius +
-        playerRuntimeConfig.radius +
-        keeperAreaConfig.keeperZoneBoundaryBuffer +
-        12
-      const depth = Math.min(
-        spacingConfig.behindGoalSpacing,
-        radialDistance * 0.55,
-      )
-      const lateral = Math.sqrt(
-        Math.max(0, radialDistance * radialDistance - depth * depth),
-      )
+    switch (strategy.offenseScheme) {
+      case 'behindNet': {
+        if (
+          carrier &&
+          this.isBehindGoal(
+            carrier.position,
+            this.attackGoal(player.teamSide),
+            player.teamSide,
+          )
+        ) {
+          return 'frontSlot'
+        }
+        const nearGoal =
+          carrier &&
+          distance(carrier.position, this.attackGoal(player.teamSide)) <=
+            keeperAreaConfig.keeperZoneRadius * 2.5
+        return nearGoal ? 'behindNet' : 'supportOutlet'
+      }
+      case 'sideSpread':
+        return this.isWeakSide(player.position, carrier?.position ?? core.position)
+          ? 'weakSideLane'
+          : 'strongSideLane'
+      case 'verticalStack':
+        return player.role === 'striker' ? 'verticalHigh' : 'verticalMiddle'
+      case 'crashNet':
+        return player.role === 'striker' ? 'frontSlot' : 'reboundHunter'
+      case 'bankHunter':
+        return 'bankRebound'
+      case 'giveAndGo':
+        return this.previousCarrierIds[player.teamSide] === player.id
+          ? 'frontSlot'
+          : 'supportOutlet'
+      default: {
+        const nearGoal =
+          carrier &&
+          distance(carrier.position, this.attackGoal(player.teamSide)) <=
+            keeperAreaConfig.keeperZoneRadius * 2.5
 
-      return this.clampToArena({
-        x:
-          attackGoal.x +
-          right.x * lateral * laneSign +
-          attackDirection.x * depth,
-        y:
-          attackGoal.y +
-          right.y * lateral * laneSign +
-          attackDirection.y * depth,
+        if (
+          nearGoal &&
+          (player.role === 'striker' || carrier.role === 'support')
+        ) {
+          return 'frontSlot'
+        }
+
+        if (
+          spacingConfig.enableBehindGoalCuts &&
+          nearGoal &&
+          stableChance(player.id, core.position) <
+            (player.role === 'support'
+              ? spacingConfig.behindGoalCutChanceSupport
+              : spacingConfig.behindGoalCutChanceStriker)
+        ) {
+          return 'behindNet'
+        }
+        return player.role === 'brute' ? 'defensiveCover' : 'supportOutlet'
+      }
+    }
+  }
+
+  private chooseDefenseJob(
+    player: Player,
+    scheme: DefenseScheme,
+    opponentCarrier: Player | null,
+  ): TacticalJob {
+    switch (scheme) {
+      case 'manMark':
+        return 'manMark'
+      case 'lowBlock':
+        return 'defensiveCover'
+      case 'highPress':
+        return 'manMark'
+      case 'trapBehindGoal':
+        return opponentCarrier &&
+          this.isBehindGoal(
+            opponentCarrier.position,
+            this.ownGoal(player.teamSide),
+            oppositeSide(player.teamSide),
+          )
+          ? 'frontSlot'
+          : 'zoneGuard'
+      case 'bruteShadow':
+        return player.role === 'brute' ? 'manMark' : 'defensiveCover'
+      default:
+        return 'zoneGuard'
+    }
+  }
+
+  private chooseTransitionJob(
+    player: Player,
+    strategy: TeamStrategy,
+    gainedPossession: boolean,
+  ): TacticalJob {
+    if (!gainedPossession) {
+      return strategy.transitionScheme === 'regroup'
+        ? 'defensiveCover'
+        : 'zoneGuard'
+    }
+
+    switch (strategy.transitionScheme) {
+      case 'counterAttack':
+        return player.role === 'striker' ? 'verticalHigh' : 'supportOutlet'
+      case 'regroup':
+        return 'verticalLow'
+      case 'pressAfterLoss':
+        return 'strongSideLane'
+      case 'safeOutlet':
+        return 'supportOutlet'
+      default:
+        return player.role === 'striker' ? 'verticalMiddle' : 'supportOutlet'
+    }
+  }
+
+  private stabilizeJob(playerId: string, desiredJob: TacticalJob): TacticalJob {
+    const current = this.jobStates.get(playerId)
+
+    if (!current) {
+      this.jobStates.set(playerId, {
+        job: desiredJob,
+        cooldownMs: tacticsConfig.tacticalJobSwitchCooldownMs,
       })
+      return desiredJob
     }
 
-    if (role === 'frontSlot') {
-      const slotDistance =
-        keeperAreaConfig.keeperZoneRadius +
-        spacingConfig.frontSlotSpacing * 0.35
+    const leavingPressure =
+      current.job === 'primaryPresser' &&
+      desiredJob !== 'primaryPresser'
 
-      return this.clampToArena({
-        x: attackGoal.x + right.x * spacingConfig.frontSlotSpacing * 0.36 * laneSign,
-        y: attackGoal.y - attackDirection.y * slotDistance,
-      })
+    if (
+      current.job !== desiredJob &&
+      (leavingPressure || current.cooldownMs <= 0)
+    ) {
+      current.job = desiredJob
+      current.cooldownMs = tacticsConfig.tacticalJobSwitchCooldownMs
     }
 
-    if (role === 'cover') {
-      const threat = carrier?.position ?? core.position
+    return current.job
+  }
 
-      return this.clampToArena({
-        x: Phaser.Math.Linear(ownGoal.x, threat.x, 0.48),
-        y: Phaser.Math.Linear(ownGoal.y, threat.y, 0.48),
-      })
-    }
-
-    const anchor = carrier?.position ?? core.position
-    return this.clampToArena({
-      x:
-        anchor.x +
-        right.x * spacingConfig.supportPreferredSpacing * laneSign,
-      y:
-        anchor.y -
-        attackDirection.y *
-          Math.max(
-            spacingConfig.supportMinSpacingFromCarrier,
-            spacingConfig.supportPreferredSpacing * 0.42,
-          ),
+  private setAssignment(
+    player: Player,
+    job: TacticalJob,
+    target: Point,
+  ): void {
+    this.jobStates.set(player.id, {
+      job,
+      cooldownMs: tacticsConfig.tacticalJobSwitchCooldownMs,
     })
+    this.assignments.set(player.id, {
+      job,
+      target: { ...target },
+    })
+  }
+
+  private getJobTarget(
+    job: TacticalJob,
+    player: Player,
+    teammates: Player[],
+    opponents: Player[],
+    carrier: Player | null,
+    opponentCarrier: Player | null,
+    core: Core,
+    defenseScheme: DefenseScheme,
+  ): { target: Point; markTargetId?: string } {
+    const side = player.teamSide
+    const direction = this.attackDirection(side)
+    const right = { x: -direction.y, y: direction.x }
+    const ownGoal = this.ownGoal(side)
+    const attackGoal = this.attackGoal(side)
+    const anchor = carrier?.position ?? core.position
+    const laneSign =
+      anchor.x < arenaConfig.center.x ? 1 : -1
+
+    switch (job) {
+      case 'supportOutlet':
+        return {
+          target: {
+            x:
+              anchor.x +
+              right.x * spacingConfig.supportPreferredSpacing * laneSign,
+            y:
+              anchor.y +
+              right.y * spacingConfig.supportPreferredSpacing * laneSign -
+              direction.y *
+                Math.max(
+                  spacingConfig.supportMinSpacingFromCarrier,
+                  spacingConfig.supportPreferredSpacing * 0.42,
+                ),
+          },
+        }
+      case 'frontSlot':
+        if (defenseScheme === 'trapBehindGoal' && opponentCarrier) {
+          return {
+            target: this.slotTarget(
+              ownGoal,
+              { x: -direction.x, y: -direction.y },
+              right,
+              laneSign,
+              0.3,
+            ),
+          }
+        }
+        return {
+          target: this.slotTarget(
+            attackGoal,
+            direction,
+            right,
+            laneSign,
+            0.3,
+          ),
+        }
+      case 'behindNet':
+        return {
+          target: this.behindGoalTarget(
+            attackGoal,
+            direction,
+            right,
+            laneSign,
+          ),
+        }
+      case 'weakSideLane':
+      case 'strongSideLane': {
+        const strongSign = anchor.x < arenaConfig.center.x ? -1 : 1
+        const sign = job === 'strongSideLane' ? strongSign : -strongSign
+        return {
+          target: {
+            x:
+              arenaConfig.center.x +
+              sign *
+                arenaConfig.width *
+                tacticsConfig.sideLaneWidthRatio,
+            y: Phaser.Math.Linear(anchor.y, attackGoal.y, 0.28),
+          },
+        }
+      }
+      case 'verticalHigh':
+        return {
+          target: this.verticalTarget(side, tacticsConfig.verticalHighDepth),
+        }
+      case 'verticalMiddle':
+        return {
+          target: this.verticalTarget(side, tacticsConfig.verticalMiddleDepth),
+        }
+      case 'verticalLow':
+        return {
+          target: this.verticalTarget(side, tacticsConfig.verticalLowDepth),
+        }
+      case 'defensiveCover': {
+        const threat = opponentCarrier?.position ?? core.position
+        const depth =
+          defenseScheme === 'lowBlock'
+            ? tacticsConfig.lowBlockDepth
+            : 0.48
+        return {
+          target: blendPoints(ownGoal, threat, depth),
+        }
+      }
+      case 'manMark': {
+        const mark = this.selectMark(player, teammates, opponents, opponentCarrier)
+        if (!mark) {
+          return { target: blendPoints(ownGoal, core.position, 0.46) }
+        }
+        const goalSide = normalized(subtract(ownGoal, mark.position), {
+          x: 0,
+          y: -direction.y,
+        })
+        return {
+          target: {
+            x:
+              mark.position.x +
+              goalSide.x * tacticsConfig.manMarkGoalSideOffset,
+            y:
+              mark.position.y +
+              goalSide.y * tacticsConfig.manMarkGoalSideOffset,
+          },
+          markTargetId: mark.id,
+        }
+      }
+      case 'zoneGuard':
+        return {
+          target: {
+            x:
+              ownGoal.x +
+              Phaser.Math.Clamp(
+                core.position.x - ownGoal.x,
+                -tacticsConfig.zoneGuardWidth,
+                tacticsConfig.zoneGuardWidth,
+              ) *
+                0.48,
+            y:
+              ownGoal.y +
+              direction.y *
+                (keeperAreaConfig.keeperZoneRadius +
+                  playerRuntimeConfig.radius +
+                  58),
+          },
+        }
+      case 'reboundHunter':
+        return {
+          target: this.slotTarget(
+            attackGoal,
+            direction,
+            right,
+            laneSign,
+            0.62,
+          ),
+        }
+      case 'bankRebound': {
+        const left = arenaConfig.center.x - arenaConfig.width / 2
+        const rightWall = arenaConfig.center.x + arenaConfig.width / 2
+        return {
+          target: {
+            x:
+              laneSign < 0
+                ? left + tacticsConfig.bankReboundWallInset
+                : rightWall - tacticsConfig.bankReboundWallInset,
+            y:
+              attackGoal.y -
+              direction.y * keeperAreaConfig.keeperZoneRadius * 1.18,
+          },
+        }
+      }
+      default:
+        return { target: { ...core.position } }
+    }
+  }
+
+  private selectMark(
+    player: Player,
+    teammates: Player[],
+    opponents: Player[],
+    opponentCarrier: Player | null,
+  ): Player | null {
+    const alreadyMarked = new Set(
+      teammates
+        .filter((teammate) => teammate.id !== player.id)
+        .map((teammate) => this.assignments.get(teammate.id)?.markTargetId)
+        .filter((id): id is string => Boolean(id)),
+    )
+    const candidates = opponents.filter(
+      (opponent) =>
+        opponent.role !== 'keeper' &&
+        opponent.id !== opponentCarrier?.id &&
+        !alreadyMarked.has(opponent.id),
+    )
+
+    return (
+      candidates.sort(
+        (a, b) =>
+          distance(a.position, player.position) -
+          distance(b.position, player.position),
+      )[0] ??
+      opponentCarrier ??
+      null
+    )
+  }
+
+  private slotTarget(
+    goal: Point,
+    direction: Point,
+    right: Point,
+    laneSign: number,
+    lateralRatio: number,
+  ): Point {
+    const slotDistance =
+      keeperAreaConfig.keeperZoneRadius +
+      spacingConfig.frontSlotSpacing * 0.35
+
+    return {
+      x:
+        goal.x +
+        right.x *
+          spacingConfig.frontSlotSpacing *
+          lateralRatio *
+          laneSign,
+      y: goal.y - direction.y * slotDistance,
+    }
+  }
+
+  private behindGoalTarget(
+    goal: Point,
+    direction: Point,
+    right: Point,
+    laneSign: number,
+  ): Point {
+    const radialDistance =
+      keeperAreaConfig.keeperZoneRadius +
+      playerRuntimeConfig.radius +
+      keeperAreaConfig.keeperZoneBoundaryBuffer +
+      12
+    const depth = Math.min(
+      spacingConfig.behindGoalSpacing,
+      radialDistance * 0.55,
+    )
+    const lateral = Math.sqrt(
+      Math.max(0, radialDistance * radialDistance - depth * depth),
+    )
+
+    return {
+      x: goal.x + right.x * lateral * laneSign + direction.x * depth,
+      y: goal.y + right.y * lateral * laneSign + direction.y * depth,
+    }
+  }
+
+  private verticalTarget(side: TeamSide, depth: number): Point {
+    const ownGoal = this.ownGoal(side)
+    const attackGoal = this.attackGoal(side)
+
+    return {
+      x: arenaConfig.center.x,
+      y: Phaser.Math.Linear(ownGoal.y, attackGoal.y, depth),
+    }
   }
 
   private applySpacing(
@@ -377,6 +852,34 @@ export class TeamShapeSystem {
       }
     }
 
+    return this.clampOutsideKeeperZones(this.clampToArena(adjusted))
+  }
+
+  private clampOutsideKeeperZones(point: Point): Point {
+    let adjusted = { ...point }
+    const minimumDistance =
+      keeperAreaConfig.keeperZoneRadius +
+      keeperAreaConfig.keeperZoneBoundaryBuffer +
+      playerRuntimeConfig.radius +
+      8
+
+    for (const side of ['A', 'B'] as const) {
+      const goal = keeperAreaConfig.areas[side]
+      const offset = subtract(adjusted, goal)
+      const currentDistance = Math.hypot(offset.x, offset.y)
+
+      if (currentDistance >= minimumDistance) {
+        continue
+      }
+
+      const fallback = this.attackDirection(side)
+      const direction = normalized(offset, fallback)
+      adjusted = {
+        x: goal.x + direction.x * minimumDistance,
+        y: goal.y + direction.y * minimumDistance,
+      }
+    }
+
     return this.clampToArena(adjusted)
   }
 
@@ -405,12 +908,12 @@ export class TeamShapeSystem {
     for (const player of players) {
       const assignment = this.assignments.get(player.id)
 
-      if (!assignment || assignment.role === 'keeper') {
+      if (!assignment || assignment.job === 'keeper') {
         continue
       }
 
       visibleIds.add(player.id)
-      const color = roleColor(assignment.role)
+      const color = jobColor(assignment.job)
       this.graphics.lineStyle(2, color, 0.55)
       this.graphics.lineBetween(
         player.position.x,
@@ -424,9 +927,25 @@ export class TeamShapeSystem {
         assignment.target.y,
         spacingConfig.debug.targetRadius,
       )
+
+      if (assignment.markTargetId) {
+        const mark = players.find(
+          (candidate) => candidate.id === assignment.markTargetId,
+        )
+        if (mark) {
+          this.graphics.lineStyle(2, color, 0.35)
+          this.graphics.lineBetween(
+            player.position.x,
+            player.position.y,
+            mark.position.x,
+            mark.position.y,
+          )
+        }
+      }
+
       this.getLabel(player.id)
         .setPosition(player.position.x + 18, player.position.y - 28)
-        .setText(assignment.role)
+        .setText(assignment.job)
         .setVisible(true)
     }
 
@@ -434,6 +953,60 @@ export class TeamShapeSystem {
       if (!visibleIds.has(playerId)) {
         label.setVisible(false)
       }
+    }
+
+    this.drawSchemeDebug('A')
+    this.drawSchemeDebug('B')
+  }
+
+  private drawSchemeDebug(side: TeamSide): void {
+    const strategy = this.strategies[side]
+    const ownGoal = this.ownGoal(side)
+    const direction = this.attackDirection(side)
+    const presser = this.pressers[side].playerId ?? '-'
+    const labelY =
+      ownGoal.y + direction.y * (keeperAreaConfig.keeperZoneRadius + 92)
+
+    this.strategyLabels[side]
+      .setPosition(arenaConfig.center.x, labelY)
+      .setText(
+        `${side} ${this.phases[side]} | ${strategy.offenseScheme} / ` +
+          `${strategy.defenseScheme} / ${strategy.transitionScheme}\n` +
+          `PRESSER ${presser}`,
+      )
+      .setVisible(true)
+
+    if (strategy.defenseScheme === 'zoneTriangle') {
+      const zoneCenter = {
+        x: ownGoal.x,
+        y:
+          ownGoal.y +
+          direction.y * (keeperAreaConfig.keeperZoneRadius + 86),
+      }
+      this.graphics.lineStyle(
+        2,
+        spacingConfig.debug.coverColor,
+        tacticsConfig.debug.zoneAlpha,
+      )
+      this.graphics.strokeTriangle(
+        ownGoal.x,
+        ownGoal.y + direction.y * keeperAreaConfig.keeperZoneRadius,
+        zoneCenter.x - tacticsConfig.zoneGuardWidth,
+        zoneCenter.y + direction.y * 80,
+        zoneCenter.x + tacticsConfig.zoneGuardWidth,
+        zoneCenter.y + direction.y * 80,
+      )
+    } else if (strategy.defenseScheme === 'lowBlock') {
+      this.graphics.lineStyle(
+        2,
+        spacingConfig.debug.coverColor,
+        tacticsConfig.debug.zoneAlpha,
+      )
+      this.graphics.strokeCircle(
+        ownGoal.x,
+        ownGoal.y,
+        keeperAreaConfig.keeperZoneRadius * 1.72,
+      )
     }
   }
 
@@ -450,7 +1023,7 @@ export class TeamShapeSystem {
         fontSize: '13px',
         fontStyle: '700',
         color: '#ffffff',
-        backgroundColor: '#10243dcc',
+        backgroundColor: tacticsConfig.debug.panelColor,
         padding: { x: 4, y: 2 },
       })
       .setDepth(20)
@@ -459,23 +1032,83 @@ export class TeamShapeSystem {
     this.labels.set(playerId, label)
     return label
   }
+
+  private createStrategyLabel(): Phaser.GameObjects.Text {
+    return this.scene.add
+      .text(0, 0, '', {
+        fontFamily: 'Inter, ui-sans-serif, system-ui, sans-serif',
+        fontSize: '12px',
+        fontStyle: '700',
+        color: tacticsConfig.debug.phaseLabelColor,
+        backgroundColor: tacticsConfig.debug.panelColor,
+        align: 'center',
+        padding: { x: 5, y: 3 },
+      })
+      .setOrigin(0.5)
+      .setDepth(20)
+      .setVisible(false)
+  }
+
+  private ownGoal(side: TeamSide): Point {
+    return keeperAreaConfig.areas[side]
+  }
+
+  private attackGoal(side: TeamSide): Point {
+    return keeperAreaConfig.areas[oppositeSide(side)]
+  }
+
+  private attackDirection(side: TeamSide): Point {
+    return { x: 0, y: side === 'A' ? -1 : 1 }
+  }
+
+  private isBehindGoal(
+    point: Point,
+    goal: Point,
+    attackingSide: TeamSide,
+  ): boolean {
+    const direction = this.attackDirection(attackingSide)
+    return (
+      (point.x - goal.x) * direction.x +
+        (point.y - goal.y) * direction.y >
+      0
+    )
+  }
+
+  private isWeakSide(player: Point, anchor: Point): boolean {
+    const anchorSign = anchor.x < arenaConfig.center.x ? -1 : 1
+    const playerSign = player.x < arenaConfig.center.x ? -1 : 1
+    return anchorSign !== playerSign
+  }
 }
 
-function roleColor(role: TeamShapeRole): number {
-  switch (role) {
-    case 'presser':
+function jobColor(job: TacticalJob): number {
+  switch (job) {
+    case 'primaryPresser':
       return spacingConfig.debug.presserColor
-    case 'outlet':
+    case 'supportOutlet':
+    case 'weakSideLane':
+    case 'strongSideLane':
       return spacingConfig.debug.outletColor
-    case 'cover':
+    case 'defensiveCover':
+    case 'zoneGuard':
+    case 'manMark':
       return spacingConfig.debug.coverColor
-    case 'behindGoalCut':
+    case 'behindNet':
+    case 'bankRebound':
       return spacingConfig.debug.behindGoalColor
     case 'frontSlot':
+    case 'reboundHunter':
+    case 'verticalHigh':
+    case 'verticalMiddle':
+    case 'verticalLow':
       return spacingConfig.debug.frontSlotColor
     default:
       return 0xffffff
   }
+}
+
+function oppositeSide(side: TeamSide): TeamSide {
+  return side === 'A' ? 'B' : 'A'
 }
 
 function stableChance(seed: string, point: Point): number {
@@ -488,6 +1121,15 @@ function stableChance(seed: string, point: Point): number {
   }
 
   return (hash >>> 0) / 4294967295
+}
+
+function blendPoints(start: Point, end: Point, amount: number): Point {
+  const clamped = Phaser.Math.Clamp(amount, 0, 1)
+
+  return {
+    x: Phaser.Math.Linear(start.x, end.x, clamped),
+    y: Phaser.Math.Linear(start.y, end.y, clamped),
+  }
 }
 
 function subtract(a: Point, b: Point): Point {

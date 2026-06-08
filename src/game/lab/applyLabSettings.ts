@@ -18,6 +18,7 @@ import { playerRuntimeConfig } from '../config/playerConfig'
 import { possessionFeelConfig } from '../config/possessionFeelConfig'
 import { stickConfig } from '../config/stickConfig'
 import { spacingConfig } from '../config/spacingConfig'
+import { tacticsConfig } from '../config/tacticsConfig'
 import { stickStanceConfig } from '../config/stickStanceConfig'
 import { stickVisualConfig } from '../config/stickVisualConfig'
 import { visualConfig } from '../config/visualConfig'
@@ -174,6 +175,18 @@ export function applyLabSettings(state: LabTuningState): void {
       state.keeper.keeperShieldOwnGoalSafetyBias,
   })
   Object.assign(spacingConfig, state.spacing)
+  Object.assign(tacticsConfig, {
+    tacticalJobSwitchCooldownMs:
+      state.spacing.tacticalJobSwitchCooldownMs,
+    highPressAggression: state.spacing.highPressAggression,
+    lowBlockDepth: state.spacing.lowBlockDepth,
+  })
+  for (const side of ['A', 'B'] as const) {
+    Object.assign(tacticsConfig.teamStrategies[side], {
+      formation: state.formations[side],
+      ...state.strategies[side],
+    })
+  }
   Object.assign(stickStanceConfig, {
     stanceResetEnabled: stick.stanceResetEnabled,
     stanceResetDelayMs: stick.stanceResetDelayMs,
