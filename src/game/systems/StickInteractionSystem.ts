@@ -5,6 +5,7 @@ import type { Point } from '../data/geometry'
 import type { StickActionState } from '../data/matchTypes'
 import type { Core } from '../entities/Core'
 import type { CradleZone, Player } from '../entities/Player'
+import type { HandednessSign } from '../rules/Handedness'
 
 export type CorePossessionState =
   | 'FREE'
@@ -39,6 +40,11 @@ export type StickInteractionResult =
   | 'release'
   | 'fumble'
 
+export type StickInteractionEvent = {
+  result: StickInteractionResult
+  playerId: string
+}
+
 type ActionRuntime = {
   state: StickActionState
   elapsedMs: number
@@ -72,7 +78,7 @@ type PendingRelease = {
   windupRotation: number
   endRotation: number
   followRotation: number
-  swingSign: number
+  swingSign: HandednessSign
   chargeElapsedMs: number
   released: boolean
 }
@@ -97,6 +103,7 @@ export class StickInteractionSystem {
   private releaseVector: ReleaseVector | null = null
   private pendingRelease: PendingRelease | null = null
   private lastInteraction: StickInteractionResult = 'none'
+  private interactionEvent: StickInteractionEvent | null = null
   private releaseForcePreview: number = stickConfig.releaseForceMin
 
   constructor(scene: Phaser.Scene) {
@@ -217,7 +224,7 @@ export class StickInteractionSystem {
     const localPoint = player.worldToStickLocal(core.position)
 
     return (
-      localPoint.y * player.getHandednessMirror() > 0 &&
+      localPoint.y * player.getPocketFacingSign() > 0 &&
       distance(core.position, player.getCradleSocket()) <=
         stickConfig.cradleAssistRadius
     )
@@ -229,6 +236,12 @@ export class StickInteractionSystem {
 
   getLastInteraction(): StickInteractionResult {
     return this.lastInteraction
+  }
+
+  consumeInteractionEvent(): StickInteractionEvent | null {
+    const event = this.interactionEvent
+    this.interactionEvent = null
+    return event
   }
 
   forceFumble(
@@ -279,6 +292,7 @@ export class StickInteractionSystem {
     this.releaseVector = null
     this.pendingRelease = null
     this.lastInteraction = 'none'
+    this.interactionEvent = null
     this.releaseForcePreview = stickConfig.releaseForceMin
     this.releaseGraphics.clear()
 
@@ -417,9 +431,9 @@ export class StickInteractionSystem {
         this.catchAutoOrientActive.set(player.id, false)
         this.cradleOpenDirections.set(
           player.id,
-          player.getStickVisualRotation() -
+            player.getStickVisualRotation() -
             stickConfig.cradleFacingOffsetRadians *
-              player.getHandednessMirror(),
+              player.getPocketFacingSign(),
         )
         continue
       }
@@ -439,22 +453,42 @@ export class StickInteractionSystem {
       const isCarrier = this.isCradled() && player.id === this.carrierId
       let targetRotation = player.getReleaseAimAngle()
 
-      if (autoOrientActive) {
+      if (isCarrier) {
+        const chargeNormalized = this.getChargeNormalized()
+        const loadback = Phaser.Math.Linear(
+          stickConfig.chargeLoadbackMinRadians,
+          stickConfig.chargeLoadbackMaxRadians,
+          chargeNormalized,
+        )
+        const overchargeJitter =
+          this.coreState === 'CRADLED_OVERCHARGED'
+            ? Math.sin(
+                (this.cradleElapsedMs / 1000) *
+                  stickConfig.overchargeJitterSpeed,
+              ) * stickConfig.overchargeJitterAmount
+            : 0
+
+        targetRotation +=
+          (-loadback + overchargeJitter) *
+          player.getPocketFacingSign()
+      } else if (autoOrientActive) {
         targetRotation =
           coreAngle +
           stickConfig.cradleFacingOffsetRadians *
-            player.getHandednessMirror()
+            player.getPocketFacingSign()
       } else if (
         !isCarrier &&
         (state === 'IDLE' || state === 'CATCH_READY')
       ) {
         targetRotation +=
           stickConfig.readyStanceOffsetRadians *
-          player.getHandednessMirror()
+          player.getPocketFacingSign()
       }
       const strength = autoOrientActive
         ? stickConfig.catchAutoOrientStrength
-        : stickConfig.aimSmoothing
+        : isCarrier
+          ? stickConfig.chargeLoadbackSmoothing
+          : stickConfig.aimSmoothing
       const smoothing = 1 - Math.exp(-strength * deltaSeconds)
       const angularDelta = Phaser.Math.Angle.Wrap(
         targetRotation - player.getStickVisualRotation(),
@@ -476,7 +510,7 @@ export class StickInteractionSystem {
           ? coreAngle
           : player.getStickVisualRotation() -
               stickConfig.cradleFacingOffsetRadians *
-                player.getHandednessMirror(),
+                player.getPocketFacingSign(),
       )
     }
   }
@@ -573,7 +607,7 @@ export class StickInteractionSystem {
     const releaseAtMs =
       stickConfig.releaseWindupMs +
       stickConfig.releaseSwingMs *
-        Phaser.Math.Clamp(stickConfig.releaseSwingPowerTiming, 0, 1)
+        Phaser.Math.Clamp(stickConfig.releasePointNormalized, 0, 1)
 
     if (!pending.released && pending.elapsedMs >= releaseAtMs) {
       this.executePendingRelease(core, carrier, pending)
@@ -611,7 +645,7 @@ export class StickInteractionSystem {
       }))
       .filter(
         ({ player, socketDistance, localPoint }) =>
-          localPoint.y * player.getHandednessMirror() > 0 &&
+          localPoint.y * player.getPocketFacingSign() > 0 &&
           socketDistance <= stickConfig.cradleAssistRadius,
       )
       .sort((a, b) => {
@@ -733,6 +767,10 @@ export class StickInteractionSystem {
     this.coreState = 'CRADLED_STABLE'
     this.cradleElapsedMs = 0
     this.lastInteraction = 'cradle'
+    this.interactionEvent = {
+      result: 'cradle',
+      playerId: selected.player.id,
+    }
     this.setActionState(selected.player.id, 'CRADLED_STABLE')
     this.cradleFailures.set(selected.player.id, 'already cradled')
     core.setSensor(true)
@@ -777,6 +815,10 @@ export class StickInteractionSystem {
       stickConfig.contactImpulseCooldownMs,
     )
     this.lastInteraction = active ? 'active swing' : 'passive nudge'
+    this.interactionEvent = {
+      result: this.lastInteraction,
+      playerId: contact.player.id,
+    }
 
     if (contact.state === 'CATCH_READY') {
       this.cradleFailures.set(contact.player.id, 'deflect fallback')
@@ -815,10 +857,10 @@ export class StickInteractionSystem {
   private beginRelease(carrier: Player, direction: Point): void {
     const aimDirection = normalized(direction)
     const aimAngle = Math.atan2(aimDirection.y, aimDirection.x)
-    const swingSign = carrier.getHandednessMirror()
+    const swingSign = carrier.getPocketFacingSign()
     const arc = stickConfig.releaseSwingArcRadians
     const powerTiming = Phaser.Math.Clamp(
-      stickConfig.releaseSwingPowerTiming,
+      stickConfig.releasePointNormalized,
       0,
       1,
     )
@@ -963,7 +1005,7 @@ export class StickInteractionSystem {
     direction: Point,
     carrier: Player,
     chargeElapsedMs = this.cradleElapsedMs,
-    swingSign = carrier.getHandednessMirror(),
+    swingSign: HandednessSign = carrier.getPocketFacingSign(),
   ): Point {
     const chargeNormalized = Phaser.Math.Clamp(
       chargeElapsedMs / stickConfig.overchargeMs,
@@ -1229,7 +1271,32 @@ export class StickInteractionSystem {
     if (focus) {
       this.drawDeflectZone(focus)
       this.drawCradleZone(focus.getCradleZone())
+      const mountPoint = focus.getVisualStickMountPoint()
       const socket = focus.getCradleSocket()
+      if (stickConfig.debug.showStickLocalFrame) {
+        const forward = focus.getStickForward()
+        const right = focus.getStickRight()
+        this.drawLocalFrame(
+          focus.position,
+          forward,
+          right,
+        )
+      }
+      if (stickConfig.debug.showLeftRightHandednessAxes) {
+        this.debugGraphics.fillStyle(stickConfig.debug.anchorColor, 0.98)
+        this.debugGraphics.fillCircle(mountPoint.x, mountPoint.y, 5)
+        this.debugGraphics.lineStyle(
+          2,
+          stickConfig.debug.localSideColor,
+          0.78,
+        )
+        this.debugGraphics.lineBetween(
+          focus.position.x,
+          focus.position.y,
+          mountPoint.x,
+          mountPoint.y,
+        )
+      }
       this.debugGraphics.fillStyle(stickConfig.debug.socketColor, 0.95)
       this.debugGraphics.fillCircle(
         socket.x,
@@ -1251,7 +1318,7 @@ export class StickInteractionSystem {
         this.cradleOpenDirections.get(focus.id) ??
         focus.getStickVisualRotation() -
           stickConfig.cradleFacingOffsetRadians *
-            focus.getHandednessMirror()
+            focus.getPocketFacingSign()
       this.drawDirectionVector(
         focus.position,
         {
@@ -1283,7 +1350,44 @@ export class StickInteractionSystem {
           .toFixed(2)}\n` +
         `FORCE ${this.releaseForcePreview.toFixed(2)}\n` +
         `POSSESSION ${this.carrierId ?? 'LOOSE'}\n` +
+        `HAND ${focus ? focus.handedness.toUpperCase() : 'n/a'}\n` +
+        `MOUNT ${
+          focus
+            ? signedNumber(focus.getHandednessMountSign())
+            : 'n/a'
+        }\n` +
+        `POCKET ${
+          focus
+            ? signedNumber(focus.getPocketFacingSign())
+            : 'n/a'
+        }\n` +
+        `MIRROR ${
+          focus
+            ? signedNumber(focus.getVisualMirrorSign())
+            : 'n/a'
+        }\n` +
+        `SOCKET ${
+          focus
+            ? signedNumber(focus.getCradleSocketSign())
+            : 'n/a'
+        }\n` +
         `VISUAL ${focus ? focus.getStickVisualRotation().toFixed(2) : 'n/a'}\n` +
+        `READY ${
+          focus
+            ? signedNumber(
+                stickConfig.readyStanceOffsetRadians *
+                  focus.getPocketFacingSign(),
+              )
+            : 'n/a'
+        }\n` +
+        `CRADLE ${
+          focus
+            ? signedNumber(
+                stickConfig.cradleFacingOffsetRadians *
+                  focus.getPocketFacingSign(),
+              )
+            : 'n/a'
+        }\n` +
         `AUTO ORIENT ${
           focus && this.isCatchAutoOrientActive(focus.id) ? 'ACTIVE' : 'INACTIVE'
         }\n` +
@@ -1394,6 +1498,37 @@ export class StickInteractionSystem {
       start.y + direction.y * stickConfig.debug.directionVectorLength,
     )
   }
+
+  private drawLocalFrame(
+    origin: Point,
+    forward: Point,
+    handedSide: Point,
+  ): void {
+    const length = 54
+
+    this.debugGraphics.lineStyle(
+      3,
+      stickConfig.debug.localForwardColor,
+      0.92,
+    )
+    this.debugGraphics.lineBetween(
+      origin.x,
+      origin.y,
+      origin.x + forward.x * length,
+      origin.y + forward.y * length,
+    )
+    this.debugGraphics.lineStyle(
+      3,
+      stickConfig.debug.localSideColor,
+      0.92,
+    )
+    this.debugGraphics.lineBetween(
+      origin.x,
+      origin.y,
+      origin.x + handedSide.x * length,
+      origin.y + handedSide.y * length,
+    )
+  }
 }
 
 function testLegalCradle(core: Core, player: Player): CradleTestResult {
@@ -1404,7 +1539,7 @@ function testLegalCradle(core: Core, player: Player): CradleTestResult {
   const socketDistance = distance(core.position, player.getCradleSocket())
   const zone = player.getCradleZone()
   const insideZone =
-    localPoint.y * player.getHandednessMirror() > 0 &&
+    localPoint.y * player.getPocketFacingSign() > 0 &&
     radius >= zone.minRadius &&
     radius <= zone.maxRadius &&
     angle >= zone.minAngle &&
@@ -1586,4 +1721,8 @@ function magnitude(vector: Point): number {
 
 function distance(a: Point, b: Point): number {
   return Math.hypot(a.x - b.x, a.y - b.y)
+}
+
+function signedNumber(value: number): string {
+  return `${value >= 0 ? '+' : ''}${value.toFixed(2)}`
 }

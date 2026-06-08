@@ -3,8 +3,8 @@ import { defenseConfig } from '../config/defenseConfig'
 import type { AIDecisionContext } from './AIDecisionContext'
 
 export type AIDefenseDecision = {
-  bodyCheck: boolean
-  stickSwipe: boolean
+  truck: boolean
+  slash: boolean
 }
 
 export function decideDefenseActions(
@@ -23,58 +23,65 @@ export function decideDefenseActions(
       player.position,
       opponentCarrier.position,
     )
-    const canCheck =
+    const canTruck =
       carrierDistance <=
-      defenseConfig.bodyCheckRange *
+      defenseConfig.truckRange *
         reactionRange *
         Phaser.Math.Linear(
           0.82,
           1.15,
-          tendencies.bodyCheckAggression,
+          tendencies.truckAggression,
         )
-    const canSwipe =
+    const canSlash =
       carrierDistance <=
-      defenseConfig.stickSwipeRange *
+      defenseConfig.slashRange *
         reactionRange *
         Phaser.Math.Linear(
           0.84,
           1.12,
-          tendencies.stickSwipeAggression,
+          tendencies.slashAggression,
         )
-    const bruteCheck =
+    const bruteTruck =
       player.role === 'brute' &&
-      tendencies.bodyCheckAggression >= 0.35 &&
-      canCheck
-    const aggressiveFieldCheck =
+      tendencies.truckAggression >= 0.35 &&
+      canTruck
+    const aggressiveFieldTruck =
       (player.playStyle === 'aggressive' ||
         player.playStyle === 'disruptive') &&
-      tendencies.bodyCheckAggression >= 0.72 &&
-      canCheck
+      tendencies.truckAggression >= 0.72 &&
+      canTruck
 
-    if (bruteCheck || aggressiveFieldCheck) {
+    if (bruteTruck || aggressiveFieldTruck) {
       return {
-        bodyCheck: true,
-        stickSwipe: false,
+        truck: true,
+        slash: false,
       }
     }
 
     return {
-      bodyCheck: false,
-      stickSwipe:
-        canSwipe && tendencies.stickSwipeAggression >= 0.28,
+      truck: false,
+      slash:
+        canSlash && tendencies.slashAggression >= 0.28,
     }
   }
 
-  const freeCoreSwipe =
+  const freeCoreSlash =
     context.carrier === null &&
     context.distanceToCore <=
-      defenseConfig.stickSwipeRange * reactionRange &&
-    tendencies.stickSwipeAggression >= 0.72 &&
+      defenseConfig.slashRange * reactionRange &&
+    tendencies.slashAggression >= 0.72 &&
     player.attributes.control < 0.72
+  const strikerPositioningTruck =
+    defenseConfig.truckOffBallSpeedBoostAllowed &&
+    player.role === 'striker' &&
+    context.carrier === null &&
+    context.distanceToCore >= defenseConfig.truckRange * 1.8 &&
+    context.distanceToCore <= defenseConfig.truckRange * 5 &&
+    tendencies.truckAggression >= 0.24
 
   return {
-    bodyCheck: false,
-    stickSwipe: freeCoreSwipe,
+    truck: strikerPositioningTruck,
+    slash: freeCoreSlash,
   }
 }
 

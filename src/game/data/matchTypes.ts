@@ -3,6 +3,11 @@ import type { Point } from './geometry'
 export type TeamSide = 'A' | 'B'
 export type PlayerRole = 'keeper' | 'striker' | 'support' | 'brute'
 export type PlayerControllerType = 'human' | 'ai'
+export type KeeperControlMode =
+  | 'aiOnly'
+  | 'biasAssist'
+  | 'autoSwitch'
+  | 'manualWhenSelected'
 export type PlayerArchetypeId = 'keeper' | 'striker' | 'support' | 'brute'
 export type PlayerHandedness = 'right' | 'left'
 export type StickStyle = 'hook' | 'cradle' | 'hammer' | 'whip' | 'fork'
@@ -76,11 +81,12 @@ export type PlayerAttributes = {
   accuracy: number
   reaction: number
   ballHandling: number
+  toughness: number
 }
 
 export type PlayerDefenseTendencies = {
-  bodyCheckAggression: number
-  stickSwipeAggression: number
+  truckAggression: number
+  slashAggression: number
   fumblePressurePreference: number
 }
 
@@ -129,11 +135,13 @@ export type MatchState = {
 
 export type PlayerControlIntent = {
   moveTarget: Point
+  moveVector?: Point
+  moveSpeedMultiplier?: number
   aimTarget: Point
   hold: boolean
   swing?: boolean
-  bodyCheck?: boolean
-  stickSwipe?: boolean
+  truck?: boolean
+  slash?: boolean
   releaseTarget?: Point
   aiReleaseDelayMs?: number
   aiState: AIState

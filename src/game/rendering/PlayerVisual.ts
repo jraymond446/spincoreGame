@@ -8,6 +8,7 @@ import {
   type TeamVisualPalette,
 } from '../data/visualPalettes'
 import { visualConfig } from '../config/visualConfig'
+import { assetOverrideConfig } from '../config/assetOverrideConfig'
 import { stickConfig } from '../config/stickConfig'
 import type {
   PlayerControllerType,
@@ -17,10 +18,14 @@ import type {
   StickActionState,
   TeamSide,
 } from '../data/matchTypes'
-import type { StickCurve } from '../entities/Player'
 import type { DefensiveVisualState, PlayerAnimationPose } from './AnimationState'
 import { PlayerAnimationController } from './PlayerAnimationController'
 import { StickVisual } from './StickVisual'
+import { getHandednessFrame } from '../rules/Handedness'
+import {
+  getPlayerAssetKeys,
+  hasVisualAsset,
+} from './VisualAssetOverrides'
 
 type Point = { x: number; y: number }
 
@@ -28,9 +33,13 @@ export type PlayerVisualUpdate = {
   position: Point
   velocity: Point
   facingRotation: number
-  stickCurve: StickCurve
+  stickMountPoint: Point
   stickForward: Point
   stickSide: Point
+  handednessMountSign: -1 | 1
+  pocketFacingSign: -1 | 1
+  visualMirrorSign: -1 | 1
+  cradleSocketSign: -1 | 1
   cradleSocket: Point
   stickState: StickActionState
   defenseState: DefensiveVisualState
@@ -55,6 +64,7 @@ export class PlayerVisual {
   private readonly roleLabel: Phaser.GameObjects.Text
   private readonly aiStateLabel: Phaser.GameObjects.Text
   private readonly stick: StickVisual
+  private readonly assetLayers: Phaser.GameObjects.Image[] = []
   private readonly animation = new PlayerAnimationController()
   private readonly palette: TeamVisualPalette
   private readonly hairStyle: HairStyle
@@ -73,6 +83,18 @@ export class PlayerVisual {
     this.shadow = scene.add.graphics().setDepth(3)
     this.stick = new StickVisual(scene, options.profile.stickStyle)
     this.character = scene.add.graphics().setDepth(6)
+    getPlayerAssetKeys(options.teamSide).forEach((textureKey, index) => {
+      if (!hasVisualAsset(scene, textureKey)) {
+        return
+      }
+
+      this.assetLayers.push(
+        scene.add
+          .image(0, 0, textureKey)
+          .setOrigin(0.5)
+          .setDepth(6 + index * 0.1),
+      )
+    })
     this.controlledIndicator = scene.add.graphics().setDepth(8)
     this.roleLabel = scene.add
       .text(0, 0, this.getRoleLabel(), {
@@ -113,7 +135,8 @@ export class PlayerVisual {
     const pose = this.animation.update(
       data.stickState,
       data.defenseState,
-      this.options.handedness === 'left' ? -1 : 1,
+      data.handednessMountSign,
+      data.pocketFacingSign,
       this.scene.time.now,
     )
     const bodyRotation = data.facingRotation + pose.bodyRotationOffset
@@ -136,11 +159,17 @@ export class PlayerVisual {
 
     this.drawShadow(data.position, speed, pose)
     this.drawControlledIndicator(data.position)
-    this.drawCharacter(visualPosition, forward, right, pose)
+    if (this.assetLayers.length > 0) {
+      this.character.clear()
+      this.updateAssetCharacter(visualPosition, bodyRotation, pose)
+    } else {
+      this.drawCharacter(visualPosition, forward, right, pose)
+    }
     this.stick.update(
-      data.stickCurve,
+      data.stickMountPoint,
       data.stickForward,
       data.stickSide,
+      data.visualMirrorSign,
       data.cradleSocket,
       data.stickState,
       pose,
@@ -196,6 +225,29 @@ export class PlayerVisual {
         pose.shadowScale,
       visualConfig.shadowHeight * visualScale * pose.shadowScale,
     )
+  }
+
+  private updateAssetCharacter(
+    position: Point,
+    rotation: number,
+    pose: PlayerAnimationPose,
+  ): void {
+    const roleScale = visualConfig.roleScale[this.options.role]
+    const width =
+      assetOverrideConfig.players.displayWidth *
+      roleScale.bodyX *
+      pose.bodyScaleX
+    const height =
+      assetOverrideConfig.players.displayHeight *
+      roleScale.bodyY *
+      pose.bodyScaleY
+
+    for (const layer of this.assetLayers) {
+      layer
+        .setPosition(position.x, position.y)
+        .setRotation(rotation)
+        .setDisplaySize(width, height)
+    }
   }
 
   private drawControlledIndicator(position: Point): void {
@@ -262,6 +314,7 @@ export class PlayerVisual {
     )
 
     this.character.clear()
+    this.drawLowerBody(bodyCenter, forward, right, bodyLength, bodyWidth)
     this.drawTorso(bodyCenter, forward, right, bodyLength, bodyWidth)
     this.drawRoleAccent(bodyCenter, forward, right, bodyLength, bodyWidth)
     this.drawAthleticStance(
@@ -275,6 +328,37 @@ export class PlayerVisual {
     this.drawHead(headCenter, forward, right, headRadius)
   }
 
+  private drawLowerBody(
+    center: Point,
+    forward: Point,
+    right: Point,
+    length: number,
+    width: number,
+  ): void {
+    const rear = this.offset(
+      center,
+      forward,
+      -length * 0.62,
+      right,
+      0,
+    )
+    const points = [
+      this.offset(rear, forward, length * 0.28, right, -width * 0.38),
+      this.offset(rear, forward, length * 0.28, right, width * 0.38),
+      this.offset(rear, forward, -length * 0.23, right, width * 0.3),
+      this.offset(rear, forward, -length * 0.32, right, 0),
+      this.offset(rear, forward, -length * 0.23, right, -width * 0.3),
+    ]
+
+    this.fillAndStrokePolygon(points, this.palette.shorts)
+    this.character.fillStyle(this.palette.trim, 0.92)
+    this.character.fillCircle(
+      rear.x,
+      rear.y,
+      Math.max(2.2, visualConfig.playerScale * 3.2),
+    )
+  }
+
   private drawAthleticStance(
     center: Point,
     forward: Point,
@@ -283,9 +367,10 @@ export class PlayerVisual {
     width: number,
     pose: PlayerAnimationPose,
   ): void {
-    const mirror = this.options.handedness === 'left' ? -1 : 1
-    const handSide = width * 0.48 * mirror
-    const rearSide = -width * 0.4 * mirror
+    const mountSign =
+      getHandednessFrame(this.options.handedness).mountSign
+    const handSide = width * 0.48 * mountSign
+    const rearSide = -width * 0.4 * mountSign
     const frontHand = this.offset(
       center,
       forward,
@@ -356,6 +441,32 @@ export class PlayerVisual {
       this.offset(center, forward, -halfLength * 0.88, right, 0),
     ]
     this.fillPolygon(shadePoints, this.palette.shirtShade, 0.62)
+
+    for (const side of [-1, 1]) {
+      this.drawLocalLine(
+        center,
+        forward,
+        right,
+        halfLength * 0.45,
+        halfWidth * 0.72 * side,
+        -halfLength * 0.55,
+        halfWidth * 0.86 * side,
+        this.palette.trim,
+        2.5,
+      )
+    }
+
+    const collar = this.offset(
+      center,
+      forward,
+      halfLength * 0.72,
+      right,
+      0,
+    )
+    this.character.fillStyle(visualConfig.outlineColor, 0.9)
+    this.character.fillCircle(collar.x, collar.y, 5.2)
+    this.character.fillStyle(this.palette.trim, 1)
+    this.character.fillCircle(collar.x, collar.y, 3.1)
   }
 
   private drawRoleAccent(
@@ -472,6 +583,20 @@ export class PlayerVisual {
     this.character.fillStyle(visualConfig.skinColor, 1)
     this.character.fillCircle(center.x, center.y, radius)
 
+    for (const side of [-1, 1]) {
+      const ear = this.offset(
+        center,
+        forward,
+        -radius * 0.02,
+        right,
+        radius * 0.82 * side,
+      )
+      this.character.fillStyle(visualConfig.outlineColor, 0.9)
+      this.character.fillCircle(ear.x, ear.y, radius * 0.25)
+      this.character.fillStyle(visualConfig.skinColor, 1)
+      this.character.fillCircle(ear.x, ear.y, radius * 0.17)
+    }
+
     const faceShade = this.offset(center, forward, -1, right, radius * 0.42)
     this.character.fillStyle(visualConfig.skinShadeColor, 0.42)
     this.character.fillCircle(faceShade.x, faceShade.y, radius * 0.58)
@@ -483,18 +608,102 @@ export class PlayerVisual {
       right,
       0,
     )
-    const crownRadius =
-      radius *
-      (this.hairStyle.crownScaleX + this.hairStyle.crownScaleY) *
-      0.5
-    this.character.fillStyle(this.options.profile.hairColor, 1)
-    this.character.fillCircle(crownCenter.x, crownCenter.y, crownRadius)
+    const crownPoints = this.createOrientedEllipse(
+      crownCenter,
+      forward,
+      right,
+      radius * this.hairStyle.crownScaleY,
+      radius * this.hairStyle.crownScaleX,
+      14,
+    )
+    this.fillAndStrokePolygon(
+      crownPoints,
+      this.options.profile.hairColor,
+    )
+
+    if (this.hairStyle.id === 'spikes' || this.hairStyle.id === 'tuft') {
+      for (const side of [-1, 1]) {
+        const tuftBase = this.offset(
+          crownCenter,
+          forward,
+          -radius * 0.55,
+          right,
+          radius * 0.52 * side,
+        )
+        const tuftLeft = this.offset(
+          tuftBase,
+          forward,
+          0,
+          right,
+          -radius * 0.22,
+        )
+        const tuftRight = this.offset(
+          tuftBase,
+          forward,
+          0,
+          right,
+          radius * 0.22,
+        )
+        const tuftTip = this.offset(
+          tuftBase,
+          forward,
+          -radius * 0.48,
+          right,
+          radius * 0.16 * side,
+        )
+        this.fillAndStrokePolygon(
+          [tuftLeft, tuftRight, tuftTip],
+          this.options.profile.hairColor,
+        )
+      }
+    }
 
     this.drawHairFringe(center, forward, right, radius)
 
+    const hairShine = this.offset(
+      crownCenter,
+      forward,
+      -radius * 0.18,
+      right,
+      -radius * 0.28,
+    )
+    this.character.fillStyle(this.palette.trim, 0.2)
+    this.character.fillEllipse(
+      hairShine.x,
+      hairShine.y,
+      radius * 0.46,
+      radius * 0.2,
+    )
+
     const facePoint = this.offset(center, forward, radius * 0.68, right, 0)
-    this.character.fillStyle(this.palette.trim, 0.9)
-    this.character.fillCircle(facePoint.x, facePoint.y, 2.3)
+    this.character.fillStyle(visualConfig.outlineColor, 0.84)
+    this.character.fillCircle(facePoint.x, facePoint.y, 2.1)
+  }
+
+  private createOrientedEllipse(
+    center: Point,
+    forward: Point,
+    right: Point,
+    forwardRadius: number,
+    rightRadius: number,
+    segments: number,
+  ): Point[] {
+    const points: Point[] = []
+
+    for (let index = 0; index < segments; index += 1) {
+      const angle = index / segments * Math.PI * 2
+      points.push(
+        this.offset(
+          center,
+          forward,
+          Math.cos(angle) * forwardRadius,
+          right,
+          Math.sin(angle) * rightRadius,
+        ),
+      )
+    }
+
+    return points
   }
 
   private drawHairFringe(

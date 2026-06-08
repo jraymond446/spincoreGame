@@ -1,9 +1,14 @@
 import Phaser from 'phaser'
 import { stickVisualConfig } from '../config/stickVisualConfig'
 import { visualConfig } from '../config/visualConfig'
+import { visualStyleConfig } from '../config/visualStyleConfig'
 import { cestaBatStyles, type CestaBatStyle } from '../data/stickStyles'
 import type { StickActionState, StickStyle } from '../data/matchTypes'
 import type { PlayerAnimationPose } from './AnimationState'
+import {
+  getStickAssetKey,
+  hasVisualAsset,
+} from './VisualAssetOverrides'
 
 type Point = { x: number; y: number }
 
@@ -11,6 +16,7 @@ export type CestaBatVisualUpdate = {
   root: Point
   forward: Point
   cradleSide: Point
+  visualMirrorSign: -1 | 1
   cradleSocket: Point
   state: StickActionState
   pose: PlayerAnimationPose
@@ -23,13 +29,25 @@ export class CestaBatVisual {
   private readonly image: Phaser.GameObjects.Image
   private readonly effects: Phaser.GameObjects.Graphics
   private readonly foreground: Phaser.GameObjects.Graphics
+  private readonly textureScaleX: number
+  private readonly textureScaleY: number
   private lastState: StickActionState = 'IDLE'
   private stateStartedAt = 0
 
   constructor(scene: Phaser.Scene, styleId: StickStyle) {
     this.scene = scene
     this.style = cestaBatStyles[styleId]
-    const textureKey = this.ensureGeneratedTexture()
+    const overrideKey = getStickAssetKey(styleId)
+    const textureKey = hasVisualAsset(scene, overrideKey)
+      ? overrideKey
+      : this.ensureGeneratedTexture()
+    const source = scene.textures
+      .get(textureKey)
+      .getSourceImage() as { width: number; height: number }
+    this.textureScaleX =
+      stickVisualConfig.textureWidth / Math.max(1, source.width)
+    this.textureScaleY =
+      stickVisualConfig.textureHeight / Math.max(1, source.height)
 
     // Final PNG or atlas frames can replace this generated texture without
     // changing gameplay sockets, zones, or action timing.
@@ -51,11 +69,7 @@ export class CestaBatVisual {
     }
 
     const elapsed = data.now - this.stateStartedAt
-    const right = { x: -data.forward.y, y: data.forward.x }
-    const mirror =
-      data.cradleSide.x * right.x + data.cradleSide.y * right.y >= 0
-        ? 1
-        : -1
+    const mirror = data.visualMirrorSign
     const angle =
       Math.atan2(data.forward.y, data.forward.x) +
       data.pose.stickRotationOffset
@@ -89,7 +103,10 @@ export class CestaBatVisual {
     this.image
       .setPosition(imagePosition.x, imagePosition.y)
       .setRotation(angle)
-      .setScale(scaleX, scaleY)
+      .setScale(
+        scaleX * this.textureScaleX,
+        scaleY * this.textureScaleY,
+      )
       .setAlpha(flicker)
 
     this.drawEffects(data, elapsed, mirror)
@@ -116,6 +133,7 @@ export class CestaBatVisual {
       config.innerHighlightWidth,
       config.outlineWidth,
       config.woodGrainAlpha,
+      config.pocketWeaveAlpha,
       config.pocketWidthScale,
       config.lipThicknessScale,
       config.handleLengthScale,
@@ -177,6 +195,15 @@ export class CestaBatVisual {
       openingLift,
       style,
     )
+    this.drawPocket(
+      graphics,
+      neckEndX,
+      lipX,
+      pocketDepth,
+      pocketWidth,
+      openingLift,
+      style,
+    )
     this.drawCavity(
       graphics,
       neckEndX,
@@ -185,12 +212,10 @@ export class CestaBatVisual {
       openingLift,
       style,
     )
-    this.drawPocket(
+    this.drawPocketSpine(
       graphics,
       neckEndX,
       lipX,
-      pocketDepth,
-      pocketWidth,
       openingLift,
       style,
     )
@@ -283,7 +308,7 @@ export class CestaBatVisual {
       graphics,
       points,
       style.bodyColor,
-      0x172126,
+      visualStyleConfig.outline,
       1,
       stickVisualConfig.outlineWidth,
     )
@@ -332,9 +357,30 @@ export class CestaBatVisual {
       graphics,
       [...upper, ...lower],
       style.cavityColor,
-      style.cavityColor,
-      0.72,
-      1,
+      style.bodyShade,
+      0.96,
+      2.5,
+    )
+  }
+
+  private drawPocketSpine(
+    graphics: Phaser.GameObjects.Graphics,
+    neckX: number,
+    lipX: number,
+    openingLift: number,
+    style: CestaBatStyle,
+  ): void {
+    const centerY = stickVisualConfig.centerY
+    graphics.lineStyle(
+      2,
+      style.accentColor,
+      stickVisualConfig.pocketWeaveAlpha,
+    )
+    graphics.lineBetween(
+      neckX + 10,
+      centerY + 3,
+      lipX - 10,
+      centerY + openingLift * 0.76,
     )
   }
 
@@ -408,7 +454,7 @@ export class CestaBatVisual {
       graphics,
       points,
       style.bodyColor,
-      0x172126,
+      visualStyleConfig.outline,
       1,
       stickVisualConfig.outlineWidth,
     )
@@ -432,7 +478,10 @@ export class CestaBatVisual {
     const x = root.x - 2
     const y = root.y - handleWidth * 0.5
 
-    graphics.fillStyle(0x172126, stickVisualConfig.outlineAlpha)
+    graphics.fillStyle(
+      visualStyleConfig.outline,
+      stickVisualConfig.outlineAlpha,
+    )
     graphics.fillRoundedRect(
       x - stickVisualConfig.outlineWidth,
       y - stickVisualConfig.outlineWidth,
@@ -459,7 +508,7 @@ export class CestaBatVisual {
       )
     }
 
-    graphics.fillStyle(0x172126, 1)
+    graphics.fillStyle(visualStyleConfig.outline, 1)
     graphics.fillCircle(
       root.x - 2,
       root.y,
@@ -485,7 +534,7 @@ export class CestaBatVisual {
 
     graphics.lineStyle(
       thickness + stickVisualConfig.outlineWidth * 2,
-      0x172126,
+      visualStyleConfig.outline,
       stickVisualConfig.outlineAlpha,
     )
     graphics.lineBetween(
@@ -666,7 +715,7 @@ export class CestaBatVisual {
 
       this.foreground.lineStyle(
         stickVisualConfig.pocketForegroundWidth + 3,
-        0x172126,
+        visualStyleConfig.outline,
         0.9,
       )
       this.foreground.beginPath()

@@ -61,6 +61,10 @@ export class MatchStatsTracker {
     this.stats[side].checks += 1
   }
 
+  recordSave(side: TeamSide): void {
+    this.stats[side].saves += 1
+  }
+
   recordGoal(side: TeamSide): void {
     const lastCarrier = this.lastCarrierByTeam[side]
     const previousCarrier = this.previousCarrierByTeam[side]

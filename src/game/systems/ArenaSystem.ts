@@ -2,18 +2,16 @@ import Phaser from 'phaser'
 import { arenaConfig } from '../config/arenaConfig'
 import { playerRuntimeConfig } from '../config/playerConfig'
 import type { Player } from '../entities/Player'
+import { CourtRenderer } from '../rendering/CourtRenderer'
 
 export class ArenaSystem {
   private scene: Phaser.Scene
-  private graphics: Phaser.GameObjects.Graphics
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene
-    this.graphics = scene.add.graphics()
-    this.graphics.setDepth(-10)
 
     this.createWalls()
-    this.drawFloor()
+    new CourtRenderer(scene)
   }
 
   containPlayers(players: Player[]): void {
@@ -141,113 +139,4 @@ export class ArenaSystem {
     )
   }
 
-  private drawFloor(): void {
-    const x = arenaConfig.center.x - arenaConfig.width / 2
-    const y = arenaConfig.center.y - arenaConfig.height / 2
-    const inset = arenaConfig.courtInset
-    const innerX = x + inset
-    const innerY = y + inset
-    const innerWidth = arenaConfig.width - inset * 2
-    const innerHeight = arenaConfig.height - inset * 2
-    const centerY = arenaConfig.center.y
-    const topServiceY = y + arenaConfig.serviceLineDepth
-    const bottomServiceY =
-      y + arenaConfig.height - arenaConfig.serviceLineDepth
-
-    this.graphics.clear()
-    this.graphics.fillStyle(arenaConfig.outerSurfaceColor, 1)
-    this.graphics.fillRoundedRect(
-      x,
-      y,
-      arenaConfig.width,
-      arenaConfig.height,
-      arenaConfig.cornerRadius,
-    )
-
-    this.graphics.fillStyle(arenaConfig.floorColor, 1)
-    this.graphics.fillRoundedRect(
-      innerX,
-      innerY,
-      innerWidth,
-      innerHeight,
-      Math.max(6, arenaConfig.cornerRadius - 6),
-    )
-
-    this.graphics.fillStyle(arenaConfig.floorAccentColor, 0.34)
-    this.graphics.fillRect(
-      innerX,
-      topServiceY,
-      innerWidth,
-      bottomServiceY - topServiceY,
-    )
-
-    this.graphics.lineStyle(4, arenaConfig.wallStrokeColor, 0.92)
-    this.graphics.strokeRoundedRect(
-      x,
-      y,
-      arenaConfig.width,
-      arenaConfig.height,
-      arenaConfig.cornerRadius,
-    )
-
-    this.graphics.lineStyle(4, arenaConfig.boundaryLineColor, 0.88)
-    this.graphics.strokeRoundedRect(
-      innerX,
-      innerY,
-      innerWidth,
-      innerHeight,
-      Math.max(6, arenaConfig.cornerRadius - 6),
-    )
-
-    this.graphics.lineStyle(3, arenaConfig.boundaryLineColor, 0.78)
-    this.graphics.lineBetween(innerX, centerY, innerX + innerWidth, centerY)
-    this.graphics.strokeCircle(
-      arenaConfig.center.x,
-      centerY,
-      arenaConfig.centerCircleRadius,
-    )
-
-    this.graphics.lineStyle(2, arenaConfig.secondaryLineColor, 0.62)
-    this.graphics.lineBetween(
-      innerX,
-      topServiceY,
-      innerX + innerWidth,
-      topServiceY,
-    )
-    this.graphics.lineBetween(
-      innerX,
-      bottomServiceY,
-      innerX + innerWidth,
-      bottomServiceY,
-    )
-    this.graphics.lineBetween(
-      arenaConfig.center.x,
-      innerY,
-      arenaConfig.center.x,
-      topServiceY,
-    )
-    this.graphics.lineBetween(
-      arenaConfig.center.x,
-      bottomServiceY,
-      arenaConfig.center.x,
-      innerY + innerHeight,
-    )
-
-    this.graphics.fillStyle(arenaConfig.boundaryLineColor, 0.9)
-    this.graphics.fillCircle(
-      arenaConfig.center.x,
-      centerY,
-      arenaConfig.faceoffMarkRadius,
-    )
-    this.graphics.fillCircle(
-      arenaConfig.center.x,
-      topServiceY,
-      arenaConfig.faceoffMarkRadius * 0.62,
-    )
-    this.graphics.fillCircle(
-      arenaConfig.center.x,
-      bottomServiceY,
-      arenaConfig.faceoffMarkRadius * 0.62,
-    )
-  }
 }

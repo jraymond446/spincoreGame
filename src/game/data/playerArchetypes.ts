@@ -16,6 +16,7 @@ export const playerArchetypes: Record<PlayerArchetypeId, PlayerArchetype> = {
       accuracy: 0.68,
       reaction: 0.96,
       ballHandling: 0.78,
+      toughness: 0.82,
     },
   },
   striker: {
@@ -33,6 +34,7 @@ export const playerArchetypes: Record<PlayerArchetypeId, PlayerArchetype> = {
       accuracy: 0.86,
       reaction: 0.84,
       ballHandling: 0.76,
+      toughness: 0.56,
     },
   },
   support: {
@@ -50,6 +52,7 @@ export const playerArchetypes: Record<PlayerArchetypeId, PlayerArchetype> = {
       accuracy: 0.9,
       reaction: 0.84,
       ballHandling: 0.94,
+      toughness: 0.48,
     },
   },
   brute: {
@@ -67,6 +70,7 @@ export const playerArchetypes: Record<PlayerArchetypeId, PlayerArchetype> = {
       accuracy: 0.38,
       reaction: 0.7,
       ballHandling: 0.44,
+      toughness: 1,
     },
   },
 }

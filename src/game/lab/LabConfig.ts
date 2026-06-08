@@ -1,6 +1,7 @@
 import type { GameMode } from '../config/gameplayConfig'
 import type {
   FormationId,
+  KeeperControlMode,
   PlayerAttributes,
   PlayerDefenseTendencies,
   PlayerHandedness,
@@ -41,9 +42,34 @@ export type LabFieldTuning = {
   goalPostRestitution: number
   goalInsetFromEnd: number
   keeperZoneRadius: number
+  innerNoBodyRadius: number
   keeperZoneBoundaryBuffer: number
   keeperZonePushStrength: number
   scoringPlaneTolerance: number
+}
+
+export type LabKeeperTuning = {
+  keeperControlMode: KeeperControlMode
+  keeperTightTargetRadiusRatio: number
+  keeperBalancedTargetRadiusRatio: number
+  keeperSweeperTargetRadiusRatio: number
+  keeperReactionMultiplier: number
+  keeperThreatLookaheadMs: number
+  keeperReturnHomeSpeed: number
+  keeperClearAggression: number
+  keeperDeflectAggression: number
+  keeperOrbitSmoothing: number
+  keeperMaxLateralSpeed: number
+  keeperHumanBiasEnabled: boolean
+  keeperHumanBiasStrength: number
+  keeperHumanLateralBiasStrength: number
+  keeperHumanDepthBiasStrength: number
+  keeperHumanBiasMaxOffset: number
+  keeperHumanBiasDecay: number
+  keeperAutoSwitchEnabled: boolean
+  keeperAutoSwitchThreatRadius: number
+  keeperAutoSwitchDelayMs: number
+  keeperManualOverrideDurationMs: number
 }
 
 export type LabStickTuning = {
@@ -63,11 +89,16 @@ export type LabStickTuning = {
   releaseForceMax: number
   chargeForceExponent: number
   overchargeAccuracyPenalty: number
+  chargeLoadbackMinRadians: number
+  chargeLoadbackMaxRadians: number
+  chargeLoadbackSmoothing: number
+  overchargeJitterAmount: number
+  overchargeJitterSpeed: number
   releaseWindupMs: number
   releaseSwingMs: number
   releaseFollowThroughMs: number
   releaseSwingArcRadians: number
-  releaseSwingPowerTiming: number
+  releasePointNormalized: number
   releaseTangentialForceMultiplier: number
   releaseForwardForceMultiplier: number
   releaseSpinInfluence: number
@@ -93,31 +124,34 @@ export type LabStickTuning = {
 }
 
 export type LabDefenseTuning = {
-  bodyCheckEnabled: boolean
-  stickSwipeEnabled: boolean
-  bodyCheckCooldownMs: number
-  bodyCheckStartupMs: number
-  bodyCheckActiveMs: number
-  bodyCheckRecoveryMs: number
-  bodyCheckRange: number
-  bodyCheckArcRadians: number
-  bodyCheckImpulse: number
-  bodyCheckFumblePressure: number
-  bodyCheckOverchargeMultiplier: number
-  bruteCheckMultiplier: number
-  nonBruteCheckMultiplier: number
-  bodyCheckMissRecoveryPenalty: number
-  stickSwipeCooldownMs: number
-  stickSwipeStartupMs: number
-  stickSwipeActiveMs: number
-  stickSwipeRecoveryMs: number
-  stickSwipeArcRadians: number
-  stickSwipeRange: number
-  stickSwipeFumblePressure: number
-  stickSwipeOverchargeMultiplier: number
-  stickSwipeFreeCoreImpulse: number
-  supportSwipePrecisionMultiplier: number
-  bruteSwipePowerMultiplier: number
+  truckEnabled: boolean
+  slashEnabled: boolean
+  truckCooldownMs: number
+  truckStartupMs: number
+  truckActiveMs: number
+  truckRecoveryMs: number
+  truckRange: number
+  truckArcRadians: number
+  truckLungeImpulse: number
+  truckBodyImpulse: number
+  truckFumblePressure: number
+  truckOverchargeMultiplier: number
+  bruteTruckMultiplier: number
+  nonBruteTruckMultiplier: number
+  truckMissRecoveryMovement: number
+  truckOffBallSpeedBoostAllowed: boolean
+  slashCooldownMs: number
+  slashStartupMs: number
+  slashActiveMs: number
+  slashRecoveryMs: number
+  slashArcRadians: number
+  slashRange: number
+  slashFumblePressure: number
+  slashOverchargeMultiplier: number
+  slashFreeCoreImpulse: number
+  slashBodyImpulse: number
+  supportSlashPrecisionMultiplier: number
+  bruteSlashPowerMultiplier: number
   fumblePressureThreshold: number
   fumblePressureDecayPerSecond: number
   overchargeFumbleVulnerability: number
@@ -143,6 +177,7 @@ export type LabTuningState = {
   formations: Record<TeamSide, FormationId>
   players: Record<string, LabPlayerTuning>
   field: LabFieldTuning
+  keeper: LabKeeperTuning
   stick: LabStickTuning
   defense: LabDefenseTuning
   matchFlow: LabMatchFlowTuning
@@ -159,6 +194,12 @@ export const labOptions = {
     { value: 'striker', label: 'Striker' },
     { value: 'flex', label: 'Flex' },
   ] satisfies Array<{ value: ControlledPlayerSelection; label: string }>,
+  keeperControlModes: [
+    { value: 'aiOnly', label: 'AI only' },
+    { value: 'biasAssist', label: 'Bias assist' },
+    { value: 'autoSwitch', label: 'Auto switch' },
+    { value: 'manualWhenSelected', label: 'Manual when selected' },
+  ] satisfies Array<{ value: KeeperControlMode; label: string }>,
   roles: [
     'keeper',
     'striker',
@@ -203,5 +244,6 @@ export const labOptions = {
     'accuracy',
     'reaction',
     'ballHandling',
+    'toughness',
   ] satisfies Array<keyof PlayerAttributes>,
 } as const

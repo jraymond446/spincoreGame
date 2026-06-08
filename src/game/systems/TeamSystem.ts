@@ -62,8 +62,8 @@ export class TeamSystem {
           resolvedEntry,
           createRuntimeArchetype(entry),
           getLabState().players[entry.id]?.defenseTendencies ?? {
-            bodyCheckAggression: 0.5,
-            stickSwipeAggression: 0.5,
+            truckAggression: 0.5,
+            slashAggression: 0.5,
             fumblePressurePreference: 0.5,
           },
         )

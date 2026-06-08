@@ -27,7 +27,8 @@ export class PlayerAnimationController {
   update(
     stickState: StickActionState,
     defenseState: DefensiveVisualState,
-    handednessMirror: number,
+    mountSign: number,
+    pocketFacingSign: number,
     now: number,
   ): PlayerAnimationPose {
     const stateKey = `${stickState}:${defenseState}`
@@ -40,15 +41,27 @@ export class PlayerAnimationController {
     const elapsed = now - this.stateStartedAt
     const pose = { ...neutralPose }
 
-    this.applyStickPose(pose, stickState, handednessMirror, elapsed)
-    this.applyDefensePose(pose, defenseState, handednessMirror, elapsed)
+    this.applyStickPose(
+      pose,
+      stickState,
+      mountSign,
+      pocketFacingSign,
+      elapsed,
+    )
+    this.applyDefensePose(
+      pose,
+      defenseState,
+      pocketFacingSign,
+      elapsed,
+    )
     return pose
   }
 
   private applyStickPose(
     pose: PlayerAnimationPose,
     state: StickActionState,
-    mirror: number,
+    mountSign: number,
+    pocketFacingSign: number,
     elapsed: number,
   ): void {
     const pulse = 0.5 + Math.sin(elapsed * 0.014) * 0.5
@@ -56,20 +69,20 @@ export class PlayerAnimationController {
     switch (state) {
       case 'CATCH_READY':
         pose.bodyForwardOffset = -2
-        pose.bodySideOffset = -2.5 * mirror
+        pose.bodySideOffset = -2.5 * mountSign
         pose.bodyScaleX = 1.05
         pose.stickScaleY = 1.08
         pose.anticipation = 0.72
         break
       case 'CRADLED_STABLE':
         pose.bodyForwardOffset = -1.5
-        pose.bodySideOffset = -1.5 * mirror
+        pose.bodySideOffset = -1.5 * mountSign
         pose.stickScaleX = 0.98
         pose.anticipation = 0.35
         break
       case 'CRADLED_CHARGING':
         pose.bodyForwardOffset = -3 - pulse
-        pose.bodySideOffset = -2 * mirror
+        pose.bodySideOffset = -2 * mountSign
         pose.bodyScaleX = 1.04
         pose.bodyScaleY = 0.97
         pose.stickScaleX = 1.02
@@ -78,17 +91,15 @@ export class PlayerAnimationController {
       case 'CRADLED_OVERCHARGED':
         pose.bodyForwardOffset = -4
         pose.bodySideOffset =
-          (Math.sin(elapsed * 0.06) * 1.4 - 2) * mirror
+          (Math.sin(elapsed * 0.06) * 1.4 - 2) * mountSign
         pose.bodyScaleX = 1.07
         pose.bodyScaleY = 0.95
-        pose.stickRotationOffset =
-          Math.sin(elapsed * 0.055) * 0.035 * mirror
         pose.anticipation = 1
         break
       case 'RELEASE_WINDUP':
         pose.bodyForwardOffset = -5
-        pose.bodySideOffset = -3.5 * mirror
-        pose.bodyRotationOffset = -0.08 * mirror
+        pose.bodySideOffset = -3.5 * mountSign
+        pose.bodyRotationOffset = -0.08 * pocketFacingSign
         pose.bodyScaleX = 1.06
         pose.bodyScaleY = 0.95
         pose.stickScaleX = 0.96
@@ -96,8 +107,8 @@ export class PlayerAnimationController {
         break
       case 'RELEASE_SWING':
         pose.bodyForwardOffset = 5
-        pose.bodySideOffset = 2.5 * mirror
-        pose.bodyRotationOffset = 0.12 * mirror
+        pose.bodySideOffset = 2.5 * mountSign
+        pose.bodyRotationOffset = 0.12 * pocketFacingSign
         pose.bodyScaleX = 0.96
         pose.bodyScaleY = 1.08
         pose.stickScaleX = 1.1
@@ -105,8 +116,8 @@ export class PlayerAnimationController {
         break
       case 'RELEASE_FOLLOW_THROUGH':
         pose.bodyForwardOffset = 4
-        pose.bodySideOffset = 2 * mirror
-        pose.bodyRotationOffset = 0.1 * mirror
+        pose.bodySideOffset = 2 * mountSign
+        pose.bodyRotationOffset = 0.1 * pocketFacingSign
         pose.bodyScaleX = 0.98
         pose.bodyScaleY = 1.04
         pose.stickScaleX = 1.05
@@ -114,8 +125,8 @@ export class PlayerAnimationController {
         break
       case 'SWINGING':
         pose.bodyForwardOffset = 3
-        pose.bodyRotationOffset = 0.08 * mirror
-        pose.stickRotationOffset = 0.08 * mirror
+        pose.bodyRotationOffset = 0.08 * pocketFacingSign
+        pose.stickRotationOffset = 0.08 * pocketFacingSign
         pose.stickScaleX = 1.08
         pose.impact = 0.75
         break
@@ -123,7 +134,7 @@ export class PlayerAnimationController {
         pose.bodyForwardOffset = -3
         pose.bodySideOffset = Math.sin(elapsed * 0.07) * 2.2
         pose.bodyRotationOffset = Math.sin(elapsed * 0.045) * 0.08
-        pose.stickRotationOffset = -0.18 * mirror
+        pose.stickRotationOffset = -0.18 * pocketFacingSign
         pose.bodyScaleX = 1.08
         pose.bodyScaleY = 0.92
         break
@@ -139,13 +150,13 @@ export class PlayerAnimationController {
     const startup = Phaser.Math.Clamp(elapsed / 120, 0, 1)
 
     switch (state) {
-      case 'CHECK_STARTUP':
+      case 'TRUCK_STARTUP':
         pose.bodyForwardOffset -= 4 * startup
         pose.bodyScaleX *= 1.08
         pose.bodyScaleY *= 0.94
         pose.anticipation = Math.max(pose.anticipation, 0.8)
         break
-      case 'CHECK_ACTIVE':
+      case 'TRUCK_ACTIVE':
         pose.bodyForwardOffset += 8
         pose.bodyScaleX *= 1.12
         pose.bodyScaleY *= 0.9
@@ -153,27 +164,26 @@ export class PlayerAnimationController {
         pose.shadowScale *= 1.12
         pose.impact = 1
         break
-      case 'CHECK_RECOVERY':
+      case 'TRUCK_RECOVERY':
         pose.bodyForwardOffset += 2
         pose.bodyScaleX *= 1.04
         pose.bodyScaleY *= 0.97
         break
-      case 'SWIPE_STARTUP':
+      case 'SLASH_STARTUP':
         pose.bodyRotationOffset -= 0.09 * mirror
         pose.stickRotationOffset -= 0.13 * mirror
         pose.anticipation = Math.max(pose.anticipation, 0.7)
         break
-      case 'SWIPE_ACTIVE':
+      case 'SLASH_ACTIVE':
         pose.bodyRotationOffset += 0.11 * mirror
         pose.stickRotationOffset += 0.19 * mirror
         pose.stickScaleX *= 1.1
         pose.impact = 0.85
         break
-      case 'SWIPE_RECOVERY':
+      case 'SLASH_RECOVERY':
         pose.bodyRotationOffset += 0.04 * mirror
         pose.stickRotationOffset += 0.07 * mirror
         break
     }
   }
 }
-

@@ -14,10 +14,15 @@ import type {
 } from '../data/matchTypes'
 import type { Core } from '../entities/Core'
 import type { Player } from '../entities/Player'
+import {
+  KeeperAISystem,
+  type KeeperAIDebugState,
+} from './KeeperAISystem'
 
 export class AISystem {
   private readonly debugGraphics: Phaser.GameObjects.Graphics
   private readonly formationBiases: Record<TeamSide, FormationAIBias>
+  private readonly keeperAI: KeeperAISystem
   private debugEnabled = false
   private decisionTimerMs = 0
   private intents = new Map<string, PlayerControlIntent>()
@@ -28,6 +33,7 @@ export class AISystem {
   ) {
     this.formationBiases = formationBiases
     this.debugGraphics = scene.add.graphics().setDepth(18)
+    this.keeperAI = new KeeperAISystem(scene)
   }
 
   update(
@@ -36,7 +42,15 @@ export class AISystem {
     carrierId: string | null,
     controlledPlayerId: string,
     deltaMs: number,
+    humanKeeperBias: Point,
   ): Map<string, PlayerControlIntent> {
+    this.updateKeepers(
+      players,
+      core,
+      carrierId,
+      controlledPlayerId,
+      humanKeeperBias,
+    )
     this.decisionTimerMs -= deltaMs
     if (this.decisionTimerMs <= 0) {
       this.rethink(players, core, carrierId, controlledPlayerId)
@@ -44,14 +58,58 @@ export class AISystem {
     }
 
     this.drawDebug(players)
+    this.keeperAI.drawDebug()
     return this.intents
   }
 
   setDebugEnabled(enabled: boolean): void {
     this.debugEnabled = enabled
+    this.keeperAI.setDebugEnabled(enabled)
 
     if (!enabled) {
       this.debugGraphics.clear()
+    }
+  }
+
+  getKeeperDebugState(side: TeamSide): KeeperAIDebugState | null {
+    return this.keeperAI.getDebugState(side)
+  }
+
+  private updateKeepers(
+    players: Player[],
+    core: Core,
+    carrierId: string | null,
+    controlledPlayerId: string,
+    humanKeeperBias: Point,
+  ): void {
+    const carrier =
+      players.find((player) => player.id === carrierId) ?? null
+
+    for (const player of players.filter(
+      (candidate) => candidate.role === 'keeper',
+    )) {
+      if (player.id === controlledPlayerId) {
+        this.intents.delete(player.id)
+        continue
+      }
+
+      const context = createAIDecisionContext(
+        player,
+        players,
+        core,
+        carrier,
+        goalPoint(player.teamSide),
+        goalPoint(player.teamSide === 'A' ? 'B' : 'A'),
+        this.formationBiases[player.teamSide],
+      )
+      const bias =
+        player.teamSide === 'A'
+          ? humanKeeperBias
+          : { x: 0, y: 0 }
+      const intent = this.keeperAI.decide(context, bias)
+
+      this.intents.set(player.id, intent)
+      player.setAIState(intent.aiState)
     }
   }
 
@@ -65,7 +123,7 @@ export class AISystem {
       players.find((player) => player.id === carrierId) ?? null
 
     for (const player of players) {
-      if (player.id === controlledPlayerId) {
+      if (player.id === controlledPlayerId || player.role === 'keeper') {
         continue
       }
 

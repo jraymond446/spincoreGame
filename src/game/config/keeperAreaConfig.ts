@@ -1,5 +1,6 @@
 import { aiConfig } from './aiConfig'
 import { bottomGoalConfig, topGoalConfig } from './goalConfig'
+import { visualStyleConfig } from './visualStyleConfig'
 
 export const keeperAreaConfig = {
   keeperZoneRadius: aiConfig.keeperHomeRadius,
@@ -7,10 +8,13 @@ export const keeperAreaConfig = {
   keeperZonePushStrength: 0.85,
   keeperZoneVisualAlpha: 0.055,
   keeperZoneDebugAlpha: 0.14,
+  innerNoBodyRadius: 40,
   normal: {
-    keeperStrokeColor: 0xd9f8fb,
-    keeperStrokeAlpha: 0.42,
-    keeperFillColor: 0xc6f2f4,
+    keeperStrokeColor: visualStyleConfig.court.line,
+    keeperStrokeAlpha: 0.62,
+    keeperFillColor: visualStyleConfig.court.lineSoft,
+    innerStrokeColor: visualStyleConfig.goal.energy,
+    innerStrokeAlpha: 0.72,
   },
   debug: {
     keeperStrokeAlpha: 0.9,

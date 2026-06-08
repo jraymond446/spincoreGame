@@ -9,31 +9,31 @@ export type TeamVisualPalette = {
 
 export const teamVisualPalettes: Record<TeamSide, TeamVisualPalette> = {
   A: {
-    shirt: 0x42c9ee,
-    shirtShade: 0x238eaf,
-    trim: 0xf4fdff,
-    shorts: 0x17647e,
+    shirt: 0x198bd5,
+    shirtShade: 0x0e5f9d,
+    trim: 0xf9fdff,
+    shorts: 0x123f72,
   },
   B: {
-    shirt: 0xf26763,
-    shirtShade: 0xb63e47,
-    trim: 0xffd36a,
-    shorts: 0x7b2d3c,
+    shirt: 0xe45870,
+    shirtShade: 0xa83250,
+    trim: 0xfff4d2,
+    shorts: 0x742542,
   },
 }
 
 export const hairColorPalette = [
-  0x1c2730,
-  0x50372f,
-  0xb68c45,
-  0x6d5a85,
-  0x466f68,
-  0xc9c4b8,
+  0x17283b,
+  0x59382f,
+  0xc08a38,
+  0x72538d,
+  0x2f746b,
+  0xd8d0ba,
 ] as const
 
 export const roleAccentColors: Record<PlayerRole, number> = {
-  keeper: 0xe9fcff,
-  striker: 0xffd55f,
-  support: 0xbff5e5,
-  brute: 0xffb06b,
+  keeper: 0xeafaff,
+  striker: 0xffd24f,
+  support: 0x8df0cf,
+  brute: 0xff9a55,
 }

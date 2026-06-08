@@ -10,6 +10,7 @@ import {
   topGoalConfig,
 } from '../config/goalConfig'
 import { keeperAreaConfig } from '../config/keeperAreaConfig'
+import { keeperConfig } from '../config/keeperConfig'
 import { matchFlowConfig } from '../config/matchFlowConfig'
 import { playerRuntimeConfig } from '../config/playerConfig'
 import { stickConfig } from '../config/stickConfig'
@@ -100,8 +101,52 @@ export function applyLabSettings(state: LabTuningState): void {
   })
   Object.assign(keeperAreaConfig, {
     keeperZoneRadius: field.keeperZoneRadius,
+    innerNoBodyRadius: field.innerNoBodyRadius,
     keeperZoneBoundaryBuffer: field.keeperZoneBoundaryBuffer,
     keeperZonePushStrength: field.keeperZonePushStrength,
+  })
+  Object.assign(keeperConfig, {
+    controlMode: state.keeper.keeperControlMode,
+    keeperTightTargetRadiusRatio:
+      state.keeper.keeperTightTargetRadiusRatio,
+    keeperBalancedTargetRadiusRatio:
+      state.keeper.keeperBalancedTargetRadiusRatio,
+    keeperSweeperTargetRadiusRatio:
+      state.keeper.keeperSweeperTargetRadiusRatio,
+    keeperReactionMultiplier:
+      state.keeper.keeperReactionMultiplier,
+    keeperThreatLookaheadMs:
+      state.keeper.keeperThreatLookaheadMs,
+    keeperReturnHomeSpeed:
+      state.keeper.keeperReturnHomeSpeed,
+    keeperClearAggression:
+      state.keeper.keeperClearAggression,
+    keeperDeflectAggression:
+      state.keeper.keeperDeflectAggression,
+    keeperOrbitSmoothing:
+      state.keeper.keeperOrbitSmoothing,
+    keeperMaxLateralSpeed:
+      state.keeper.keeperMaxLateralSpeed,
+    keeperHumanBiasEnabled:
+      state.keeper.keeperHumanBiasEnabled,
+    keeperHumanBiasStrength:
+      state.keeper.keeperHumanBiasStrength,
+    keeperHumanLateralBiasStrength:
+      state.keeper.keeperHumanLateralBiasStrength,
+    keeperHumanDepthBiasStrength:
+      state.keeper.keeperHumanDepthBiasStrength,
+    keeperHumanBiasMaxOffset:
+      state.keeper.keeperHumanBiasMaxOffset,
+    keeperHumanBiasDecay:
+      state.keeper.keeperHumanBiasDecay,
+    keeperAutoSwitchEnabled:
+      state.keeper.keeperAutoSwitchEnabled,
+    keeperAutoSwitchThreatRadius:
+      state.keeper.keeperAutoSwitchThreatRadius,
+    keeperAutoSwitchDelayMs:
+      state.keeper.keeperAutoSwitchDelayMs,
+    keeperManualOverrideDurationMs:
+      state.keeper.keeperManualOverrideDurationMs,
   })
   Object.assign(keeperAreaConfig.areas.A, {
     x: bottomGoalConfig.x,
@@ -140,11 +185,16 @@ export function applyLabSettings(state: LabTuningState): void {
     ),
     chargeForceExponent: stick.chargeForceExponent,
     overchargeAccuracyPenalty: stick.overchargeAccuracyPenalty,
+    chargeLoadbackMinRadians: stick.chargeLoadbackMinRadians,
+    chargeLoadbackMaxRadians: stick.chargeLoadbackMaxRadians,
+    chargeLoadbackSmoothing: stick.chargeLoadbackSmoothing,
+    overchargeJitterAmount: stick.overchargeJitterAmount,
+    overchargeJitterSpeed: stick.overchargeJitterSpeed,
     releaseWindupMs: stick.releaseWindupMs,
     releaseSwingMs: stick.releaseSwingMs,
     releaseFollowThroughMs: stick.releaseFollowThroughMs,
     releaseSwingArcRadians: stick.releaseSwingArcRadians,
-    releaseSwingPowerTiming: stick.releaseSwingPowerTiming,
+    releasePointNormalized: stick.releasePointNormalized,
     releaseTangentialForceMultiplier:
       stick.releaseTangentialForceMultiplier,
     releaseForwardForceMultiplier:

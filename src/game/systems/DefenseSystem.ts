@@ -9,30 +9,38 @@ import type { FumbleSystem } from './FumbleSystem'
 import type { StickInteractionSystem } from './StickInteractionSystem'
 
 export type DefenseIntent = {
-  bodyCheck: boolean
-  stickSwipe: boolean
+  truck: boolean
+  slash: boolean
 }
 
 export type DefensiveActionState = DefensiveVisualState
 
 export type DefenseEvent = {
-  type: 'bodyCheckConnected'
+  type: 'truckConnected'
   attackerId: string
   targetId: string
   teamSide: TeamSide
 }
 
+export type DefenseTargetDebug = {
+  playerId: string
+  action: 'TRUCK' | 'SLASH'
+  toughness: number
+  ballHandling: number
+}
+
 type DefenseRuntime = {
   state: DefensiveActionState
   elapsedMs: number
-  bodyCheckCooldownMs: number
-  stickSwipeCooldownMs: number
+  truckCooldownMs: number
+  slashCooldownMs: number
   connected: boolean
 }
 
 type Burst = {
   position: Point
   remainingMs: number
+  kind: 'truck' | 'slash' | 'fumble'
 }
 
 type Shove = {
@@ -49,6 +57,7 @@ export class DefenseSystem {
   private readonly pendingEvents: DefenseEvent[] = []
   private debugEnabled = false
   private focusPlayerId: string | null = null
+  private lastTargetDebug: DefenseTargetDebug | null = null
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene
@@ -74,8 +83,8 @@ export class DefenseSystem {
     for (const player of players) {
       const runtime = this.getRuntime(player.id)
       const intent = intents.get(player.id) ?? {
-        bodyCheck: false,
-        stickSwipe: false,
+        truck: false,
+        slash: false,
       }
 
       this.updateCooldowns(runtime, deltaMs)
@@ -86,22 +95,22 @@ export class DefenseSystem {
         player.id !== stickSystem.getCarrierId()
       ) {
         if (
-          defenseConfig.bodyCheckEnabled &&
-          intent.bodyCheck &&
-          runtime.bodyCheckCooldownMs === 0
+          defenseConfig.truckEnabled &&
+          intent.truck &&
+          runtime.truckCooldownMs === 0
         ) {
-          this.startBodyCheck(runtime)
+          this.startTruck(runtime)
         } else if (
-          defenseConfig.stickSwipeEnabled &&
-          intent.stickSwipe &&
-          runtime.stickSwipeCooldownMs === 0
+          defenseConfig.slashEnabled &&
+          intent.slash &&
+          runtime.slashCooldownMs === 0
         ) {
-          this.startStickSwipe(runtime)
+          this.startSlash(runtime)
         }
       }
 
-      if (runtime.state === 'CHECK_ACTIVE') {
-        this.applyBodyCheck(
+      if (runtime.state === 'TRUCK_ACTIVE') {
+        this.applyTruck(
           player,
           players,
           core,
@@ -109,8 +118,8 @@ export class DefenseSystem {
           fumbleSystem,
           runtime,
         )
-      } else if (runtime.state === 'SWIPE_ACTIVE') {
-        this.applyStickSwipe(
+      } else if (runtime.state === 'SLASH_ACTIVE') {
+        this.applySlash(
           player,
           players,
           core,
@@ -119,7 +128,7 @@ export class DefenseSystem {
           runtime,
         )
       } else if (
-        runtime.state === 'CHECK_RECOVERY' &&
+        runtime.state === 'TRUCK_RECOVERY' &&
         !runtime.connected
       ) {
         this.scene.matter.body.setVelocity(player.body, {
@@ -153,6 +162,7 @@ export class DefenseSystem {
     this.bursts.length = 0
     this.shoves.clear()
     this.pendingEvents.length = 0
+    this.lastTargetDebug = null
     this.graphics.clear()
   }
 
@@ -165,15 +175,23 @@ export class DefenseSystem {
   }
 
   getCooldowns(playerId: string): {
-    bodyCheckMs: number
-    stickSwipeMs: number
+    truckMs: number
+    slashMs: number
   } {
     const runtime = this.runtimes.get(playerId)
 
     return {
-      bodyCheckMs: runtime?.bodyCheckCooldownMs ?? 0,
-      stickSwipeMs: runtime?.stickSwipeCooldownMs ?? 0,
+      truckMs: runtime?.truckCooldownMs ?? 0,
+      slashMs: runtime?.slashCooldownMs ?? 0,
     }
+  }
+
+  getActionLabel(playerId: string): string {
+    return this.getState(playerId).replaceAll('_', ' ')
+  }
+
+  getTargetDebug(): DefenseTargetDebug | null {
+    return this.lastTargetDebug ? { ...this.lastTargetDebug } : null
   }
 
   private getRuntime(playerId: string): DefenseRuntime {
@@ -186,8 +204,8 @@ export class DefenseSystem {
     const runtime: DefenseRuntime = {
       state: 'IDLE',
       elapsedMs: 0,
-      bodyCheckCooldownMs: 0,
-      stickSwipeCooldownMs: 0,
+      truckCooldownMs: 0,
+      slashCooldownMs: 0,
       connected: false,
     }
     this.runtimes.set(playerId, runtime)
@@ -198,13 +216,13 @@ export class DefenseSystem {
     runtime: DefenseRuntime,
     deltaMs: number,
   ): void {
-    runtime.bodyCheckCooldownMs = Math.max(
+    runtime.truckCooldownMs = Math.max(
       0,
-      runtime.bodyCheckCooldownMs - deltaMs,
+      runtime.truckCooldownMs - deltaMs,
     )
-    runtime.stickSwipeCooldownMs = Math.max(
+    runtime.slashCooldownMs = Math.max(
       0,
-      runtime.stickSwipeCooldownMs - deltaMs,
+      runtime.slashCooldownMs - deltaMs,
     )
   }
 
@@ -233,21 +251,21 @@ export class DefenseSystem {
     }
   }
 
-  private startBodyCheck(runtime: DefenseRuntime): void {
-    runtime.state = 'CHECK_STARTUP'
+  private startTruck(runtime: DefenseRuntime): void {
+    runtime.state = 'TRUCK_STARTUP'
     runtime.elapsedMs = 0
     runtime.connected = false
-    runtime.bodyCheckCooldownMs = defenseConfig.bodyCheckCooldownMs
+    runtime.truckCooldownMs = defenseConfig.truckCooldownMs
   }
 
-  private startStickSwipe(runtime: DefenseRuntime): void {
-    runtime.state = 'SWIPE_STARTUP'
+  private startSlash(runtime: DefenseRuntime): void {
+    runtime.state = 'SLASH_STARTUP'
     runtime.elapsedMs = 0
     runtime.connected = false
-    runtime.stickSwipeCooldownMs = defenseConfig.stickSwipeCooldownMs
+    runtime.slashCooldownMs = defenseConfig.slashCooldownMs
   }
 
-  private applyBodyCheck(
+  private applyTruck(
     attacker: Player,
     players: Player[],
     core: Core,
@@ -257,7 +275,7 @@ export class DefenseSystem {
   ): void {
     const direction = actionDirection(attacker, true)
     const lungeSpeed =
-      6.2 + attacker.attributes.speed * 3.2
+      defenseConfig.truckLungeImpulse + attacker.attributes.speed * 3.2
 
     this.scene.matter.body.setVelocity(attacker.body, {
       x: direction.x * lungeSpeed,
@@ -274,8 +292,8 @@ export class DefenseSystem {
         (player) => player.teamSide !== attacker.teamSide,
       ),
       direction,
-      defenseConfig.bodyCheckRange,
-      defenseConfig.bodyCheckArcRadians,
+      defenseConfig.truckRange,
+      defenseConfig.truckArcRadians,
     )
 
     if (!target) {
@@ -284,31 +302,45 @@ export class DefenseSystem {
 
     runtime.connected = true
     this.pendingEvents.push({
-      type: 'bodyCheckConnected',
+      type: 'truckConnected',
       attackerId: attacker.id,
       targetId: target.id,
       teamSide: attacker.teamSide,
     })
     const roleMultiplier =
       attacker.role === 'brute'
-        ? defenseConfig.bruteCheckMultiplier
-        : defenseConfig.nonBruteCheckMultiplier
+        ? defenseConfig.bruteTruckMultiplier
+        : defenseConfig.nonBruteTruckMultiplier
+    const receivedImpulseMultiplier = Phaser.Math.Linear(
+      1.2,
+      0.65,
+      normalizedAttribute(target.attributes.toughness),
+    )
     const impulse =
-      defenseConfig.bodyCheckImpulse *
+      defenseConfig.truckBodyImpulse *
       attacker.attributes.power *
-      roleMultiplier
+      roleMultiplier *
+      receivedImpulseMultiplier
 
     this.shoves.set(target.id, {
       velocity: {
         x: direction.x * impulse,
         y: direction.y * impulse,
       },
-      remainingMs: defenseConfig.bodyCheckActiveMs + 120,
+      remainingMs:
+        (defenseConfig.truckActiveMs + 120) *
+        Phaser.Math.Linear(
+          1.15,
+          0.75,
+          normalizedAttribute(target.attributes.toughness),
+        ),
     })
+    this.recordTargetDebug(attacker, target, 'TRUCK')
+    this.addBurst(target.position, 'truck')
 
     if (stickSystem.getCarrierId() === target.id) {
       const pressure =
-        defenseConfig.bodyCheckFumblePressure *
+        defenseConfig.truckFumblePressure *
         attacker.attributes.defense *
         roleMultiplier *
         attacker.defenseTendencies.fumblePressurePreference *
@@ -316,7 +348,7 @@ export class DefenseSystem {
       const shouldFumble = fumbleSystem.addPressure(
         pressure,
         attacker.role,
-        'bodyCheck',
+        'truck',
         stickSystem.getState(),
         target,
       )
@@ -326,12 +358,12 @@ export class DefenseSystem {
         stickSystem.forceFumble(core, players, target.id, direction)
       ) {
         fumbleSystem.clear()
-        this.addFumbleBurst(core.position)
+        this.addBurst(core.position, 'fumble')
       }
     }
   }
 
-  private applyStickSwipe(
+  private applySlash(
     attacker: Player,
     players: Player[],
     core: Core,
@@ -346,50 +378,66 @@ export class DefenseSystem {
     const direction = actionDirection(attacker, false)
     const precisionMultiplier =
       attacker.role === 'support'
-        ? defenseConfig.supportSwipePrecisionMultiplier
+        ? defenseConfig.supportSlashPrecisionMultiplier
         : 1
     const range =
-      defenseConfig.stickSwipeRange *
+      defenseConfig.slashRange *
       Phaser.Math.Linear(
         0.86,
         precisionMultiplier,
         attacker.attributes.accuracy,
       )
 
-    if (
-      !pointInSector(
+    const carrierId = stickSystem.getCarrierId()
+    const carrier = players.find((player) => player.id === carrierId)
+    const targetPoints =
+      carrier && carrier.teamSide !== attacker.teamSide
+        ? [
+            core.position,
+            carrier.getCradleSocket(),
+            ...carrier.getStickSamplePoints(),
+          ]
+        : carrier
+          ? []
+          : [core.position]
+    const hitPoint = targetPoints.find((point) =>
+      pointInSector(
         attacker.position,
-        core.position,
+        point,
         direction,
         range,
-        defenseConfig.stickSwipeArcRadians,
-      )
-    ) {
+        defenseConfig.slashArcRadians,
+      ),
+    )
+
+    if (!hitPoint) {
       return
     }
 
     runtime.connected = true
-    const carrierId = stickSystem.getCarrierId()
-    const carrier = players.find((player) => player.id === carrierId)
+    this.addBurst(hitPoint, 'slash')
 
     if (carrier && carrier.teamSide !== attacker.teamSide) {
       const roleMultiplier =
         attacker.role === 'support'
-          ? defenseConfig.supportSwipePrecisionMultiplier
+          ? defenseConfig.supportSlashPrecisionMultiplier
           : attacker.role === 'brute'
-            ? defenseConfig.bruteSwipePowerMultiplier
+            ? defenseConfig.bruteSlashPowerMultiplier
             : 1
       const pressure =
-        defenseConfig.stickSwipeFumblePressure *
+        defenseConfig.slashFumblePressure *
         attacker.attributes.defense *
         Phaser.Math.Linear(0.8, 1.15, attacker.attributes.accuracy) *
+        Phaser.Math.Linear(0.86, 1.12, attacker.attributes.control) *
         roleMultiplier *
+        stickSlashMultiplier(attacker) *
         attacker.defenseTendencies.fumblePressurePreference *
         stylePressureMultiplier(attacker)
+      this.recordTargetDebug(attacker, carrier, 'SLASH')
       const shouldFumble = fumbleSystem.addPressure(
         pressure,
         attacker.role,
-        'stickSwipe',
+        'slash',
         stickSystem.getState(),
         carrier,
       )
@@ -399,7 +447,7 @@ export class DefenseSystem {
         stickSystem.forceFumble(core, players, carrier.id, direction)
       ) {
         fumbleSystem.clear()
-        this.addFumbleBurst(core.position)
+        this.addBurst(core.position, 'fumble')
       }
       return
     }
@@ -407,12 +455,13 @@ export class DefenseSystem {
     if (!carrier) {
       const powerMultiplier =
         attacker.role === 'brute'
-          ? defenseConfig.bruteSwipePowerMultiplier
+          ? defenseConfig.bruteSlashPowerMultiplier
           : 1
       const impulse =
-        defenseConfig.stickSwipeFreeCoreImpulse *
+        defenseConfig.slashFreeCoreImpulse *
         attacker.attributes.power *
-        powerMultiplier
+        powerMultiplier *
+        stickSlashMultiplier(attacker)
 
       core.setVelocity({
         x: core.velocity.x + direction.x * impulse,
@@ -421,11 +470,25 @@ export class DefenseSystem {
     }
   }
 
-  private addFumbleBurst(position: Point): void {
+  private addBurst(
+    position: Point,
+    kind: Burst['kind'],
+  ): void {
     this.bursts.push({
       position: { ...position },
       remainingMs: 260,
+      kind,
     })
+  }
+
+  private recordTargetDebug(
+    attacker: Player,
+    target: Player,
+    action: DefenseTargetDebug['action'],
+  ): void {
+    if (attacker.id === this.focusPlayerId) {
+      this.lastTargetDebug = targetDebug(target, action)
+    }
   }
 
   private applyShoves(players: Player[], deltaMs: number): void {
@@ -472,22 +535,22 @@ export class DefenseSystem {
         continue
       }
 
-      if (runtime.state === 'CHECK_ACTIVE') {
+      if (runtime.state === 'TRUCK_ACTIVE') {
         this.drawActionArc(
           player,
           actionDirection(player, true),
-          defenseConfig.bodyCheckRange,
-          defenseConfig.bodyCheckArcRadians,
-          defenseConfig.debug.bodyCheckColor,
+          defenseConfig.truckRange,
+          defenseConfig.truckArcRadians,
+          defenseConfig.debug.truckColor,
           0.72,
         )
-      } else if (runtime.state === 'SWIPE_ACTIVE') {
+      } else if (runtime.state === 'SLASH_ACTIVE') {
         this.drawActionArc(
           player,
           actionDirection(player, false),
-          defenseConfig.stickSwipeRange,
-          defenseConfig.stickSwipeArcRadians,
-          defenseConfig.debug.stickSwipeColor,
+          defenseConfig.slashRange,
+          defenseConfig.slashArcRadians,
+          defenseConfig.debug.slashColor,
           0.76,
         )
       }
@@ -502,17 +565,17 @@ export class DefenseSystem {
         this.drawActionArc(
           focus,
           actionDirection(focus, true),
-          defenseConfig.bodyCheckRange,
-          defenseConfig.bodyCheckArcRadians,
-          defenseConfig.debug.bodyCheckColor,
+          defenseConfig.truckRange,
+          defenseConfig.truckArcRadians,
+          defenseConfig.debug.truckColor,
           defenseConfig.debug.rangeAlpha,
         )
         this.drawActionArc(
           focus,
           actionDirection(focus, false),
-          defenseConfig.stickSwipeRange,
-          defenseConfig.stickSwipeArcRadians,
-          defenseConfig.debug.stickSwipeColor,
+          defenseConfig.slashRange,
+          defenseConfig.slashArcRadians,
+          defenseConfig.debug.slashColor,
           defenseConfig.debug.rangeAlpha,
         )
       }
@@ -520,9 +583,15 @@ export class DefenseSystem {
 
     for (const burst of this.bursts) {
       const progress = 1 - burst.remainingMs / 260
+      const color =
+        burst.kind === 'fumble'
+          ? defenseConfig.debug.fumbleColor
+          : burst.kind === 'slash'
+            ? defenseConfig.debug.slashColor
+            : defenseConfig.debug.contactColor
       this.graphics.lineStyle(
         4,
-        defenseConfig.debug.fumbleColor,
+        color,
         1 - progress,
       )
       this.graphics.strokeCircle(
@@ -578,23 +647,27 @@ function stateDuration(
   )
 
   switch (state) {
-    case 'CHECK_STARTUP':
-      return defenseConfig.bodyCheckStartupMs
-    case 'CHECK_ACTIVE':
-      return defenseConfig.bodyCheckActiveMs
-    case 'CHECK_RECOVERY':
+    case 'TRUCK_STARTUP':
+      return defenseConfig.truckStartupMs
+    case 'TRUCK_ACTIVE':
+      return defenseConfig.truckActiveMs
+    case 'TRUCK_RECOVERY':
       return (
-        defenseConfig.bodyCheckRecoveryMs *
-        controlRecoveryMultiplier *
+        defenseConfig.truckRecoveryMs *
+        Phaser.Math.Linear(
+          1.15,
+          0.75,
+          normalizedAttribute(player.attributes.toughness),
+        ) *
         (player.role === 'brute' ? 1.12 : 1)
       )
-    case 'SWIPE_STARTUP':
-      return defenseConfig.stickSwipeStartupMs
-    case 'SWIPE_ACTIVE':
-      return defenseConfig.stickSwipeActiveMs
-    case 'SWIPE_RECOVERY':
+    case 'SLASH_STARTUP':
+      return defenseConfig.slashStartupMs
+    case 'SLASH_ACTIVE':
+      return defenseConfig.slashActiveMs
+    case 'SLASH_RECOVERY':
       return (
-        defenseConfig.stickSwipeRecoveryMs *
+        defenseConfig.slashRecoveryMs *
         controlRecoveryMultiplier
       )
     default:
@@ -606,17 +679,17 @@ function nextDefenseState(
   state: DefensiveActionState,
 ): DefensiveActionState {
   switch (state) {
-    case 'CHECK_STARTUP':
-      return 'CHECK_ACTIVE'
-    case 'CHECK_ACTIVE':
-      return 'CHECK_RECOVERY'
-    case 'CHECK_RECOVERY':
+    case 'TRUCK_STARTUP':
+      return 'TRUCK_ACTIVE'
+    case 'TRUCK_ACTIVE':
+      return 'TRUCK_RECOVERY'
+    case 'TRUCK_RECOVERY':
       return 'IDLE'
-    case 'SWIPE_STARTUP':
-      return 'SWIPE_ACTIVE'
-    case 'SWIPE_ACTIVE':
-      return 'SWIPE_RECOVERY'
-    case 'SWIPE_RECOVERY':
+    case 'SLASH_STARTUP':
+      return 'SLASH_ACTIVE'
+    case 'SLASH_ACTIVE':
+      return 'SLASH_RECOVERY'
+    case 'SLASH_RECOVERY':
       return 'IDLE'
     default:
       return 'IDLE'
@@ -697,10 +770,41 @@ function distance(a: Point, b: Point): number {
 
 function recoveryMovementMultiplier(player: Player): number {
   return Phaser.Math.Linear(
-    defenseConfig.bodyCheckMissRecoveryPenalty,
+    defenseConfig.truckMissRecoveryMovement,
     0.94,
     player.attributes.control,
   )
+}
+
+function targetDebug(
+  player: Player,
+  action: DefenseTargetDebug['action'],
+): DefenseTargetDebug {
+  return {
+    playerId: player.id,
+    action,
+    toughness: player.attributes.toughness,
+    ballHandling: player.attributes.ballHandling,
+  }
+}
+
+function normalizedAttribute(value: number): number {
+  return Phaser.Math.Clamp(value, 0, 1)
+}
+
+function stickSlashMultiplier(player: Player): number {
+  switch (player.stickStyle) {
+    case 'whip':
+      return 1.12
+    case 'fork':
+      return 1.1
+    case 'hook':
+      return 1.08
+    case 'cradle':
+      return 1.05
+    default:
+      return 1
+  }
 }
 
 function stylePressureMultiplier(player: Player): number {

@@ -12,12 +12,17 @@ import type {
   PlayerRole,
   ResolvedPlayerRosterEntry,
   StickActionState,
+  StickStyle,
   TeamSide,
 } from '../data/matchTypes'
 import type { PlayerArchetype } from '../data/matchTypes'
 import { createPlayerVisualProfile } from '../data/playerVisualProfiles'
 import type { DefensiveVisualState } from '../rendering/AnimationState'
 import { PlayerVisual } from '../rendering/PlayerVisual'
+import {
+  getHandednessFrame,
+  type HandednessSign,
+} from '../rules/Handedness'
 
 export type StickCurve = {
   root: Point
@@ -42,6 +47,7 @@ export class Player {
   readonly controllerType: PlayerControllerType
   readonly handedness: PlayerHandedness
   readonly playStyle: PlayerPlayStyle
+  readonly stickStyle: StickStyle
   readonly attributes: PlayerAttributes
   readonly defenseTendencies: PlayerDefenseTendencies
   readonly body: MatterJS.BodyType
@@ -69,6 +75,7 @@ export class Player {
     this.controllerType = rosterEntry.controllerType
     this.handedness = rosterEntry.handedness
     this.playStyle = rosterEntry.playStyle
+    this.stickStyle = rosterEntry.stickStyle
     this.attributes = archetype.attributes
     this.defenseTendencies = defenseTendencies
     this.spawn = { ...rosterEntry.spawn }
@@ -222,20 +229,53 @@ export class Player {
     }
   }
 
-  getHandednessMirror(): number {
+  getHandednessMountSign(): HandednessSign {
+    return getHandednessFrame(this.handedness).mountSign
+  }
+
+  getPocketFacingSign(): HandednessSign {
+    return getHandednessFrame(this.handedness).pocketFacingSign
+  }
+
+  getVisualMirrorSign(): HandednessSign {
+    return getHandednessFrame(this.handedness).visualMirrorSign
+  }
+
+  getCradleSocketSign(): HandednessSign {
+    return getHandednessFrame(this.handedness).cradleSocketSign
+  }
+
+  getHandednessMountScale(): number {
     return (
-      (this.handedness === 'left' ? -1 : 1) *
+      this.getHandednessMountSign() *
+      stickConfig.handednessMirrorMultiplier
+    )
+  }
+
+  getPocketFacingScale(): number {
+    return (
+      this.getPocketFacingSign() *
       stickConfig.handednessMirrorMultiplier
     )
   }
 
   getCradleSideDirection(): Point {
     const right = this.getStickRight()
-    const mirror = this.getHandednessMirror()
+    const pocketFacingSign = this.getPocketFacingSign()
 
     return {
-      x: right.x * mirror,
-      y: right.y * mirror,
+      x: right.x * pocketFacingSign,
+      y: right.y * pocketFacingSign,
+    }
+  }
+
+  getHandednessMountDirection(): Point {
+    const right = this.getStickRight()
+    const mountSign = this.getHandednessMountSign()
+
+    return {
+      x: right.x * mountSign,
+      y: right.y * mountSign,
     }
   }
 
@@ -247,12 +287,14 @@ export class Player {
     const tipDistance = playerRuntimeConfig.radius + stickConfig.visual.length
     const controlDistance =
       playerRuntimeConfig.radius + stickConfig.visual.length * 0.5
-    const mirror = this.getHandednessMirror()
+    const pocketFacingScale = this.getPocketFacingScale()
+    const configuredOffset =
+      this.handedness === 'right'
+        ? stickConfig.rightHandedStickOffset
+        : stickConfig.leftHandedStickOffset
     const sideOffset =
-      this.handedness === 'left'
-        ? stickConfig.leftHandedStickOffset
-        : stickConfig.rightHandedStickOffset
-    const curveOffset = stickConfig.visual.curve * mirror
+      this.getPocketFacingSign() * Math.abs(configuredOffset)
+    const curveOffset = stickConfig.visual.curve * pocketFacingScale
 
     return {
       root: {
@@ -309,12 +351,12 @@ export class Player {
       x: stickConfig.cradleSocketOffset.forward,
       y:
         stickConfig.cradleSocketOffset.side *
-        this.getHandednessMirror(),
+        this.getHandednessMountScale(),
     })
   }
 
   getCradleZone(): CradleZone {
-    const mirror = this.getHandednessMirror()
+    const pocketFacingSign = this.getPocketFacingSign()
     const minimum = Phaser.Math.DegToRad(stickConfig.cradleMinAngle)
     const maximum = Phaser.Math.DegToRad(stickConfig.cradleMaxAngle)
 
@@ -322,10 +364,25 @@ export class Player {
       center: this.position,
       minRadius: stickConfig.cradleMinRadius,
       maxRadius: stickConfig.cradleMaxRadius,
-      minAngle: mirror > 0 ? minimum : -maximum,
-      maxAngle: mirror > 0 ? maximum : -minimum,
+      minAngle: pocketFacingSign > 0 ? minimum : -maximum,
+      maxAngle: pocketFacingSign > 0 ? maximum : -minimum,
       aimAngle: this.stickVisualRotation,
     }
+  }
+
+  getVisualStickMountPoint(): Point {
+    const configuredOffset =
+      this.handedness === 'right'
+        ? stickConfig.rightHandedStickOffset
+        : stickConfig.leftHandedStickOffset
+
+    return this.stickLocalToWorld({
+      x: playerRuntimeConfig.radius - stickConfig.visual.rootOffset,
+      y:
+        this.getHandednessMountSign() *
+        Math.abs(configuredOffset) *
+        stickConfig.handednessMirrorMultiplier,
+    })
   }
 
   worldToStickLocal(point: Point): Point {
@@ -357,9 +414,13 @@ export class Player {
       position: this.position,
       velocity: this.velocity,
       facingRotation: this.releaseAimAngle,
-      stickCurve: this.getStickCurve(),
+      stickMountPoint: this.getVisualStickMountPoint(),
       stickForward: this.getStickForward(),
       stickSide: this.getCradleSideDirection(),
+      handednessMountSign: this.getHandednessMountSign(),
+      pocketFacingSign: this.getPocketFacingSign(),
+      visualMirrorSign: this.getVisualMirrorSign(),
+      cradleSocketSign: this.getCradleSocketSign(),
       cradleSocket: this.getCradleSocket(),
       stickState: this.stickState,
       defenseState: this.defenseVisualState,

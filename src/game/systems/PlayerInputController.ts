@@ -11,8 +11,8 @@ export type PlayerInputState = {
   primaryStickAction: boolean
   primaryStickActionStarted: boolean
   releasePrimaryStickAction: boolean
-  bodyCheckAction: boolean
-  explicitStickSwipeAction: boolean
+  truckAction: boolean
+  explicitSlashAction: boolean
 }
 
 export type InputDebugVectors = {
@@ -42,8 +42,8 @@ export class PlayerInputController {
   private keys: MovementKeys
   private debugKey: Phaser.Input.Keyboard.Key
   private modeKey: Phaser.Input.Keyboard.Key
-  private bodyCheckKeys: Phaser.Input.Keyboard.Key[]
-  private stickSwipeKey: Phaser.Input.Keyboard.Key
+  private truckKeys: Phaser.Input.Keyboard.Key[]
+  private slashKey: Phaser.Input.Keyboard.Key
   private mode: InputMode
   private movement = new Phaser.Math.Vector2()
   private debugVectors: InputDebugVectors = {
@@ -56,14 +56,14 @@ export class PlayerInputController {
   private joystickBase: HTMLDivElement
   private joystickKnob: HTMLDivElement
   private aimIndicator: HTMLDivElement
-  private bodyCheckButton: HTMLButtonElement
+  private truckButton: HTMLButtonElement
   private actionHint: HTMLDivElement
-  private touchBodyCheckQueued = false
+  private touchTruckQueued = false
   private previousPrimaryAction = false
   private rightMouseWasDown = false
   private gameplayEnabled = true
   private carrying = false
-  private bodyCheckActionEnabled = true
+  private truckActionEnabled = true
   private defaultJoystickCenter: Point = { x: 0, y: 0 }
   private defaultAimCenter: Point = { x: 0, y: 0 }
 
@@ -88,11 +88,11 @@ export class PlayerInputController {
     }
     this.debugKey = this.keys.right
     this.modeKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.L)
-    this.bodyCheckKeys = [
+    this.truckKeys = [
       keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE),
       keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT),
     ]
-    this.stickSwipeKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E)
+    this.slashKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E)
     this.touchRoot = document.createElement('div')
     this.touchRoot.className = 'touch-controls'
     this.joystickBase = document.createElement('div')
@@ -101,9 +101,9 @@ export class PlayerInputController {
     this.joystickKnob.className = 'virtual-joystick-knob'
     this.aimIndicator = document.createElement('div')
     this.aimIndicator.className = 'touch-aim-indicator'
-    this.bodyCheckButton = this.createTouchActionButton(
+    this.truckButton = this.createTouchActionButton(
       'TRUCK',
-      'touch-body-check-button',
+      'touch-truck-button',
     )
     this.actionHint = document.createElement('div')
     this.actionHint.className = 'touch-action-hint'
@@ -131,7 +131,7 @@ export class PlayerInputController {
     this.touchRoot.append(
       this.joystickBase,
       this.aimIndicator,
-      this.bodyCheckButton,
+      this.truckButton,
       this.actionHint,
     )
     hudRoot.appendChild(this.touchRoot)
@@ -173,15 +173,15 @@ export class PlayerInputController {
       primaryStickAction && !this.previousPrimaryAction
     const releasePrimaryStickAction =
       !primaryStickAction && this.previousPrimaryAction
-    const bodyCheckAction =
+    const truckAction =
       this.mode === 'touch'
-        ? this.consumeTouchBodyCheck()
-        : this.bodyCheckKeys.some((key) =>
+        ? this.consumeTouchTruck()
+        : this.truckKeys.some((key) =>
             Phaser.Input.Keyboard.JustDown(key),
           )
-    const explicitStickSwipeAction =
+    const explicitSlashAction =
       this.mode === 'keyboardMouse' &&
-      (Phaser.Input.Keyboard.JustDown(this.stickSwipeKey) ||
+      (Phaser.Input.Keyboard.JustDown(this.slashKey) ||
         (rightMouseDown && !this.rightMouseWasDown))
 
     this.rightMouseWasDown = rightMouseDown
@@ -213,12 +213,12 @@ export class PlayerInputController {
         this.gameplayEnabled && primaryStickActionStarted,
       releasePrimaryStickAction:
         this.gameplayEnabled && releasePrimaryStickAction,
-      bodyCheckAction:
-        this.gameplayEnabled && !this.carrying && bodyCheckAction,
-      explicitStickSwipeAction:
+      truckAction:
+        this.gameplayEnabled && !this.carrying && truckAction,
+      explicitSlashAction:
         this.gameplayEnabled &&
         !this.carrying &&
-        explicitStickSwipeAction,
+        explicitSlashAction,
     }
   }
 
@@ -236,23 +236,23 @@ export class PlayerInputController {
   setGameplayContext(
     carrying: boolean,
     enabled: boolean,
-    bodyCheckEnabled = true,
+    truckEnabled = true,
   ): void {
     this.carrying = carrying
     this.gameplayEnabled = enabled
-    this.bodyCheckActionEnabled = bodyCheckEnabled
-    this.bodyCheckButton.disabled =
+    this.truckActionEnabled = truckEnabled
+    this.truckButton.disabled =
       carrying ||
       !enabled ||
-      !this.bodyCheckActionEnabled ||
+      !this.truckActionEnabled ||
       !this.isTouchControlVisible()
-    this.bodyCheckButton.hidden =
-      carrying || !this.bodyCheckActionEnabled
+    this.truckButton.hidden =
+      carrying || !this.truckActionEnabled
     this.actionHint.textContent = !enabled
       ? 'WAIT'
       : carrying
         ? 'AIM / RELEASE'
-        : 'SWIPE / POKE'
+        : 'SLASH'
     this.actionHint.classList.toggle('is-carrying', carrying)
     this.actionHint.classList.toggle('is-disabled', !enabled)
   }
@@ -269,7 +269,7 @@ export class PlayerInputController {
     this.movement.set(0, 0)
     this.leftTouch = null
     this.rightTouch = null
-    this.touchBodyCheckQueued = false
+    this.touchTruckQueued = false
     this.previousPrimaryAction = false
     this.rightMouseWasDown = false
     this.debugVectors = {
@@ -303,9 +303,9 @@ export class PlayerInputController {
         bottomSafeArea -
         touch.joystickRadius,
     }
-    this.bodyCheckButton.style.right =
+    this.truckButton.style.right =
       `calc(${touch.safePadding}px + env(safe-area-inset-right, 0px))`
-    this.bodyCheckButton.style.bottom =
+    this.truckButton.style.bottom =
       `calc(${bottomSafeArea + touch.safePadding + touch.joystickRadius * 2 + 18}px)`
     this.actionHint.style.right =
       `calc(${touch.safePadding}px + env(safe-area-inset-right, 0px))`
@@ -323,9 +323,9 @@ export class PlayerInputController {
       'contextmenu',
       this.preventContextMenu,
     )
-    this.bodyCheckButton.removeEventListener(
+    this.truckButton.removeEventListener(
       'pointerdown',
-      this.handleBodyCheckPointer,
+      this.handleTruckPointer,
     )
     this.touchRoot.remove()
   }
@@ -551,13 +551,13 @@ export class PlayerInputController {
     const aimCenter = this.rightTouch?.current ?? this.defaultAimCenter
 
     this.touchRoot.hidden = !shouldShow
-    this.bodyCheckButton.disabled =
+    this.truckButton.disabled =
       this.carrying ||
       !this.gameplayEnabled ||
-      !this.bodyCheckActionEnabled ||
+      !this.truckActionEnabled ||
       !shouldShow
-    this.bodyCheckButton.hidden =
-      this.carrying || !this.bodyCheckActionEnabled
+    this.truckButton.hidden =
+      this.carrying || !this.truckActionEnabled
     positionElement(this.joystickBase, baseCenter)
     positionElement(this.joystickKnob, knobOffset)
     positionElement(this.aimIndicator, aimCenter)
@@ -573,21 +573,21 @@ export class PlayerInputController {
     button.className = `touch-action-button ${className}`
     button.textContent = label
 
-    button.addEventListener('pointerdown', this.handleBodyCheckPointer)
+    button.addEventListener('pointerdown', this.handleTruckPointer)
 
     return button
   }
 
-  private handleBodyCheckPointer = (event: PointerEvent): void => {
+  private handleTruckPointer = (event: PointerEvent): void => {
     event.preventDefault()
     event.stopPropagation()
     this.setMode('touch')
-    this.touchBodyCheckQueued = true
+    this.touchTruckQueued = true
   }
 
-  private consumeTouchBodyCheck(): boolean {
-    const queued = this.touchBodyCheckQueued
-    this.touchBodyCheckQueued = false
+  private consumeTouchTruck(): boolean {
+    const queued = this.touchTruckQueued
+    this.touchTruckQueued = false
     return queued
   }
 

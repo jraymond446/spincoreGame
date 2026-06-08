@@ -189,7 +189,9 @@ function decideSupport(context: AIDecisionContext): PlayerControlIntent {
       y: attackGoal.y - context.teammateCarrier.position.y,
     })
     const lateral = { x: -attackDirection.y, y: attackDirection.x }
-    const handedSide = player.getHandednessMirror()
+    // Preserve the existing tactical lane preference. This is independent of
+    // the corrected cesta artwork/socket handedness convention.
+    const handedSide = -player.getPocketFacingSign()
     const supportTarget = {
       x:
         context.teammateCarrier.position.x +
@@ -416,7 +418,7 @@ function applyHandednessAim(player: Player, target: Point): Point {
   const rotated = rotate(
     normalized(direction),
     stickConfig.handednessNaturalAimRadians *
-      player.getHandednessMirror(),
+      player.getPocketFacingSign(),
   )
   const length = Math.hypot(direction.x, direction.y)
 

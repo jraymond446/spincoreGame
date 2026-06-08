@@ -6,6 +6,7 @@ import {
   teamVisualPalettes,
 } from '../data/visualPalettes'
 import type { TeamSide } from '../data/matchTypes'
+import { visualStyleConfig } from '../config/visualStyleConfig'
 
 export class BenchRenderer {
   private readonly graphics: Phaser.GameObjects.Graphics
@@ -59,11 +60,19 @@ export class BenchRenderer {
       courtEdge +
       direction *
         (arenaPresentationConfig.bench.courtGap + width / 2)
-    const benchY = arenaConfig.height * 0.55
+    const benchY = arenaConfig.center.y + arenaConfig.height * 0.075
     const count = arenaPresentationConfig.benchHeadCount
 
+    this.graphics.fillStyle(visualStyleConfig.venue.shadow, 0.18)
+    this.graphics.fillRoundedRect(
+      benchX - width / 2 + 5,
+      benchY - height / 2 + 7,
+      width,
+      height,
+      9,
+    )
     this.graphics.fillStyle(
-      arenaPresentationConfig.venue.concourseColor,
+      visualStyleConfig.venue.stand,
       arenaPresentationConfig.bench.areaAlpha,
     )
     this.graphics.fillRoundedRect(
@@ -71,22 +80,37 @@ export class BenchRenderer {
       benchY - height / 2,
       width,
       height,
-      8,
+      9,
     )
-    this.graphics.lineStyle(4, palette.shirt, 0.6)
+    this.graphics.lineStyle(3, visualStyleConfig.outline, 0.72)
     this.graphics.strokeRoundedRect(
       benchX - width / 2,
       benchY - height / 2,
       width,
       height,
-      8,
+      9,
     )
-    this.graphics.lineStyle(5, arenaPresentationConfig.venue.railColor, 0.42)
+    this.graphics.fillStyle(palette.shirt, 0.9)
+    this.graphics.fillRect(
+      benchX - width / 2 + 4,
+      benchY - height / 2 + 4,
+      width - 8,
+      10,
+    )
+    this.graphics.fillStyle(palette.shirtShade, 0.2)
+    this.graphics.fillRoundedRect(
+      benchX - width * 0.39,
+      benchY + height * 0.04,
+      width * 0.78,
+      height * 0.28,
+      5,
+    )
+    this.graphics.lineStyle(6, visualStyleConfig.outlineSoft, 0.78)
     this.graphics.lineBetween(
       benchX - width * 0.37,
-      benchY + height * 0.14,
+      benchY + height * 0.24,
       benchX + width * 0.37,
-      benchY + height * 0.14,
+      benchY + height * 0.24,
     )
 
     for (let index = 0; index < count; index += 1) {
@@ -97,25 +121,25 @@ export class BenchRenderer {
       )
       this.drawFigure(
         x,
-        benchY - height * 0.05,
+        benchY - height * 0.04,
         palette.shirt,
         hairColorPalette[index % hairColorPalette.length],
-        0.72,
+        0.86,
       )
     }
 
-    const coachX = courtEdge + direction * 46
+    const coachX = courtEdge + direction * 43
     this.drawFigure(
       coachX,
-      benchY + height * 0.23,
+      benchY + height * 0.34,
       palette.trim,
       hairColorPalette[(side === 'A' ? 4 : 1) % hairColorPalette.length],
-      0.9,
+      1,
     )
 
     const label = this.labels[side === 'A' ? 0 : 1]
     label
-      .setPosition(benchX, benchY - height / 2 - 17)
+      .setPosition(benchX, benchY - height / 2 - 15)
       .setColor(side === 'A' ? '#9eeeff' : '#ffb5aa')
   }
 
@@ -123,16 +147,16 @@ export class BenchRenderer {
     const x = arenaConfig.center.x
     const y = arenaConfig.center.y + arenaConfig.height / 2 + 82
 
-    this.graphics.fillStyle(0x1a5262, 0.68)
+    this.graphics.fillStyle(visualStyleConfig.venue.stand, 0.96)
     this.graphics.fillRoundedRect(x - 54, y - 20, 108, 40, 6)
-    this.graphics.lineStyle(2, 0xb7d9dc, 0.42)
+    this.graphics.lineStyle(3, visualStyleConfig.outline, 0.68)
     this.graphics.strokeRoundedRect(x - 54, y - 20, 108, 40, 6)
-    this.graphics.fillStyle(0xf4f0d6, 0.78)
+    this.graphics.fillStyle(0xf2c84b, 0.9)
     this.graphics.fillRect(x - 27, y - 8, 24, 13)
-    this.graphics.fillStyle(0xf2c96b, 0.78)
+    this.graphics.fillStyle(0x1a9aa3, 0.9)
     this.graphics.fillCircle(x + 24, y - 1, 5)
     this.drawFigure(x, y - 29, 0xb8d8db, hairColorPalette[0], 0.68)
-    this.labels[2].setPosition(x, y + 31).setColor('#b8d8db')
+    this.labels[2].setPosition(x, y + 31).setColor('#16324f')
   }
 
   private drawFigure(
@@ -144,8 +168,9 @@ export class BenchRenderer {
   ): void {
     const alpha = arenaPresentationConfig.bench.figureAlpha
 
-    this.graphics.fillStyle(0x06151b, 0.2)
+    this.graphics.fillStyle(visualStyleConfig.venue.shadow, 0.18)
     this.graphics.fillEllipse(x, y + 7 * scale, 19 * scale, 7 * scale)
+    this.graphics.lineStyle(1.5, visualStyleConfig.outline, 0.66)
     this.graphics.fillStyle(shirtColor, alpha)
     this.graphics.fillRoundedRect(
       x - 7 * scale,
@@ -154,10 +179,19 @@ export class BenchRenderer {
       11 * scale,
       5 * scale,
     )
+    this.graphics.strokeRoundedRect(
+      x - 7 * scale,
+      y,
+      14 * scale,
+      11 * scale,
+      5 * scale,
+    )
     this.graphics.fillStyle(0xe4ad83, alpha)
     this.graphics.fillCircle(x, y - 5 * scale, 6.5 * scale)
+    this.graphics.lineStyle(1.5, visualStyleConfig.outline, 0.68)
+    this.graphics.strokeCircle(x, y - 5 * scale, 6.5 * scale)
     this.graphics.fillStyle(hairColor, alpha)
-    this.graphics.fillCircle(x, y - 7 * scale, 6 * scale)
+    this.graphics.fillEllipse(x, y - 7.5 * scale, 12 * scale, 8 * scale)
   }
 }
 
@@ -170,7 +204,7 @@ function createLabel(
       fontFamily: 'Arial, sans-serif',
       fontSize: '14px',
       fontStyle: 'bold',
-      color: '#d9f5f7',
+      color: '#16324f',
     })
     .setOrigin(0.5)
     .setAlpha(arenaPresentationConfig.bench.labelAlpha)

@@ -1,4 +1,5 @@
 import { arenaConfig } from './arenaConfig'
+import { visualStyleConfig } from './visualStyleConfig'
 
 export type GoalGateConfig = {
   id: string
@@ -22,22 +23,22 @@ export const goalConfig = {
 const sharedGoalConfig = {
   orientation: 'horizontal',
   x: arenaConfig.center.x,
-  length: 150,
-  planeColor: 0xe8fbff,
-  postColor: 0xffca62,
+  length: 125,
+  planeColor: visualStyleConfig.goal.energy,
+  postColor: visualStyleConfig.goal.metal,
   flashColor: 0xffffff,
 } as const
 
 export const topGoalConfig: GoalGateConfig = {
   ...sharedGoalConfig,
   id: 'top-goal',
-  y: arenaConfig.center.y - arenaConfig.height / 2 + 330,
+  y: arenaConfig.center.y - arenaConfig.height / 2 + 300,
 }
 
 export const bottomGoalConfig: GoalGateConfig = {
   ...sharedGoalConfig,
   id: 'bottom-goal',
-  y: arenaConfig.center.y + arenaConfig.height / 2 - 330,
+  y: arenaConfig.center.y + arenaConfig.height / 2 - 300,
 }
 
 export const goalConfigs = [topGoalConfig, bottomGoalConfig] as const

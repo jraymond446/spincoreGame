@@ -1,6 +1,5 @@
 import Phaser from 'phaser'
 import type { StickActionState, StickStyle } from '../data/matchTypes'
-import type { StickCurve } from '../entities/Player'
 import type { PlayerAnimationPose } from './AnimationState'
 import { CestaBatVisual } from './CestaBatVisual'
 
@@ -14,18 +13,20 @@ export class StickVisual {
   }
 
   update(
-    curve: StickCurve,
+    mountPoint: Point,
     forward: Point,
     stickSide: Point,
+    visualMirrorSign: -1 | 1,
     cradleSocket: Point,
     state: StickActionState,
     pose: PlayerAnimationPose,
     now: number,
   ): void {
     this.cestaBat.update({
-      root: curve.root,
+      root: mountPoint,
       forward,
       cradleSide: stickSide,
+      visualMirrorSign,
       cradleSocket,
       state,
       pose,

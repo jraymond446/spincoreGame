@@ -33,6 +33,7 @@ type RangeOptions = {
 export class LabPanel {
   private readonly root: HTMLDivElement
   private readonly actions: LabPanelActions
+  private toggle: HTMLButtonElement | null = null
   private draft: LabTuningState
   private open = false
   private desktop = false
@@ -51,6 +52,7 @@ export class LabPanel {
   destroy(): void {
     window.removeEventListener('resize', this.handleResize)
     window.removeEventListener(labEvents.stateChanged, this.handleStateChanged)
+    this.toggle?.remove()
   }
 
   private handleResize = (): void => {
@@ -77,14 +79,22 @@ export class LabPanel {
     this.root.className =
       `lab-console-root ${this.open ? 'is-open' : ''} ` +
       `${this.desktop ? 'is-desktop' : 'is-drawer'}`
+    this.toggle?.remove()
     this.root.replaceChildren()
 
     const toggle = this.button('LAB', 'lab-console-toggle', () => {
       this.open = !this.open
       this.render()
     })
+    this.toggle = toggle
     toggle.setAttribute('aria-expanded', String(this.open))
-    this.root.appendChild(toggle)
+    toggle.hidden = this.open
+
+    if (this.desktop) {
+      this.root.appendChild(toggle)
+    } else {
+      document.body.appendChild(toggle)
+    }
 
     const panel = document.createElement('aside')
     panel.className = 'lab-console'
@@ -119,6 +129,7 @@ export class LabPanel {
       this.createTeamSection('A'),
       this.createTeamSection('B'),
       this.createFieldSection(),
+      this.createKeeperSection(),
       this.createStickSection(),
       this.createDefenseSection(),
       this.createMatchFlowSection(),
@@ -320,20 +331,20 @@ export class LabPanel {
     defenseTendencies.className = 'lab-attribute-grid'
     defenseTendencies.append(
       this.createRange(
-        'Check aggression',
-        player.defenseTendencies.bodyCheckAggression,
+        'Truck aggression',
+        player.defenseTendencies.truckAggression,
         { min: 0, max: 1.4, step: 0.05, digits: 2 },
         (value) => {
-          player.defenseTendencies.bodyCheckAggression = value
+          player.defenseTendencies.truckAggression = value
           this.markDraftChanged()
         },
       ),
       this.createRange(
-        'Poke aggression',
-        player.defenseTendencies.stickSwipeAggression,
+        'Slash aggression',
+        player.defenseTendencies.slashAggression,
         { min: 0, max: 1.4, step: 0.05, digits: 2 },
         (value) => {
-          player.defenseTendencies.stickSwipeAggression = value
+          player.defenseTendencies.slashAggression = value
           this.markDraftChanged()
         },
       ),
@@ -440,7 +451,7 @@ export class LabPanel {
       this.createRange(
         'Goal width',
         field.goalWidth,
-        { min: 150, max: 330, step: 5 },
+        { min: 90, max: 260, step: 5 },
         (value) => {
           field.goalWidth = value
           this.markDraftChanged()
@@ -476,9 +487,18 @@ export class LabPanel {
       this.createRange(
         'Keeper zone radius',
         field.keeperZoneRadius,
-        { min: 90, max: 230, step: 2 },
+        { min: 100, max: 210, step: 1 },
         (value) => {
           field.keeperZoneRadius = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Inner no-body radius',
+        field.innerNoBodyRadius,
+        { min: 20, max: 72, step: 1 },
+        (value) => {
+          field.innerNoBodyRadius = value
           this.markDraftChanged()
         },
       ),
@@ -514,6 +534,88 @@ export class LabPanel {
     return this.createSection('Field / Object Tuning', content)
   }
 
+  private createKeeperSection(): HTMLElement {
+    const keeper = this.draft.keeper
+    const content = document.createElement('div')
+    content.className = 'lab-range-list'
+    content.append(
+      this.createSelect(
+        'Keeper control mode',
+        keeper.keeperControlMode,
+        labOptions.keeperControlModes,
+        (value) => {
+          keeper.keeperControlMode =
+            value as LabTuningState['keeper']['keeperControlMode']
+          this.markDraftChanged()
+        },
+      ),
+      this.createCheckbox(
+        'Human bias enabled',
+        keeper.keeperHumanBiasEnabled,
+        (value) => {
+          keeper.keeperHumanBiasEnabled = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createCheckbox(
+        'Auto-switch enabled',
+        keeper.keeperAutoSwitchEnabled,
+        (value) => {
+          keeper.keeperAutoSwitchEnabled = value
+          this.markDraftChanged()
+        },
+      ),
+    )
+    const modeDescription = document.createElement('p')
+    modeDescription.className = 'lab-empty'
+    modeDescription.textContent =
+      'AI only keeps full keeper automation. Bias assist shades the AI from human movement. Auto switch takes control during direct threats. Manual when selected enables explicit keeper control.'
+    content.appendChild(modeDescription)
+
+    const controls: Array<
+      [
+        string,
+        Exclude<
+          keyof LabTuningState['keeper'],
+          | 'keeperControlMode'
+          | 'keeperHumanBiasEnabled'
+          | 'keeperAutoSwitchEnabled'
+        >,
+        RangeOptions,
+      ]
+    > = [
+      ['Tight target ratio', 'keeperTightTargetRadiusRatio', { min: 0, max: 1, step: 0.05, digits: 2 }],
+      ['Balanced target ratio', 'keeperBalancedTargetRadiusRatio', { min: 0, max: 1, step: 0.05, digits: 2 }],
+      ['Sweeper target ratio', 'keeperSweeperTargetRadiusRatio', { min: 0, max: 1, step: 0.05, digits: 2 }],
+      ['Reaction multiplier', 'keeperReactionMultiplier', { min: 0.5, max: 2.2, step: 0.05, digits: 2 }],
+      ['Threat lookahead ms', 'keeperThreatLookaheadMs', { min: 0, max: 700, step: 10 }],
+      ['Return home speed', 'keeperReturnHomeSpeed', { min: 0.2, max: 1.4, step: 0.05, digits: 2 }],
+      ['Clear aggression', 'keeperClearAggression', { min: 0, max: 1.5, step: 0.05, digits: 2 }],
+      ['Deflect aggression', 'keeperDeflectAggression', { min: 0, max: 1.5, step: 0.05, digits: 2 }],
+      ['Orbit smoothing', 'keeperOrbitSmoothing', { min: 0.5, max: 8, step: 0.1, digits: 1 }],
+      ['Max lateral speed', 'keeperMaxLateralSpeed', { min: 2, max: 9, step: 0.1, digits: 1 }],
+      ['Human bias strength', 'keeperHumanBiasStrength', { min: 0, max: 1, step: 0.05, digits: 2 }],
+      ['Human lateral bias', 'keeperHumanLateralBiasStrength', { min: 0, max: 1, step: 0.05, digits: 2 }],
+      ['Human depth bias', 'keeperHumanDepthBiasStrength', { min: 0, max: 1, step: 0.05, digits: 2 }],
+      ['Human bias max offset', 'keeperHumanBiasMaxOffset', { min: 0, max: 70, step: 1 }],
+      ['Human bias decay', 'keeperHumanBiasDecay', { min: 1, max: 16, step: 0.5, digits: 1 }],
+      ['Auto-switch threat radius', 'keeperAutoSwitchThreatRadius', { min: 100, max: 360, step: 5 }],
+      ['Auto-switch delay ms', 'keeperAutoSwitchDelayMs', { min: 0, max: 600, step: 10 }],
+      ['Manual override ms', 'keeperManualOverrideDurationMs', { min: 100, max: 2200, step: 50 }],
+    ]
+
+    for (const [label, key, options] of controls) {
+      content.appendChild(
+        this.createRange(label, keeper[key], options, (value) => {
+          keeper[key] = value
+          this.markDraftChanged()
+        }),
+      )
+    }
+
+    return this.createSection('Keeper Geometry / Control', content)
+  }
+
   private createStickSection(): HTMLElement {
     const stick = this.draft.stick
     const content = document.createElement('div')
@@ -541,11 +643,16 @@ export class LabPanel {
       ['Release force max', 'releaseForceMax', { min: 8, max: 28, step: 0.2, digits: 1 }],
       ['Charge force exponent', 'chargeForceExponent', { min: 0.4, max: 3.5, step: 0.05, digits: 2 }],
       ['Overcharge accuracy penalty', 'overchargeAccuracyPenalty', { min: 0, max: 0.6, step: 0.01, digits: 2 }],
+      ['Charge load-back min', 'chargeLoadbackMinRadians', { min: 0, max: 0.8, step: 0.02, digits: 2 }],
+      ['Charge load-back max', 'chargeLoadbackMaxRadians', { min: 0.1, max: 1.2, step: 0.02, digits: 2 }],
+      ['Charge load-back smoothing', 'chargeLoadbackSmoothing', { min: 1, max: 24, step: 0.5, digits: 1 }],
+      ['Overcharge jitter amount', 'overchargeJitterAmount', { min: 0, max: 0.16, step: 0.01, digits: 2 }],
+      ['Overcharge jitter speed', 'overchargeJitterSpeed', { min: 1, max: 36, step: 1 }],
       ['Release windup ms', 'releaseWindupMs', { min: 0, max: 140, step: 5 }],
       ['Release swing ms', 'releaseSwingMs', { min: 40, max: 220, step: 5 }],
       ['Release follow-through ms', 'releaseFollowThroughMs', { min: 40, max: 300, step: 5 }],
       ['Release swing arc', 'releaseSwingArcRadians', { min: 0.2, max: 1.5, step: 0.05, digits: 2 }],
-      ['Release power timing', 'releaseSwingPowerTiming', { min: 0.2, max: 0.9, step: 0.05, digits: 2 }],
+      ['Release point normalized', 'releasePointNormalized', { min: 0.2, max: 0.9, step: 0.05, digits: 2 }],
       ['Release tangential force', 'releaseTangentialForceMultiplier', { min: 0, max: 0.8, step: 0.05, digits: 2 }],
       ['Release forward force', 'releaseForwardForceMultiplier', { min: 0.4, max: 1.2, step: 0.05, digits: 2 }],
       ['Release spin influence', 'releaseSpinInfluence', { min: 0, max: 0.6, step: 0.02, digits: 2 }],
@@ -588,18 +695,26 @@ export class LabPanel {
     content.className = 'lab-range-list'
     content.append(
       this.createCheckbox(
-        'Body check enabled',
-        defense.bodyCheckEnabled,
+        'Truck enabled',
+        defense.truckEnabled,
         (value) => {
-          defense.bodyCheckEnabled = value
+          defense.truckEnabled = value
           this.markDraftChanged()
         },
       ),
       this.createCheckbox(
-        'Stick swipe enabled',
-        defense.stickSwipeEnabled,
+        'Stick slash enabled',
+        defense.slashEnabled,
         (value) => {
-          defense.stickSwipeEnabled = value
+          defense.slashEnabled = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createCheckbox(
+        'Off-ball truck speed boost',
+        defense.truckOffBallSpeedBoostAllowed,
+        (value) => {
+          defense.truckOffBallSpeedBoostAllowed = value
           this.markDraftChanged()
         },
       ),
@@ -609,34 +724,36 @@ export class LabPanel {
         string,
         Exclude<
           keyof LabTuningState['defense'],
-          'bodyCheckEnabled' | 'stickSwipeEnabled'
+          'truckEnabled' | 'slashEnabled' | 'truckOffBallSpeedBoostAllowed'
         >,
         RangeOptions,
       ]
     > = [
-      ['Check cooldown ms', 'bodyCheckCooldownMs', { min: 300, max: 2200, step: 25 }],
-      ['Check startup ms', 'bodyCheckStartupMs', { min: 0, max: 300, step: 5 }],
-      ['Check active ms', 'bodyCheckActiveMs', { min: 40, max: 360, step: 5 }],
-      ['Check recovery ms', 'bodyCheckRecoveryMs', { min: 80, max: 700, step: 10 }],
-      ['Check range', 'bodyCheckRange', { min: 50, max: 160, step: 2 }],
-      ['Check arc radians', 'bodyCheckArcRadians', { min: 0.4, max: 2.5, step: 0.02, digits: 2 }],
-      ['Check impulse', 'bodyCheckImpulse', { min: 1, max: 12, step: 0.1, digits: 1 }],
-      ['Check fumble pressure', 'bodyCheckFumblePressure', { min: 0.05, max: 1.2, step: 0.02, digits: 2 }],
-      ['Check overcharge multiplier', 'bodyCheckOverchargeMultiplier', { min: 0.5, max: 3, step: 0.05, digits: 2 }],
-      ['Brute check multiplier', 'bruteCheckMultiplier', { min: 0.5, max: 2.2, step: 0.05, digits: 2 }],
-      ['Non-brute check multiplier', 'nonBruteCheckMultiplier', { min: 0.2, max: 1.4, step: 0.05, digits: 2 }],
-      ['Miss recovery movement', 'bodyCheckMissRecoveryPenalty', { min: 0.2, max: 1, step: 0.05, digits: 2 }],
-      ['Poke cooldown ms', 'stickSwipeCooldownMs', { min: 200, max: 1500, step: 25 }],
-      ['Poke startup ms', 'stickSwipeStartupMs', { min: 0, max: 220, step: 5 }],
-      ['Poke active ms', 'stickSwipeActiveMs', { min: 40, max: 320, step: 5 }],
-      ['Poke recovery ms', 'stickSwipeRecoveryMs', { min: 50, max: 500, step: 10 }],
-      ['Poke arc radians', 'stickSwipeArcRadians', { min: 0.5, max: 3, step: 0.02, digits: 2 }],
-      ['Poke range', 'stickSwipeRange', { min: 60, max: 180, step: 2 }],
-      ['Poke fumble pressure', 'stickSwipeFumblePressure', { min: 0.05, max: 1, step: 0.02, digits: 2 }],
-      ['Poke overcharge multiplier', 'stickSwipeOverchargeMultiplier', { min: 0.5, max: 3, step: 0.05, digits: 2 }],
-      ['Free Core poke impulse', 'stickSwipeFreeCoreImpulse', { min: 0.5, max: 10, step: 0.1, digits: 1 }],
-      ['Support poke precision', 'supportSwipePrecisionMultiplier', { min: 0.6, max: 1.8, step: 0.05, digits: 2 }],
-      ['Brute poke power', 'bruteSwipePowerMultiplier', { min: 0.6, max: 1.8, step: 0.05, digits: 2 }],
+      ['Truck cooldown ms', 'truckCooldownMs', { min: 300, max: 2200, step: 25 }],
+      ['Truck startup ms', 'truckStartupMs', { min: 0, max: 300, step: 5 }],
+      ['Truck active ms', 'truckActiveMs', { min: 40, max: 360, step: 5 }],
+      ['Truck recovery ms', 'truckRecoveryMs', { min: 80, max: 700, step: 10 }],
+      ['Truck range', 'truckRange', { min: 50, max: 160, step: 2 }],
+      ['Truck arc radians', 'truckArcRadians', { min: 0.4, max: 2.5, step: 0.02, digits: 2 }],
+      ['Truck lunge impulse', 'truckLungeImpulse', { min: 1, max: 12, step: 0.1, digits: 1 }],
+      ['Truck body impulse', 'truckBodyImpulse', { min: 1, max: 12, step: 0.1, digits: 1 }],
+      ['Truck fumble pressure', 'truckFumblePressure', { min: 0.05, max: 1.2, step: 0.02, digits: 2 }],
+      ['Truck overcharge multiplier', 'truckOverchargeMultiplier', { min: 0.5, max: 3, step: 0.05, digits: 2 }],
+      ['Brute truck multiplier', 'bruteTruckMultiplier', { min: 0.5, max: 2.2, step: 0.05, digits: 2 }],
+      ['Non-brute truck multiplier', 'nonBruteTruckMultiplier', { min: 0.2, max: 1.4, step: 0.05, digits: 2 }],
+      ['Truck miss movement', 'truckMissRecoveryMovement', { min: 0.2, max: 1, step: 0.05, digits: 2 }],
+      ['Slash cooldown ms', 'slashCooldownMs', { min: 200, max: 1500, step: 25 }],
+      ['Slash startup ms', 'slashStartupMs', { min: 0, max: 220, step: 5 }],
+      ['Slash active ms', 'slashActiveMs', { min: 40, max: 320, step: 5 }],
+      ['Slash recovery ms', 'slashRecoveryMs', { min: 50, max: 500, step: 10 }],
+      ['Slash arc radians', 'slashArcRadians', { min: 0.5, max: 3, step: 0.02, digits: 2 }],
+      ['Slash range', 'slashRange', { min: 60, max: 180, step: 2 }],
+      ['Slash fumble pressure', 'slashFumblePressure', { min: 0.05, max: 1, step: 0.02, digits: 2 }],
+      ['Slash overcharge multiplier', 'slashOverchargeMultiplier', { min: 0.5, max: 3, step: 0.05, digits: 2 }],
+      ['Free Core slash impulse', 'slashFreeCoreImpulse', { min: 0.5, max: 10, step: 0.1, digits: 1 }],
+      ['Slash body impulse', 'slashBodyImpulse', { min: 0, max: 1, step: 0.05, digits: 2 }],
+      ['Support slash precision', 'supportSlashPrecisionMultiplier', { min: 0.6, max: 1.8, step: 0.05, digits: 2 }],
+      ['Brute slash power', 'bruteSlashPowerMultiplier', { min: 0.6, max: 1.8, step: 0.05, digits: 2 }],
       ['Fumble threshold', 'fumblePressureThreshold', { min: 0.3, max: 2, step: 0.05, digits: 2 }],
       ['Pressure decay / sec', 'fumblePressureDecayPerSecond', { min: 0, max: 1, step: 0.02, digits: 2 }],
       ['Overcharge vulnerability', 'overchargeFumbleVulnerability', { min: 0.5, max: 3, step: 0.05, digits: 2 }],

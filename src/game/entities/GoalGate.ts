@@ -4,6 +4,7 @@ import {
   type GoalGateConfig,
 } from '../config/goalConfig'
 import { coreConfig } from '../config/entityConfig'
+import { visualStyleConfig } from '../config/visualStyleConfig'
 import type { Point } from '../data/geometry'
 
 export class GoalGate {
@@ -108,87 +109,101 @@ export class GoalGate {
 
   private draw(): void {
     const config = this.config
-    const planeColor = this.flashAmount > 0 ? config.flashColor : config.planeColor
+    const accentColor =
+      config.id === 'top-goal'
+        ? visualStyleConfig.goal.topAccent
+        : visualStyleConfig.goal.bottomAccent
+    const planeColor = this.flashAmount > 0 ? config.flashColor : accentColor
     const postColor = this.flashAmount > 0 ? config.flashColor : config.postColor
     const alpha = 0.68 + this.flashAmount * 0.32
 
     this.graphics.clear()
-    this.graphics.lineStyle(3, planeColor, alpha)
+    this.drawSuspendedShadow()
 
-    if (config.orientation === 'horizontal') {
-      for (let x = this.planeStart.x; x < this.planeEnd.x; x += 22) {
-        this.graphics.lineBetween(x, config.y, Math.min(x + 12, this.planeEnd.x), config.y)
-      }
-    } else {
-      for (let y = this.planeStart.y; y < this.planeEnd.y; y += 22) {
-        this.graphics.lineBetween(config.x, y, config.x, Math.min(y + 12, this.planeEnd.y))
-      }
-    }
-
-    this.graphics.lineStyle(4, postColor, alpha)
-    this.graphics.strokeCircle(
+    this.graphics.lineStyle(17, visualStyleConfig.outline, 0.84)
+    this.graphics.lineBetween(
       this.planeStart.x,
-      this.planeStart.y,
-      goalConfig.goalPostRadius,
-    )
-    this.graphics.strokeCircle(
+      this.planeStart.y + 5,
       this.planeEnd.x,
-      this.planeEnd.y,
-      goalConfig.goalPostRadius,
+      this.planeEnd.y + 5,
     )
-    this.graphics.fillStyle(postColor, 0.72 + this.flashAmount * 0.24)
-    this.graphics.fillCircle(
+    this.graphics.lineStyle(13, visualStyleConfig.goal.metalShade, 0.96)
+    this.graphics.lineBetween(
       this.planeStart.x,
-      this.planeStart.y,
-      goalConfig.goalPostRadius - 2,
-    )
-    this.graphics.fillCircle(
+      this.planeStart.y + 5,
       this.planeEnd.x,
-      this.planeEnd.y,
-      goalConfig.goalPostRadius - 2,
+      this.planeEnd.y + 5,
     )
-    this.graphics.fillStyle(config.flashColor, 0.5 + this.flashAmount * 0.35)
-    this.graphics.fillCircle(
-      this.planeStart.x - 4,
-      this.planeStart.y - 4,
-      goalConfig.goalPostRadius * 0.3,
+    this.graphics.lineStyle(15, visualStyleConfig.outline, 0.9)
+    this.graphics.lineBetween(
+      this.planeStart.x,
+      this.planeStart.y - 3,
+      this.planeEnd.x,
+      this.planeEnd.y - 3,
     )
-    this.graphics.fillCircle(
-      this.planeEnd.x - 4,
-      this.planeEnd.y - 4,
-      goalConfig.goalPostRadius * 0.3,
+    this.graphics.lineStyle(10, planeColor, alpha)
+    this.graphics.lineBetween(
+      this.planeStart.x,
+      this.planeStart.y - 3,
+      this.planeEnd.x,
+      this.planeEnd.y - 3,
+    )
+    this.graphics.lineStyle(3, visualStyleConfig.goal.energy, alpha * 0.94)
+    this.graphics.lineBetween(
+      this.scoringPlaneStart.x,
+      this.scoringPlaneStart.y - 4,
+      this.scoringPlaneEnd.x,
+      this.scoringPlaneEnd.y - 4,
     )
 
-    this.drawChevron(-1, alpha)
-    this.drawChevron(1, alpha)
+    this.drawPostHead(this.planeStart, postColor, accentColor)
+    this.drawPostHead(this.planeEnd, postColor, accentColor)
+
+    this.graphics.fillStyle(visualStyleConfig.outline, 0.86)
+    this.graphics.fillRoundedRect(config.x - 23, config.y - 12, 46, 18, 4)
+    this.graphics.fillStyle(visualStyleConfig.goal.metal, 0.96)
+    this.graphics.fillRoundedRect(config.x - 19, config.y - 10, 38, 12, 3)
+    this.graphics.fillStyle(accentColor, 0.9)
+    this.graphics.fillRect(config.x - 12, config.y - 8, 24, 3)
   }
 
-  private drawChevron(direction: -1 | 1, alpha: number): void {
-    const config = this.config
-    const offset = 34 * direction
+  private drawSuspendedShadow(): void {
+    const width = Math.abs(this.planeEnd.x - this.planeStart.x) + 34
+    const centerX = (this.planeStart.x + this.planeEnd.x) * 0.5
+    const centerY = (this.planeStart.y + this.planeEnd.y) * 0.5
 
-    this.graphics.lineStyle(3, config.planeColor, alpha * 0.85)
-    this.graphics.beginPath()
+    this.graphics.fillStyle(visualStyleConfig.goal.shadow, 0.16)
+    this.graphics.fillEllipse(centerX, centerY + 18, width, 22)
+  }
 
-    if (config.orientation === 'horizontal') {
-      const y = config.y + offset
-      const height = 18 * direction
-      const width = 16
+  private drawPostHead(
+    position: Point,
+    postColor: number,
+    accentColor: number,
+  ): void {
+    const radius = goalConfig.goalPostRadius
 
-      this.graphics.moveTo(config.x - width, y - height / 2)
-      this.graphics.lineTo(config.x, y + height / 2)
-      this.graphics.lineTo(config.x + width, y - height / 2)
-    } else {
-      const x = config.x + offset
-      const width = 18 * direction
-      const height = 16
-
-      this.graphics.moveTo(x - width / 2, config.y - height)
-      this.graphics.lineTo(x + width / 2, config.y)
-      this.graphics.lineTo(x - width / 2, config.y + height)
-    }
-
-    this.graphics.strokePath()
+    this.graphics.fillStyle(visualStyleConfig.goal.shadow, 0.2)
+    this.graphics.fillEllipse(
+      position.x,
+      position.y + radius + 9,
+      radius * 2.5,
+      radius * 0.82,
+    )
+    this.graphics.fillStyle(visualStyleConfig.outline, 0.96)
+    this.graphics.fillCircle(position.x, position.y + 3, radius + 7)
+    this.graphics.fillStyle(visualStyleConfig.goal.metalShade, 1)
+    this.graphics.fillCircle(position.x, position.y + 4, radius + 3)
+    this.graphics.fillStyle(postColor, 1)
+    this.graphics.fillCircle(position.x, position.y, radius - 1)
+    this.graphics.lineStyle(4, accentColor, 0.96)
+    this.graphics.strokeCircle(position.x, position.y, radius - 3)
+    this.graphics.fillStyle(visualStyleConfig.goal.metal, 0.92)
+    this.graphics.fillCircle(
+      position.x - radius * 0.26,
+      position.y - radius * 0.3,
+      radius * 0.3,
+    )
   }
 
   private createPostBody(

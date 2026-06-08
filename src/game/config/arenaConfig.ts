@@ -1,4 +1,5 @@
 import { viewConfig } from './viewConfig'
+import { visualStyleConfig } from './visualStyleConfig'
 
 export const arenaDimensionsConfig = {
   width: 940,
@@ -18,13 +19,13 @@ export const arenaConfig = {
   safetyWallThickness: 72,
   playerContainmentPadding: 4,
   cornerRadius: 18,
-  outerSurfaceColor: 0x19566d,
-  floorColor: 0x2b91b3,
-  floorAccentColor: 0x32a0bd,
-  boundaryLineColor: 0xe8fbff,
-  secondaryLineColor: 0xb8eef2,
-  wallColor: 0x17475b,
-  wallStrokeColor: 0x9ce8ef,
+  outerSurfaceColor: visualStyleConfig.court.shell,
+  floorColor: visualStyleConfig.court.surface,
+  floorAccentColor: visualStyleConfig.court.surfaceLight,
+  boundaryLineColor: visualStyleConfig.court.line,
+  secondaryLineColor: visualStyleConfig.court.lineSoft,
+  wallColor: visualStyleConfig.court.shellShade,
+  wallStrokeColor: visualStyleConfig.court.shellEdge,
   courtInset: 25,
   serviceLineDepth: 320,
   centerCircleRadius: 72,

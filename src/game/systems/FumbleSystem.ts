@@ -4,7 +4,7 @@ import type { PlayerRole } from '../data/matchTypes'
 import type { Player } from '../entities/Player'
 import type { CorePossessionState } from './StickInteractionSystem'
 
-export type FumblePressureSource = 'bodyCheck' | 'stickSwipe'
+export type FumblePressureSource = 'truck' | 'slash'
 
 export class FumbleSystem {
   private carrierId: string | null = null
@@ -39,42 +39,41 @@ export class FumbleSystem {
     coreState: CorePossessionState,
     carrier: Player,
   ): boolean {
-    const handlingResistance = Phaser.Math.Linear(
-      1.25,
-      0.65,
-      Phaser.Math.Clamp(carrier.attributes.ballHandling, 0, 1),
+    const handling = Phaser.Math.Clamp(
+      carrier.attributes.ballHandling,
+      0,
+      1,
     )
-    const handlingVulnerability = Phaser.Math.Linear(
-      1.25,
-      0.75,
-      Phaser.Math.Clamp(carrier.attributes.ballHandling, 0, 1),
+    const toughness = Phaser.Math.Clamp(
+      carrier.attributes.toughness,
+      0,
+      1,
     )
+    const contactResistance =
+      source === 'truck'
+        ? Phaser.Math.Linear(1.2, 0.7, toughness) *
+          Phaser.Math.Linear(1.15, 0.75, handling)
+        : Phaser.Math.Linear(1.2, 0.65, handling)
     const phaseMultiplier =
       coreState === 'CRADLED_OVERCHARGED'
         ? defenseConfig.overchargeFumbleVulnerability *
-          handlingVulnerability *
-          (source === 'bodyCheck'
-            ? defenseConfig.bodyCheckOverchargeMultiplier
-            : defenseConfig.stickSwipeOverchargeMultiplier)
+          (source === 'truck'
+            ? defenseConfig.truckOverchargeMultiplier
+            : defenseConfig.slashOverchargeMultiplier)
         : coreState === 'CRADLED_CHARGING'
           ? defenseConfig.chargingFumbleResistance
-          : defenseConfig.stableCradleFumbleResistance *
-            Phaser.Math.Linear(
-              1.08,
-              0.88,
-              Phaser.Math.Clamp(carrier.attributes.ballHandling, 0, 1),
-            )
+          : defenseConfig.stableCradleFumbleResistance
     const roleBonus =
-      attackerRole === 'brute'
+      attackerRole === 'brute' && source === 'truck'
         ? defenseConfig.bruteFumbleBonus
-        : attackerRole === 'support' && source === 'stickSwipe'
+        : attackerRole === 'support' && source === 'slash'
           ? defenseConfig.supportStealBonus
           : 0
 
     this.pressure = Phaser.Math.Clamp(
       this.pressure +
-        amount * phaseMultiplier * handlingResistance +
-        roleBonus * handlingResistance,
+        amount * phaseMultiplier * contactResistance +
+        roleBonus * contactResistance,
       0,
       defenseConfig.fumblePressureThreshold * 1.5,
     )

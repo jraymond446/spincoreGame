@@ -1,11 +1,11 @@
 export type DefensiveVisualState =
   | 'IDLE'
-  | 'CHECK_STARTUP'
-  | 'CHECK_ACTIVE'
-  | 'CHECK_RECOVERY'
-  | 'SWIPE_STARTUP'
-  | 'SWIPE_ACTIVE'
-  | 'SWIPE_RECOVERY'
+  | 'TRUCK_STARTUP'
+  | 'TRUCK_ACTIVE'
+  | 'TRUCK_RECOVERY'
+  | 'SLASH_STARTUP'
+  | 'SLASH_ACTIVE'
+  | 'SLASH_RECOVERY'
 
 export type PlayerAnimationPose = {
   bodyForwardOffset: number
@@ -21,4 +21,3 @@ export type PlayerAnimationPose = {
   anticipation: number
   impact: number
 }
-

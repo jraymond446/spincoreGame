@@ -4,6 +4,9 @@ import { viewConfig } from '../config/viewConfig'
 import type { Point } from '../data/geometry'
 import type {
   FormationId,
+  KeeperControlMode,
+  PlayerPlayStyle,
+  PlayerHandedness,
   PlayerRole,
   StickActionState,
   TeamSide,
@@ -16,6 +19,7 @@ import type {
 import type { InputMode } from './PlayerInputController'
 import type { DefensiveActionState } from './DefenseSystem'
 import type { MatchFlowState } from './MatchFlowSystem'
+import type { KeeperLegalState } from './KeeperAreaSystem'
 
 type DebugHudState = {
   gameMode: GameMode
@@ -28,11 +32,18 @@ type DebugHudState = {
   rightAimVector: Point
   controlledPlayerId: string
   controlledPlayerRole: PlayerRole
+  controlledPlayerHandedness: PlayerHandedness
+  handednessMountSign: number
+  pocketFacingSign: number
+  visualMirrorSign: number
+  cradleSocketSign: number
   chargeElapsedMs: number
   chargeNormalized: number
   releaseForcePreview: number
   cradlePhase: string
   stickVisualRotation: number
+  readyStanceOffset: number
+  cradleFacingOffset: number
   catchAutoOrientActive: boolean
   coreInCatchAssistRadius: boolean
   recoveryStatus: string
@@ -40,9 +51,10 @@ type DebugHudState = {
   lastInteraction: StickInteractionResult
   formations: Record<TeamSide, FormationId>
   defenseState: DefensiveActionState
+  defenseAction: string
   defenseCooldowns: {
-    bodyCheckMs: number
-    stickSwipeMs: number
+    truckMs: number
+    slashMs: number
   }
   fumblePressure: number
   fumblePressureNormalized: number
@@ -51,9 +63,23 @@ type DebugHudState = {
   countdownLabel: string
   lastScorer: TeamSide | null
   carrierBallHandling: number | null
+  controlledToughness: number
+  defenseTargetId: string | null
+  defenseTargetAction: string | null
+  defenseTargetToughness: number | null
+  defenseTargetBallHandling: number | null
   truckAvailable: boolean
-  swipeAvailable: boolean
+  slashAvailable: boolean
   inputIntent: string
+  keeperControlMode: KeeperControlMode
+  keeperStyle: PlayerPlayStyle
+  keeperTarget: Point
+  keeperTargetRatio: number
+  keeperHumanBias: Point
+  keeperThreatActive: boolean
+  keeperAutoSwitchThreat: boolean
+  keeperLegalState: KeeperLegalState
+  keeperLastViolation: KeeperLegalState
 }
 
 type DebugHudActions = {
@@ -156,6 +182,16 @@ export class DebugHudSystem {
       `RIGHT    ${formatVector(state.rightAimVector)}\n` +
       `INTENT   ${state.inputIntent}\n` +
       `PLAYER   ${state.controlledPlayerId} / ${state.controlledPlayerRole}\n` +
+      `HAND     ${state.controlledPlayerHandedness.toUpperCase()}\n` +
+      `MOUNT    ${signed(state.handednessMountSign)}\n` +
+      `POCKET   ${signed(state.pocketFacingSign)}\n` +
+      `MIRROR   ${signed(state.visualMirrorSign)}\n` +
+      `SOCKET   ${signed(state.cradleSocketSign)}\n` +
+      `KEEPER   ${state.keeperStyle} / ${state.keeperControlMode}\n` +
+      `K TARGET ${formatVector(state.keeperTarget)} @ ${state.keeperTargetRatio.toFixed(2)}\n` +
+      `K BIAS   ${formatVector(state.keeperHumanBias)}\n` +
+      `K THREAT ${state.keeperThreatActive ? 'ACTIVE' : 'CLEAR'} / SWITCH ${state.keeperAutoSwitchThreat ? 'HOT' : 'IDLE'}\n` +
+      `K LEGAL  ${state.keeperLegalState} / LAST ${state.keeperLastViolation}\n` +
       `STICK    ${state.stickState}\n` +
       `CORE     ${state.coreState}\n` +
       `PHASE    ${state.cradlePhase}\n` +
@@ -166,14 +202,21 @@ export class DebugHudSystem {
       `FAIL     ${state.cradleFailure}\n` +
       `CONTACT  ${state.lastInteraction}\n` +
       `DEFENSE  ${state.defenseState}\n` +
-      `CHECK CD ${Math.ceil(state.defenseCooldowns.bodyCheckMs)}ms\n` +
-      `POKE CD  ${Math.ceil(state.defenseCooldowns.stickSwipeMs)}ms\n` +
+      `ACTION   ${state.defenseAction}\n` +
+      `TRUCK CD ${Math.ceil(state.defenseCooldowns.truckMs)}ms\n` +
+      `SLASH CD ${Math.ceil(state.defenseCooldowns.slashMs)}ms\n` +
       `FUMBLE   ${state.fumblePressure.toFixed(2)} / ${state.fumblePressureNormalized.toFixed(2)}\n` +
       `HANDLING ${state.carrierBallHandling?.toFixed(2) ?? '-'}\n` +
+      `TOUGH    ${state.controlledToughness.toFixed(2)}\n` +
+      `TARGET   ${state.defenseTargetId ?? '-'} / ${state.defenseTargetAction ?? '-'}\n` +
+      `TGT TOUGH ${state.defenseTargetToughness?.toFixed(2) ?? '-'}\n` +
+      `TGT HANDLE ${state.defenseTargetBallHandling?.toFixed(2) ?? '-'}\n` +
       `TRUCK    ${state.truckAvailable ? 'READY' : 'LOCKED'}\n` +
-      `SWIPE    ${state.swipeAvailable ? 'READY' : 'LOCKED'}\n` +
+      `SLASH    ${state.slashAvailable ? 'READY' : 'LOCKED'}\n` +
       `RECOVERY ${state.recoveryStatus}\n` +
       `VISUAL   ${state.stickVisualRotation.toFixed(2)}\n` +
+      `READY    ${signed(state.readyStanceOffset)} rad\n` +
+      `CRADLE   ${signed(state.cradleFacingOffset)} rad\n` +
       `OWNER    ${state.possessionOwner ?? 'LOOSE'}`
   }
 

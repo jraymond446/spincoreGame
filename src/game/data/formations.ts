@@ -11,6 +11,10 @@ import type {
   PlayerRosterEntry,
   Team,
 } from './matchTypes'
+import {
+  getKeeperHomeDirection,
+  getKeeperStyleRadius,
+} from '../rules/KeeperGeometry'
 
 export type TeamFormationResolution = {
   formation: Formation
@@ -117,7 +121,11 @@ export function resolveTeamFormation(team: Team): TeamFormationResolution {
   for (const entry of team.roster) {
     const spawn =
       entry.role === 'keeper'
-        ? resolveKeeperSpawn(defendedGoal, attackDirection)
+        ? resolveKeeperSpawn(
+            defendedGoal,
+            getKeeperHomeDirection(team.side),
+            entry.playStyle,
+          )
         : resolveFieldSpawn(
             formation.positions[entry.role === 'striker' ? 'striker' : 'flex'],
             team.side,
@@ -147,9 +155,9 @@ function resolveFormationForRoster(
 function resolveKeeperSpawn(
   defendedGoal: Point,
   attackDirection: Point,
+  style: PlayerRosterEntry['playStyle'],
 ): Point {
-  const distanceFromGoal =
-    keeperAreaConfig.keeperZoneRadius * formationConfig.keeperHomeProgress
+  const distanceFromGoal = getKeeperStyleRadius(style)
 
   return {
     x: defendedGoal.x + attackDirection.x * distanceFromGoal,
