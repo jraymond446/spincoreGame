@@ -2,16 +2,20 @@ import Phaser from 'phaser'
 import { arenaConfig } from '../config/arenaConfig'
 import { arenaPresentationConfig } from '../config/arenaPresentationConfig'
 import { assetOverrideConfig } from '../config/assetOverrideConfig'
-import { hairColorPalette } from '../data/visualPalettes'
+import {
+  crowdVariants,
+  type CrowdVariant,
+} from '../data/crowdVariants'
 import { hasVisualAsset } from './VisualAssetOverrides'
+import { drawMiniCharacter } from './MiniCharacterRenderer'
 
 type CrowdMember = {
   x: number
   y: number
   phase: number
-  shirtColor: number
-  hairColor: number
+  variant: CrowdVariant
   scale: number
+  facing: -1 | 1
 }
 
 export class CrowdRenderer {
@@ -78,15 +82,15 @@ export class CrowdRenderer {
       arenaPresentationConfig.mobileCrowdSimplified
         ? arenaPresentationConfig.crowd.mobileDensityMultiplier
         : 1)
-    const sideCount = Math.max(6, Math.round(42 * density))
-    const bottomCount = Math.max(10, Math.round(52 * density))
+    const sideCount = Math.max(8, Math.round(48 * density))
+    const bottomCount = Math.max(12, Math.round(58 * density))
 
     if (!this.simplified) {
       this.addSideMembers(-1, sideCount, 17)
       this.addSideMembers(1, sideCount, 41)
     } else {
-      this.addSideMembers(-1, Math.max(5, Math.round(sideCount * 0.42)), 17)
-      this.addSideMembers(1, Math.max(5, Math.round(sideCount * 0.42)), 41)
+      this.addSideMembers(-1, Math.max(6, Math.round(sideCount * 0.4)), 17)
+      this.addSideMembers(1, Math.max(6, Math.round(sideCount * 0.4)), 41)
     }
 
     this.addBottomMembers(bottomCount, 83)
@@ -154,28 +158,34 @@ export class CrowdRenderer {
     const maxDistance =
       arenaPresentationConfig.sidelineDecorationWidth - 34
     const clusterCenters = [
-      top + arenaConfig.height * 0.13,
-      top + arenaConfig.height * 0.37,
+      top + arenaConfig.height * 0.12,
+      top + arenaConfig.height * 0.36,
       top + arenaConfig.height * 0.75,
     ]
-    const columns = this.simplified ? 2 : 4
+    const columns = this.simplified ? 2 : 3
+    const rowGap = this.simplified ? 31 : 29
 
     for (let index = 0; index < count; index += 1) {
       const cluster = index % clusterCenters.length
       const localIndex = Math.floor(index / clusterCenters.length)
       const column = localIndex % columns
       const row = Math.floor(localIndex / columns)
-      const distance = Phaser.Math.Linear(
-        minDistance,
-        maxDistance,
-        column / Math.max(1, columns - 1),
-      )
+      const distance =
+        Phaser.Math.Linear(
+          minDistance,
+          maxDistance,
+          column / Math.max(1, columns - 1),
+        ) +
+        (row % 2) * 5
 
       this.members.push(
         this.createMember(
           edgeX + side * distance,
-          clusterCenters[cluster] + row * 25 + seeded(index + seedOffset) * 5,
+          clusterCenters[cluster] +
+            row * rowGap +
+            seeded(index + seedOffset) * 3,
           index + seedOffset,
+          side < 0 ? 1 : -1,
         ),
       )
     }
@@ -185,17 +195,22 @@ export class CrowdRenderer {
     const bottom = arenaConfig.center.y + arenaConfig.height / 2
     const left = arenaConfig.center.x - arenaConfig.width / 2
     const rows = this.simplified ? 1 : 3
+    const columns = Math.ceil(count / rows)
 
     for (let index = 0; index < count; index += 1) {
       const row = index % rows
-      const across = seeded(index + seedOffset)
-      const y = bottom + 56 + row * 27 + seeded(index + 211) * 4
+      const column = Math.floor(index / rows)
+      const across =
+        (column + 0.5 + (row % 2) * 0.32) /
+        Math.max(1, columns)
+      const y = bottom + 57 + row * 30 + seeded(index + 211) * 2
 
       this.members.push(
         this.createMember(
           Phaser.Math.Linear(left + 60, left + arenaConfig.width - 60, across),
           y,
           index + seedOffset,
+          seeded(index + 331) > 0.5 ? 1 : -1,
         ),
       )
     }
@@ -205,20 +220,20 @@ export class CrowdRenderer {
     x: number,
     y: number,
     seed: number,
+    facing: -1 | 1,
   ): CrowdMember {
-    const shirtColors = arenaPresentationConfig.crowd.shirtColors
-
     return {
       x,
       y,
       phase: seeded(seed + 401) * Math.PI * 2,
-      shirtColor:
-        shirtColors[Math.floor(seeded(seed + 17) * shirtColors.length)],
-      hairColor:
-        hairColorPalette[
-          Math.floor(seeded(seed + 29) * hairColorPalette.length)
+      variant:
+        crowdVariants[
+          Math.floor(seeded(seed + 17) * crowdVariants.length)
         ],
-      scale: Phaser.Math.Linear(0.98, 1.3, seeded(seed + 53)),
+      scale:
+        Phaser.Math.Linear(1.02, 1.28, seeded(seed + 53)) *
+        (this.simplified ? 1.22 : 1),
+      facing,
     }
   }
 
@@ -231,58 +246,14 @@ export class CrowdRenderer {
           time * arenaPresentationConfig.crowd.bobSpeed +
             member.phase,
         ) * arenaPresentationConfig.crowd.bobAmplitude
-      const alpha = arenaPresentationConfig.crowd.alpha
-      const bodyY = member.y + bob + 4.5 * member.scale
-      const headY = member.y + bob - 4 * member.scale
-
-      this.graphics.fillStyle(0x31566c, alpha * 0.18)
-      this.graphics.fillEllipse(
-        member.x,
-        member.y + 9,
-        19 * member.scale,
-        7 * member.scale,
-      )
-      this.graphics.lineStyle(2, 0x31566c, alpha * 0.58)
-      this.graphics.fillStyle(member.shirtColor, alpha * 0.82)
-      this.graphics.fillRoundedRect(
-        member.x - 7.5 * member.scale,
-        bodyY - 2.5 * member.scale,
-        15 * member.scale,
-        10 * member.scale,
-        4 * member.scale,
-      )
-      this.graphics.strokeRoundedRect(
-        member.x - 7.5 * member.scale,
-        bodyY - 2.5 * member.scale,
-        15 * member.scale,
-        10 * member.scale,
-        4 * member.scale,
-      )
-      this.graphics.fillStyle(0xe4aa7d, alpha * 0.9)
-      this.graphics.fillCircle(
-        member.x,
-        headY,
-        7 * member.scale,
-      )
-      this.graphics.lineStyle(2, 0x31566c, alpha * 0.64)
-      this.graphics.strokeCircle(
-        member.x,
-        headY,
-        7 * member.scale,
-      )
-      this.graphics.fillStyle(member.hairColor, alpha)
-      this.graphics.fillEllipse(
-        member.x,
-        headY - 2.8 * member.scale,
-        13.5 * member.scale,
-        9 * member.scale,
-      )
-      this.graphics.fillStyle(0xf6d4b4, alpha * 0.72)
-      this.graphics.fillCircle(
-        member.x,
-        headY + 2.2 * member.scale,
-        1.5 * member.scale,
-      )
+      drawMiniCharacter(this.graphics, {
+        x: member.x,
+        y: member.y + bob,
+        scale: member.scale,
+        alpha: arenaPresentationConfig.crowd.alpha,
+        variant: member.variant,
+        facing: member.facing,
+      })
     }
   }
 }

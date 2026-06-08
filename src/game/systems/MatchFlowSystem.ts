@@ -50,6 +50,16 @@ export class MatchFlowSystem {
     return true
   }
 
+  restartForFaceoff(): boolean {
+    if (!this.isPlaying()) {
+      return false
+    }
+
+    this.lastScorer = null
+    this.beginFormationReset()
+    return true
+  }
+
   update(deltaMs: number): void {
     this.celebration.update(deltaMs)
 

@@ -2,11 +2,12 @@ import Phaser from 'phaser'
 import { arenaConfig } from '../config/arenaConfig'
 import { arenaPresentationConfig } from '../config/arenaPresentationConfig'
 import {
-  hairColorPalette,
   teamVisualPalettes,
 } from '../data/visualPalettes'
+import { crowdVariants } from '../data/crowdVariants'
 import type { TeamSide } from '../data/matchTypes'
 import { visualStyleConfig } from '../config/visualStyleConfig'
+import { drawMiniCharacter } from './MiniCharacterRenderer'
 
 export class BenchRenderer {
   private readonly graphics: Phaser.GameObjects.Graphics
@@ -65,8 +66,8 @@ export class BenchRenderer {
 
     this.graphics.fillStyle(visualStyleConfig.venue.shadow, 0.18)
     this.graphics.fillRoundedRect(
-      benchX - width / 2 + 5,
-      benchY - height / 2 + 7,
+      benchX - width / 2 + 6,
+      benchY - height / 2 + 8,
       width,
       height,
       9,
@@ -91,21 +92,38 @@ export class BenchRenderer {
       9,
     )
     this.graphics.fillStyle(palette.shirt, 0.9)
-    this.graphics.fillRect(
+    this.graphics.fillRoundedRect(
       benchX - width / 2 + 4,
       benchY - height / 2 + 4,
       width - 8,
-      10,
+      12,
+      3,
     )
-    this.graphics.fillStyle(palette.shirtShade, 0.2)
+    this.graphics.fillStyle(visualStyleConfig.venue.concourse, 0.96)
     this.graphics.fillRoundedRect(
-      benchX - width * 0.39,
-      benchY + height * 0.04,
-      width * 0.78,
-      height * 0.28,
+      benchX - width * 0.42,
+      benchY - height * 0.22,
+      width * 0.84,
+      height * 0.58,
       5,
     )
-    this.graphics.lineStyle(6, visualStyleConfig.outlineSoft, 0.78)
+    this.graphics.lineStyle(3, palette.shirtShade, 0.54)
+    this.graphics.strokeRoundedRect(
+      benchX - width * 0.42,
+      benchY - height * 0.22,
+      width * 0.84,
+      height * 0.58,
+      5,
+    )
+    this.graphics.fillStyle(palette.shirtShade, 0.28)
+    this.graphics.fillRoundedRect(
+      benchX - width * 0.38,
+      benchY + height * 0.03,
+      width * 0.76,
+      height * 0.25,
+      5,
+    )
+    this.graphics.lineStyle(6, visualStyleConfig.outlineSoft, 0.74)
     this.graphics.lineBetween(
       benchX - width * 0.37,
       benchY + height * 0.24,
@@ -121,10 +139,11 @@ export class BenchRenderer {
       )
       this.drawFigure(
         x,
-        benchY - height * 0.04,
+        benchY - height * 0.03,
+        index + (side === 'A' ? 0 : 3),
         palette.shirt,
-        hairColorPalette[index % hairColorPalette.length],
         0.86,
+        'seated',
       )
     }
 
@@ -132,9 +151,16 @@ export class BenchRenderer {
     this.drawFigure(
       coachX,
       benchY + height * 0.34,
+      side === 'A' ? 5 : 1,
       palette.trim,
-      hairColorPalette[(side === 'A' ? 4 : 1) % hairColorPalette.length],
       1,
+      'standing',
+    )
+
+    this.drawEquipmentRack(
+      benchX + direction * width * 0.38,
+      benchY + height * 0.34,
+      palette.shirt,
     )
 
     const label = this.labels[side === 'A' ? 0 : 1]
@@ -155,43 +181,45 @@ export class BenchRenderer {
     this.graphics.fillRect(x - 27, y - 8, 24, 13)
     this.graphics.fillStyle(0x1a9aa3, 0.9)
     this.graphics.fillCircle(x + 24, y - 1, 5)
-    this.drawFigure(x, y - 29, 0xb8d8db, hairColorPalette[0], 0.68)
+    this.drawFigure(x, y - 29, 0, 0xb8d8db, 0.68, 'seated')
     this.labels[2].setPosition(x, y + 31).setColor('#16324f')
   }
 
   private drawFigure(
     x: number,
     y: number,
+    variantIndex: number,
     shirtColor: number,
-    hairColor: number,
     scale: number,
+    pose: 'seated' | 'standing',
   ): void {
-    const alpha = arenaPresentationConfig.bench.figureAlpha
+    const base = crowdVariants[variantIndex % crowdVariants.length]
+    drawMiniCharacter(this.graphics, {
+      x,
+      y,
+      scale,
+      alpha: arenaPresentationConfig.bench.figureAlpha,
+      variant: {
+        ...base,
+        shirtColor,
+      },
+      pose,
+      facing: x < arenaConfig.center.x ? 1 : -1,
+    })
+  }
 
-    this.graphics.fillStyle(visualStyleConfig.venue.shadow, 0.18)
-    this.graphics.fillEllipse(x, y + 7 * scale, 19 * scale, 7 * scale)
-    this.graphics.lineStyle(1.5, visualStyleConfig.outline, 0.66)
-    this.graphics.fillStyle(shirtColor, alpha)
-    this.graphics.fillRoundedRect(
-      x - 7 * scale,
-      y,
-      14 * scale,
-      11 * scale,
-      5 * scale,
-    )
-    this.graphics.strokeRoundedRect(
-      x - 7 * scale,
-      y,
-      14 * scale,
-      11 * scale,
-      5 * scale,
-    )
-    this.graphics.fillStyle(0xe4ad83, alpha)
-    this.graphics.fillCircle(x, y - 5 * scale, 6.5 * scale)
-    this.graphics.lineStyle(1.5, visualStyleConfig.outline, 0.68)
-    this.graphics.strokeCircle(x, y - 5 * scale, 6.5 * scale)
-    this.graphics.fillStyle(hairColor, alpha)
-    this.graphics.fillEllipse(x, y - 7.5 * scale, 12 * scale, 8 * scale)
+  private drawEquipmentRack(
+    x: number,
+    y: number,
+    color: number,
+  ): void {
+    this.graphics.fillStyle(visualStyleConfig.outline, 0.82)
+    this.graphics.fillRoundedRect(x - 13, y - 9, 26, 18, 4)
+    this.graphics.fillStyle(color, 0.88)
+    this.graphics.fillRoundedRect(x - 10, y - 6, 20, 12, 3)
+    this.graphics.lineStyle(2, 0xffffff, 0.66)
+    this.graphics.lineBetween(x - 5, y - 4, x + 5, y + 4)
+    this.graphics.lineBetween(x + 5, y - 4, x - 5, y + 4)
   }
 }
 
@@ -202,7 +230,7 @@ function createLabel(
   return scene.add
     .text(0, 0, text, {
       fontFamily: 'Arial, sans-serif',
-      fontSize: '14px',
+      fontSize: '13px',
       fontStyle: 'bold',
       color: '#16324f',
     })

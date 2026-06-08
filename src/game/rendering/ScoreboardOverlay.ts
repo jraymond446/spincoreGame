@@ -47,30 +47,36 @@ export class ScoreboardOverlay {
     )
     this.element.innerHTML = `
       <div class="sports-scoreboard-brand">
-        <strong>SPINCORE</strong>
-        <span data-scoreboard-mode>LIVE MATCH</span>
+        <span class="sports-scoreboard-mark" aria-hidden="true">SC</span>
+        <span class="sports-scoreboard-brand-copy">
+          <strong>SPINCORE</strong>
+          <small data-scoreboard-mode>LIVE MATCH</small>
+        </span>
       </div>
       <div class="sports-scoreboard-team is-team-a">
+        <span class="sports-scoreboard-team-code" aria-hidden="true">A</span>
         <span class="sports-scoreboard-team-name" data-team-a-name></span>
         <strong class="sports-scoreboard-score" data-team-a-score>0</strong>
       </div>
       <div class="sports-scoreboard-center">
+        <small>MATCH</small>
         <span data-scoreboard-center>FIRST TO 5</span>
       </div>
       <div class="sports-scoreboard-team is-team-b">
         <strong class="sports-scoreboard-score" data-team-b-score>0</strong>
         <span class="sports-scoreboard-team-name" data-team-b-name></span>
+        <span class="sports-scoreboard-team-code" aria-hidden="true">B</span>
       </div>
       <div class="sports-scoreboard-stats">
-        <span class="is-team-a">A</span>
-        <span><b data-a-assists>0</b> AST</span>
-        <span><b data-a-checks>0</b> CHK</span>
-        <span><b data-a-saves>0</b> SAV</span>
-        <i>LIVE STATS</i>
-        <span><b data-b-assists>0</b> AST</span>
-        <span><b data-b-checks>0</b> CHK</span>
-        <span><b data-b-saves>0</b> SAV</span>
-        <span class="is-team-b">B</span>
+        <span class="sports-scoreboard-stat-team is-team-a">A</span>
+        <span><b data-a-assists>0</b><small>AST</small></span>
+        <span><b data-a-checks>0</b><small>CHK</small></span>
+        <span><b data-a-saves>0</b><small>SAV</small></span>
+        <i><span aria-hidden="true"></span> LIVE STATS <span aria-hidden="true"></span></i>
+        <span><b data-b-assists>0</b><small>AST</small></span>
+        <span><b data-b-checks>0</b><small>CHK</small></span>
+        <span><b data-b-saves>0</b><small>SAV</small></span>
+        <span class="sports-scoreboard-stat-team is-team-b">B</span>
       </div>
     `
     hudRoot.appendChild(this.element)

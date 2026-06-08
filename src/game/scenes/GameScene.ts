@@ -1,7 +1,6 @@
 import Phaser from 'phaser'
 import { arenaConfig } from '../config/arenaConfig'
 import { arenaPresentationConfig } from '../config/arenaPresentationConfig'
-import { coreSafetyConfig } from '../config/coreSafetyConfig'
 import { controlConfig } from '../config/controlConfig'
 import { defenseConfig } from '../config/defenseConfig'
 import { coreConfig } from '../config/entityConfig'
@@ -310,8 +309,17 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    if (!goalScored && this.coreRecoverySystem.update(this.core.position, delta)) {
-      this.recoverCoreToFaceoff()
+    const recoveryReason = goalScored
+      ? null
+      : this.coreRecoverySystem.update(
+          this.core.position,
+          this.core.velocity,
+          this.stickInteractionSystem.getCarrierId() !== null,
+          delta,
+        )
+
+    if (recoveryReason) {
+      this.matchFlowSystem.restartForFaceoff()
     }
 
     this.updateDebugHud(controlledPlayer)
@@ -581,25 +589,6 @@ export class GameScene extends Phaser.Scene {
     this.aiSystem.setDebugEnabled(enabled)
     this.teamSystem.setDebugVisible(enabled)
     this.keeperAreaSystem.setDebugEnabled(enabled)
-  }
-
-  private recoverCoreToFaceoff(): void {
-    this.stickInteractionSystem.clearForReset(this.core)
-    this.fumbleSystem.clear()
-    this.keeperSaveSystem.reset()
-    this.matchStatsTracker.clearPossession()
-    this.core.reset()
-
-    if (coreSafetyConfig.coreResetImpulseAfterRecovery > 0) {
-      this.core.setVelocity({
-        x: 0,
-        y: -coreSafetyConfig.coreResetImpulseAfterRecovery,
-      })
-    }
-
-    for (const rule of this.goalRules.values()) {
-      rule.reset(coreConfig.spawn)
-    }
   }
 
   private beginGoalSequence(): void {

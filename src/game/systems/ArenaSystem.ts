@@ -60,8 +60,9 @@ export class ArenaSystem {
     const wallOptions = {
       isStatic: true,
       label: 'arena-wall',
-      restitution: 0.72,
-      friction: 0,
+      restitution: arenaConfig.wallRestitution,
+      friction: arenaConfig.wallFriction,
+      frictionStatic: 0,
     }
 
     this.scene.matter.add.rectangle(
@@ -105,8 +106,9 @@ export class ArenaSystem {
     const options = {
       isStatic: true,
       label: 'arena-safety-wall',
-      restitution: 0.45,
-      friction: 0,
+      restitution: arenaConfig.safetyWallRestitution,
+      friction: arenaConfig.wallFriction,
+      frictionStatic: 0,
     }
 
     this.scene.matter.add.rectangle(

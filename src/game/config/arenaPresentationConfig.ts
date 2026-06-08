@@ -15,8 +15,10 @@ export const arenaPresentationConfig = {
     floorColor: visualStyleConfig.venue.backdrop,
     concourseColor: visualStyleConfig.venue.concourse,
     seatingColor: visualStyleConfig.venue.stand,
+    standShade: visualStyleConfig.venue.standShade,
     seatingStripeColor: visualStyleConfig.venue.standInset,
     railColor: visualStyleConfig.venue.rail,
+    aisleColor: visualStyleConfig.venue.aisle,
     courtShadowColor: visualStyleConfig.venue.shadow,
   },
   crowd: {
