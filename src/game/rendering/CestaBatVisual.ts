@@ -2,9 +2,14 @@ import Phaser from 'phaser'
 import { stickVisualConfig } from '../config/stickVisualConfig'
 import { visualConfig } from '../config/visualConfig'
 import { visualStyleConfig } from '../config/visualStyleConfig'
+import { possessionFeelConfig } from '../config/possessionFeelConfig'
+import { defenseConfig } from '../config/defenseConfig'
 import { cestaBatStyles, type CestaBatStyle } from '../data/stickStyles'
 import type { StickActionState, StickStyle } from '../data/matchTypes'
-import type { PlayerAnimationPose } from './AnimationState'
+import type {
+  DefensiveVisualState,
+  PlayerAnimationPose,
+} from './AnimationState'
 import {
   getStickAssetKey,
   hasVisualAsset,
@@ -20,6 +25,12 @@ export type CestaBatVisualUpdate = {
   cradleSocket: Point
   state: StickActionState
   pose: PlayerAnimationPose
+  chargeVisual: {
+    normalized: number
+    hardCharge: boolean
+    overcharged: boolean
+  }
+  defenseState: DefensiveVisualState
   now: number
 }
 
@@ -31,7 +42,7 @@ export class CestaBatVisual {
   private readonly foreground: Phaser.GameObjects.Graphics
   private readonly textureScaleX: number
   private readonly textureScaleY: number
-  private lastState: StickActionState = 'IDLE'
+  private lastStateKey = ''
   private stateStartedAt = 0
 
   constructor(scene: Phaser.Scene, styleId: StickStyle) {
@@ -63,8 +74,10 @@ export class CestaBatVisual {
   }
 
   update(data: CestaBatVisualUpdate): void {
-    if (data.state !== this.lastState) {
-      this.lastState = data.state
+    const stateKey = `${data.state}:${data.defenseState}`
+
+    if (stateKey !== this.lastStateKey) {
+      this.lastStateKey = stateKey
       this.stateStartedAt = data.now
     }
 
@@ -648,14 +661,33 @@ export class CestaBatVisual {
       data.state === 'RELEASE_SWING' ||
       data.state === 'RELEASE_FOLLOW_THROUGH' ||
       data.state === 'SWINGING'
-    const poking = data.pose.impact > 0.7 && !cradled
+    const slashing =
+      data.defenseState === 'SLASH_ACTIVE' ||
+      data.defenseState === 'SLASH_RECOVERY' ||
+      (data.pose.impact > 0.7 && !cradled)
     const pulse = 1 + Math.sin(elapsed * 0.014) * 0.07
 
     if (catchReady || cradled) {
-      const glowAlpha = cradled ? 0.24 : 0.1
+      const chargeColor = data.chargeVisual.overcharged
+        ? possessionFeelConfig.chargeCoreColorOvercharged
+        : data.chargeVisual.hardCharge
+          ? possessionFeelConfig.chargeCoreColorHard
+          : data.chargeVisual.normalized > 0.4
+            ? possessionFeelConfig.chargeCoreColorCharging
+            : possessionFeelConfig.chargeCoreColorStable
+      const glowAlpha =
+        cradled && possessionFeelConfig.stickChargeGlowEnabled
+          ? Phaser.Math.Linear(
+              0.2,
+              possessionFeelConfig.stickChargeGlowIntensity,
+              data.chargeVisual.normalized,
+            )
+          : catchReady
+            ? 0.1
+            : 0.24
       const radius = stickVisualConfig.pocketGlowRadius * pulse
 
-      this.effects.fillStyle(this.style.accentColor, glowAlpha)
+      this.effects.fillStyle(chargeColor, glowAlpha * 0.45)
       this.effects.fillCircle(
         data.cradleSocket.x,
         data.cradleSocket.y,
@@ -663,7 +695,7 @@ export class CestaBatVisual {
       )
       this.effects.lineStyle(
         cradled ? 3 : 2,
-        this.style.accentColor,
+        chargeColor,
         cradled ? 0.82 : 0.48,
       )
       this.effects.strokeCircle(
@@ -671,16 +703,42 @@ export class CestaBatVisual {
         data.cradleSocket.y,
         radius * 0.6,
       )
+
+      if (data.chargeVisual.overcharged) {
+        this.effects.fillStyle(chargeColor, glowAlpha)
+        for (let index = 0; index < 3; index += 1) {
+          const angle =
+            data.now * 0.018 + (Math.PI * 2 * index) / 3
+          this.effects.fillCircle(
+            data.cradleSocket.x + Math.cos(angle) * radius,
+            data.cradleSocket.y + Math.sin(angle) * radius,
+            1.8,
+          )
+        }
+      }
     }
 
-    if (swinging || poking) {
+    if (swinging || slashing) {
+      const slashVisualDuration =
+        data.defenseState === 'SLASH_RECOVERY'
+          ? defenseConfig.slashFollowThroughMs
+          : defenseConfig.slashSwingMs
       const progress = Phaser.Math.Clamp(
-        elapsed / Math.max(1, stickVisualConfig.swingTrailDurationMs),
+        elapsed /
+          Math.max(
+            1,
+            slashing
+              ? Math.min(
+                  defenseConfig.slashTrailDuration,
+                  slashVisualDuration,
+                )
+              : stickVisualConfig.swingTrailDurationMs,
+          ),
         0,
         1,
       )
       const baseAngle = Math.atan2(data.forward.y, data.forward.x)
-      const arc = poking ? 0.42 : 0.78
+      const arc = slashing ? defenseConfig.slashArcRadians : 0.78
       const start = baseAngle - arc * mirror
       const end = Phaser.Math.Linear(
         start,
@@ -692,7 +750,10 @@ export class CestaBatVisual {
       this.effects.lineStyle(
         stickVisualConfig.swingTrailWidth,
         this.style.accentColor,
-        stickVisualConfig.swingTrailAlpha * (1 - progress * 0.76),
+        (slashing
+          ? defenseConfig.slashTrailAlpha
+          : stickVisualConfig.swingTrailAlpha) *
+          (1 - progress * 0.76),
       )
       this.effects.beginPath()
       this.effects.arc(

@@ -73,6 +73,32 @@ export type LabKeeperTuning = {
 }
 
 export type LabStickTuning = {
+  carryControlEnabled: boolean
+  carrySocketLag: number
+  carrySocketMaxOffset: number
+  carrySocketLateralRange: number
+  carrySocketForwardRange: number
+  carrySwayAmount: number
+  carrySwaySmoothing: number
+  carryControlDeadzone: number
+  carryControlResponsiveness: number
+  carryAimBlend: number
+  carryPoseOffsetRadians: number
+  carryPoseMaxArcRadians: number
+  carryPoseSmoothing: number
+  carryPoseRotationLimit: number
+  gatherAssistStrength: number
+  gatherAssistRadius: number
+  gatherAssistMaxSpeed: number
+  gatherSnapDistance: number
+  gatherSnapEffectEnabled: boolean
+  gatherDeflectSuppression: number
+  chargeLoadbackDistance: number
+  hardChargeEnabled: boolean
+  hardChargeHoldMs: number
+  hardChargeMultiplier: number
+  playerChargeAuraEnabled: boolean
+  playerChargeAuraThreshold: number
   maxCradleEntrySpeed: number
   cradleMinRadius: number
   cradleMaxRadius: number

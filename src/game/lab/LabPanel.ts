@@ -620,22 +620,81 @@ export class LabPanel {
     const stick = this.draft.stick
     const content = document.createElement('div')
     content.className = 'lab-range-list'
+    content.append(
+      this.createCheckbox(
+        'Carry control enabled',
+        stick.carryControlEnabled,
+        (value) => {
+          stick.carryControlEnabled = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createCheckbox(
+        'Gather snap effect',
+        stick.gatherSnapEffectEnabled,
+        (value) => {
+          stick.gatherSnapEffectEnabled = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createCheckbox(
+        'Hard charge enabled',
+        stick.hardChargeEnabled,
+        (value) => {
+          stick.hardChargeEnabled = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createCheckbox(
+        'Player charge aura',
+        stick.playerChargeAuraEnabled,
+        (value) => {
+          stick.playerChargeAuraEnabled = value
+          this.markDraftChanged()
+        },
+      ),
+    )
     const controls: Array<
       [
         string,
-        keyof LabTuningState['stick'],
+        Exclude<
+          keyof LabTuningState['stick'],
+          | 'carryControlEnabled'
+          | 'gatherSnapEffectEnabled'
+          | 'hardChargeEnabled'
+          | 'playerChargeAuraEnabled'
+        >,
         RangeOptions,
       ]
     > = [
+      ['Carry socket lag', 'carrySocketLag', { min: 0.02, max: 0.4, step: 0.01, digits: 2 }],
+      ['Carry socket max offset', 'carrySocketMaxOffset', { min: 0, max: 70, step: 1 }],
+      ['Carry lateral range', 'carrySocketLateralRange', { min: 0, max: 60, step: 1 }],
+      ['Carry forward range', 'carrySocketForwardRange', { min: 0, max: 45, step: 1 }],
+      ['Carry sway amount', 'carrySwayAmount', { min: 0, max: 0.5, step: 0.01, digits: 2 }],
+      ['Carry sway smoothing', 'carrySwaySmoothing', { min: 1, max: 24, step: 0.5, digits: 1 }],
+      ['Carry control deadzone', 'carryControlDeadzone', { min: 0, max: 0.4, step: 0.01, digits: 2 }],
+      ['Carry responsiveness', 'carryControlResponsiveness', { min: 1, max: 24, step: 0.5, digits: 1 }],
+      ['Carry aim blend', 'carryAimBlend', { min: 0, max: 1, step: 0.02, digits: 2 }],
+      ['Carry pose offset', 'carryPoseOffsetRadians', { min: -1.2, max: 1.2, step: 0.02, digits: 2 }],
+      ['Carry pose max arc', 'carryPoseMaxArcRadians', { min: 0.2, max: 2, step: 0.02, digits: 2 }],
+      ['Carry pose smoothing', 'carryPoseSmoothing', { min: 1, max: 28, step: 0.5, digits: 1 }],
+      ['Carry rotation limit', 'carryPoseRotationLimit', { min: 1, max: 16, step: 0.2, digits: 1 }],
+      ['Gather assist strength', 'gatherAssistStrength', { min: 0, max: 1, step: 0.02, digits: 2 }],
+      ['Gather assist radius', 'gatherAssistRadius', { min: 20, max: 120, step: 1 }],
+      ['Gather assist max speed', 'gatherAssistMaxSpeed', { min: 0, max: 12, step: 0.2, digits: 1 }],
+      ['Gather snap distance', 'gatherSnapDistance', { min: 0, max: 50, step: 1 }],
+      ['Gather deflect suppression', 'gatherDeflectSuppression', { min: 0, max: 1, step: 0.02, digits: 2 }],
+      ['Charge load-back distance', 'chargeLoadbackDistance', { min: 0, max: 36, step: 1 }],
+      ['Hard charge hold ms', 'hardChargeHoldMs', { min: 100, max: 1400, step: 25 }],
+      ['Hard charge multiplier', 'hardChargeMultiplier', { min: 1, max: 1.5, step: 0.01, digits: 2 }],
+      ['Charge aura threshold', 'playerChargeAuraThreshold', { min: 0, max: 1, step: 0.02, digits: 2 }],
       ['Max cradle entry speed', 'maxCradleEntrySpeed', { min: 4, max: 70, step: 1 }],
       ['Cradle min radius', 'cradleMinRadius', { min: 20, max: 90, step: 1 }],
       ['Cradle max radius', 'cradleMaxRadius', { min: 80, max: 170, step: 1 }],
       ['Cradle min angle', 'cradleMinAngle', { min: 0, max: 35, step: 1 }],
       ['Cradle max angle', 'cradleMaxAngle', { min: 35, max: 90, step: 1 }],
       ['Cradle capture radius', 'cradleCaptureRadius', { min: 24, max: 100, step: 1 }],
-      ['Cradle assist radius', 'cradleAssistRadius', { min: 24, max: 120, step: 1 }],
-      ['Cradle assist strength', 'cradleAssistStrength', { min: 0, max: 1, step: 0.02, digits: 2 }],
-      ['Cradle assist max speed', 'cradleAssistMaxSpeed', { min: 0, max: 12, step: 0.2, digits: 1 }],
       ['Passive nudge force', 'passiveNudgeForce', { min: 0, max: 3, step: 0.05, digits: 2 }],
       ['Active swing force', 'activeSwingForce', { min: 1, max: 14, step: 0.2, digits: 1 }],
       ['Max deflect impulse', 'maxDeflectImpulse', { min: 1, max: 16, step: 0.2, digits: 1 }],

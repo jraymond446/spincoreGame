@@ -1,6 +1,9 @@
 import Phaser from 'phaser'
 import type { StickActionState, StickStyle } from '../data/matchTypes'
-import type { PlayerAnimationPose } from './AnimationState'
+import type {
+  DefensiveVisualState,
+  PlayerAnimationPose,
+} from './AnimationState'
 import { CestaBatVisual } from './CestaBatVisual'
 
 type Point = { x: number; y: number }
@@ -19,7 +22,13 @@ export class StickVisual {
     visualMirrorSign: -1 | 1,
     cradleSocket: Point,
     state: StickActionState,
+    defenseState: DefensiveVisualState,
     pose: PlayerAnimationPose,
+    chargeVisual: {
+      normalized: number
+      hardCharge: boolean
+      overcharged: boolean
+    },
     now: number,
   ): void {
     this.cestaBat.update({
@@ -29,7 +38,9 @@ export class StickVisual {
       visualMirrorSign,
       cradleSocket,
       state,
+      defenseState,
       pose,
+      chargeVisual,
       now,
     })
   }

@@ -1,5 +1,6 @@
 import Phaser from 'phaser'
 import { coreConfig } from '../config/entityConfig'
+import { possessionFeelConfig } from '../config/possessionFeelConfig'
 import type { Point } from '../data/geometry'
 
 export class Core {
@@ -11,6 +12,7 @@ export class Core {
   private trail: Phaser.GameObjects.Graphics
   private chargeAccent: Phaser.GameObjects.Graphics
   private possessionCharge = 0
+  private possessionHardCharge = false
   private possessionOvercharged = false
   private releaseVisualCharge = 0
   private releaseVisualUntil = 0
@@ -107,6 +109,7 @@ export class Core {
     })
     this.setVelocity({ x: 0, y: 0 })
     this.possessionCharge = 0
+    this.possessionHardCharge = false
     this.possessionOvercharged = false
     this.releaseVisualCharge = 0
     this.releaseVisualUntil = 0
@@ -121,8 +124,13 @@ export class Core {
     this.shell.setPosition(position.x, position.y)
   }
 
-  setPossessionVisual(charge: number, overcharged: boolean): void {
+  setPossessionVisual(
+    charge: number,
+    hardCharge: boolean,
+    overcharged: boolean,
+  ): void {
     this.possessionCharge = Phaser.Math.Clamp(charge, 0, 1)
+    this.possessionHardCharge = hardCharge
     this.possessionOvercharged = overcharged
   }
 
@@ -131,6 +139,7 @@ export class Core {
     this.releaseVisualOvercharged = overcharged
     this.releaseVisualUntil = this.scene.time.now + 260
     this.possessionCharge = 0
+    this.possessionHardCharge = false
     this.possessionOvercharged = false
   }
 
@@ -159,6 +168,8 @@ export class Core {
     this.chargeAccent.clear()
 
     if (this.possessionCharge <= 0) {
+      this.glow.setFillStyle(coreConfig.glowColor, 0.16)
+      this.shell.setFillStyle(coreConfig.fillColor, 1)
       return
     }
 
@@ -173,8 +184,26 @@ export class Core {
       Phaser.Math.Linear(1.35, 1.9, this.possessionCharge) *
       pulse
     const color = this.possessionOvercharged
-      ? 0xff846f
-      : 0xffdc70
+      ? possessionFeelConfig.chargeCoreColorOvercharged
+      : this.possessionHardCharge
+        ? possessionFeelConfig.chargeCoreColorHard
+        : this.possessionCharge >= 0.4
+          ? possessionFeelConfig.chargeCoreColorCharging
+          : possessionFeelConfig.chargeCoreColorStable
+
+    this.glow.setFillStyle(
+      color,
+      Phaser.Math.Linear(0.16, 0.34, this.possessionCharge),
+    )
+    this.shell.setFillStyle(
+      Phaser.Display.Color.Interpolate.ColorWithColor(
+        Phaser.Display.Color.ValueToColor(coreConfig.fillColor),
+        Phaser.Display.Color.ValueToColor(color),
+        100,
+        Math.round(this.possessionCharge * 42),
+      ).color,
+      1,
+    )
 
     this.chargeAccent.lineStyle(
       2 + this.possessionCharge * 2,

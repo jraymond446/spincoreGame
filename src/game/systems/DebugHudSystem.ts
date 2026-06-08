@@ -39,9 +39,16 @@ type DebugHudState = {
   cradleSocketSign: number
   chargeElapsedMs: number
   chargeNormalized: number
+  hardChargeActive: boolean
   releaseForcePreview: number
   cradlePhase: string
   stickVisualRotation: number
+  rawInputAimAngle: number
+  releaseAimAngle: number
+  carryPoseAngle: number
+  loadbackAngle: number
+  carrySocket: Point | null
+  desiredCarrySocket: Point | null
   readyStanceOffset: number
   cradleFacingOffset: number
   catchAutoOrientActive: boolean
@@ -196,6 +203,7 @@ export class DebugHudSystem {
       `CORE     ${state.coreState}\n` +
       `PHASE    ${state.cradlePhase}\n` +
       `CHARGE   ${Math.round(state.chargeElapsedMs)}ms / ${state.chargeNormalized.toFixed(2)}\n` +
+      `HARD     ${state.hardChargeActive ? 'ACTIVE' : 'INACTIVE'}\n` +
       `FORCE    ${state.releaseForcePreview.toFixed(2)}\n` +
       `AUTO     ${state.catchAutoOrientActive ? 'ACTIVE' : 'INACTIVE'}\n` +
       `ASSIST   ${state.coreInCatchAssistRadius ? 'IN RADIUS' : 'OUTSIDE'}\n` +
@@ -214,6 +222,12 @@ export class DebugHudSystem {
       `TRUCK    ${state.truckAvailable ? 'READY' : 'LOCKED'}\n` +
       `SLASH    ${state.slashAvailable ? 'READY' : 'LOCKED'}\n` +
       `RECOVERY ${state.recoveryStatus}\n` +
+      `RAW AIM  ${signed(state.rawInputAimAngle)} rad\n` +
+      `RELEASE  ${signed(state.releaseAimAngle)} rad\n` +
+      `CARRY    ${signed(state.carryPoseAngle)} rad\n` +
+      `LOADBACK ${signed(state.loadbackAngle)} rad\n` +
+      `SOCKET   ${formatOptionalVector(state.carrySocket)}\n` +
+      `DESIRED  ${formatOptionalVector(state.desiredCarrySocket)}\n` +
       `VISUAL   ${state.stickVisualRotation.toFixed(2)}\n` +
       `READY    ${signed(state.readyStanceOffset)} rad\n` +
       `CRADLE   ${signed(state.cradleFacingOffset)} rad\n` +
@@ -279,6 +293,10 @@ function scoreText(state: DebugHudState): string {
 
 function formatVector(vector: Point): string {
   return `${signed(vector.x)}, ${signed(vector.y)}`
+}
+
+function formatOptionalVector(vector: Point | null): string {
+  return vector ? formatVector(vector) : '-'
 }
 
 function signed(value: number): string {

@@ -1,6 +1,7 @@
 import Phaser from 'phaser'
 import { aiConfig } from '../config/aiConfig'
 import { stickConfig } from '../config/stickConfig'
+import { possessionFeelConfig } from '../config/possessionFeelConfig'
 import type { Point } from '../data/geometry'
 import type { StickActionState } from '../data/matchTypes'
 import type { Core } from '../entities/Core'
@@ -21,6 +22,7 @@ export type StickIntent = {
   suppressEmptyReleaseSwing?: boolean
   releaseTarget?: Point
   aiReleaseDelayMs?: number
+  chargeIntensity?: number
 }
 
 export type CradleFailureReason =
@@ -70,6 +72,11 @@ type ReleaseVector = {
   msRemaining: number
 }
 
+type GatherRipple = {
+  position: Point
+  msRemaining: number
+}
+
 type PendingRelease = {
   playerId: string
   elapsedMs: number
@@ -80,6 +87,7 @@ type PendingRelease = {
   followRotation: number
   swingSign: HandednessSign
   chargeElapsedMs: number
+  hardCharge: boolean
   released: boolean
 }
 
@@ -105,6 +113,14 @@ export class StickInteractionSystem {
   private lastInteraction: StickInteractionResult = 'none'
   private interactionEvent: StickInteractionEvent | null = null
   private releaseForcePreview: number = stickConfig.releaseForceMin
+  private carryPlayer: Player | null = null
+  private carrySocket: Point | null = null
+  private desiredCarrySocket: Point | null = null
+  private carryPoseAngles = new Map<string, number>()
+  private loadbackAngles = new Map<string, number>()
+  private hardChargeActive = false
+  private currentChargeIntensity = 0
+  private gatherRipple: GatherRipple | null = null
 
   constructor(scene: Phaser.Scene) {
     this.releaseGraphics = scene.add.graphics().setDepth(19)
@@ -162,10 +178,21 @@ export class StickInteractionSystem {
       this.previousHold.set(player.id, intent?.hold ?? false)
       this.previousSwing.set(player.id, intent?.swing ?? false)
       player.setStickState(this.getStickState(player.id))
+      const ownsPossessionVisual =
+        player.id === this.carrierId ||
+        player.id === this.pendingRelease?.playerId
+
+      player.setChargeVisual(
+        ownsPossessionVisual ? this.getChargeNormalized() : 0,
+        ownsPossessionVisual && this.isHardChargeVisualActive(),
+        ownsPossessionVisual &&
+          this.coreState === 'CRADLED_OVERCHARGED',
+      )
     }
 
     core.setPossessionVisual(
       this.isCradled() ? this.getChargeNormalized() : 0,
+      this.isCradled() && this.isHardChargeVisualActive(),
       this.coreState === 'CRADLED_OVERCHARGED',
     )
     this.drawReleaseSwing(players)
@@ -200,9 +227,45 @@ export class StickInteractionSystem {
     return this.releaseForcePreview
   }
 
+  isHardChargeActive(): boolean {
+    return this.hardChargeActive
+  }
+
+  private isHardChargeVisualActive(): boolean {
+    return (
+      this.hardChargeActive &&
+      (this.getChargeNormalized() >=
+        possessionFeelConfig.hardChargeVisualThreshold ||
+        this.currentChargeIntensity >=
+          possessionFeelConfig.hardChargePressureThreshold)
+    )
+  }
+
+  getCarryPoseAngle(playerId: string): number {
+    return this.carryPoseAngles.get(playerId) ?? 0
+  }
+
+  getLoadbackAngle(playerId: string): number {
+    return this.loadbackAngles.get(playerId) ?? 0
+  }
+
+  getCurrentCarrySocket(): Point | null {
+    return this.carrySocket ? { ...this.carrySocket } : null
+  }
+
+  getDesiredCarrySocket(): Point | null {
+    return this.desiredCarrySocket
+      ? { ...this.desiredCarrySocket }
+      : null
+  }
+
   getCradlePhase(): string {
     if (this.coreState === 'CRADLED_OVERCHARGED') {
       return 'OVERCHARGED'
+    }
+
+    if (this.hardChargeActive) {
+      return 'HARD CHARGE'
     }
 
     if (this.coreState === 'CRADLED_CHARGING') {
@@ -226,7 +289,7 @@ export class StickInteractionSystem {
     return (
       localPoint.y * player.getPocketFacingSign() > 0 &&
       distance(core.position, player.getCradleSocket()) <=
-        stickConfig.cradleAssistRadius
+        possessionFeelConfig.gatherAssistRadius
     )
   }
 
@@ -289,8 +352,12 @@ export class StickInteractionSystem {
     this.cradleFailures.clear()
     this.catchAutoOrientActive.clear()
     this.cradleOpenDirections.clear()
+    this.carryPoseAngles.clear()
+    this.loadbackAngles.clear()
     this.releaseVector = null
+    this.gatherRipple = null
     this.pendingRelease = null
+    this.clearCarryControl()
     this.lastInteraction = 'none'
     this.interactionEvent = null
     this.releaseForcePreview = stickConfig.releaseForceMin
@@ -303,7 +370,7 @@ export class StickInteractionSystem {
     }
 
     core.setSensor(false)
-    core.setPossessionVisual(0, false)
+    core.setPossessionVisual(0, false, false)
   }
 
   private ensurePlayers(players: Player[]): void {
@@ -338,6 +405,14 @@ export class StickInteractionSystem {
 
       if (this.releaseVector.msRemaining <= 0) {
         this.releaseVector = null
+      }
+    }
+
+    if (this.gatherRipple) {
+      this.gatherRipple.msRemaining -= deltaMs
+
+      if (this.gatherRipple.msRemaining <= 0) {
+        this.gatherRipple = null
       }
     }
 
@@ -452,10 +527,38 @@ export class StickInteractionSystem {
       const state = this.getStickState(player.id)
       const isCarrier = this.isCradled() && player.id === this.carrierId
       let targetRotation = player.getReleaseAimAngle()
+      let loadback = 0
 
       if (isCarrier) {
         const chargeNormalized = this.getChargeNormalized()
-        const loadback = Phaser.Math.Linear(
+        const bodyAngle = possessionFeelConfig.carryControlEnabled
+          ? player.getBodyFacingAngle()
+          : player.getReleaseAimAngle()
+        const rawCarryDelta = Phaser.Math.Angle.Wrap(
+          player.getReleaseAimAngle() - bodyAngle,
+        )
+        const normalizedCarryDelta = Phaser.Math.Clamp(
+          rawCarryDelta /
+            Math.max(0.01, possessionFeelConfig.carryPoseMaxArcRadians),
+          -1,
+          1,
+        )
+        const carryDelta =
+          Math.abs(normalizedCarryDelta) <
+          possessionFeelConfig.carryControlDeadzone
+            ? 0
+            : Phaser.Math.Clamp(
+                rawCarryDelta,
+                -possessionFeelConfig.carryPoseMaxArcRadians,
+                possessionFeelConfig.carryPoseMaxArcRadians,
+              ) * possessionFeelConfig.carryAimBlend
+        const carryPoseAngle = possessionFeelConfig.carryControlEnabled
+          ? bodyAngle +
+            carryDelta +
+            possessionFeelConfig.carryPoseOffsetRadians *
+              player.getPocketFacingSign()
+          : player.getReleaseAimAngle()
+        loadback = Phaser.Math.Linear(
           stickConfig.chargeLoadbackMinRadians,
           stickConfig.chargeLoadbackMaxRadians,
           chargeNormalized,
@@ -468,9 +571,12 @@ export class StickInteractionSystem {
               ) * stickConfig.overchargeJitterAmount
             : 0
 
-        targetRotation +=
+        targetRotation =
+          carryPoseAngle +
           (-loadback + overchargeJitter) *
           player.getPocketFacingSign()
+        this.carryPoseAngles.set(player.id, carryPoseAngle)
+        this.loadbackAngles.set(player.id, loadback)
       } else if (autoOrientActive) {
         targetRotation =
           coreAngle +
@@ -487,13 +593,19 @@ export class StickInteractionSystem {
       const strength = autoOrientActive
         ? stickConfig.catchAutoOrientStrength
         : isCarrier
-          ? stickConfig.chargeLoadbackSmoothing
+          ? Math.max(
+              possessionFeelConfig.carryPoseSmoothing,
+              stickConfig.chargeLoadbackSmoothing,
+            )
           : stickConfig.aimSmoothing
       const smoothing = 1 - Math.exp(-strength * deltaSeconds)
       const angularDelta = Phaser.Math.Angle.Wrap(
         targetRotation - player.getStickVisualRotation(),
       )
-      const maximumRotation = stickConfig.maxStickRotationSpeed * deltaSeconds
+      const maximumRotation =
+        (isCarrier
+          ? possessionFeelConfig.carryPoseRotationLimit
+          : stickConfig.maxStickRotationSpeed) * deltaSeconds
       const rotationStep = Phaser.Math.Clamp(
         angularDelta * smoothing,
         -maximumRotation,
@@ -532,19 +644,31 @@ export class StickInteractionSystem {
     const released = (this.previousHold.get(carrier.id) ?? false) && !intent.hold
 
     this.cradleElapsedMs += deltaMs
-    core.holdAt(carrier.getCradleSocket())
+    this.currentChargeIntensity = intent.chargeIntensity ?? 0
+    this.hardChargeActive =
+      possessionFeelConfig.hardChargeEnabled &&
+      (this.cradleElapsedMs >= possessionFeelConfig.hardChargeHoldMs ||
+        this.currentChargeIntensity >=
+          possessionFeelConfig.hardChargePressureThreshold)
     this.syncCradleState(carrier.id)
+    this.updateCarrySocket(carrier, core.position, deltaMs)
+    core.holdAt(carrier.getCradleSocket())
     this.releaseForcePreview = magnitude(
       this.calculateReleaseVelocity(carrier.getReleaseAimForward(), carrier),
     )
 
-    const fumbleTime =
+    const baseFumbleTime =
       stickConfig.fumbleMs *
       Phaser.Math.Linear(
         0.96,
         1.12,
         Phaser.Math.Clamp(carrier.attributes.ballHandling, 0, 1),
       )
+    const fumbleTime =
+      this.hardChargeActive &&
+      this.cradleElapsedMs >= stickConfig.chargeCradleMs
+        ? baseFumbleTime / possessionFeelConfig.hardChargeMultiplier
+        : baseFumbleTime
 
     if (this.cradleElapsedMs >= fumbleTime) {
       this.fumble(core, carrier)
@@ -563,6 +687,87 @@ export class StickInteractionSystem {
     if (released) {
       this.beginReleaseAlongAim(carrier)
     }
+  }
+
+  private updateCarrySocket(
+    carrier: Player,
+    corePosition: Point,
+    deltaMs: number,
+  ): void {
+    const baseSocket = carrier.getBaseCradleSocket()
+
+    if (!possessionFeelConfig.carryControlEnabled) {
+      this.carrySocket = { ...baseSocket }
+      this.desiredCarrySocket = { ...baseSocket }
+      carrier.setCarrySocket(baseSocket)
+      return
+    }
+
+    const bodyAngle = carrier.getBodyFacingAngle()
+    const relativeAim = Phaser.Math.Angle.Wrap(
+      carrier.getReleaseAimAngle() - bodyAngle,
+    )
+    let control = Phaser.Math.Clamp(
+      relativeAim /
+        Math.max(0.01, possessionFeelConfig.carryPoseMaxArcRadians),
+      -1,
+      1,
+    )
+
+    if (Math.abs(control) < possessionFeelConfig.carryControlDeadzone) {
+      control = 0
+    }
+
+    const speed = magnitude(carrier.velocity)
+    const sway =
+      Math.sin(
+        (this.cradleElapsedMs / 1000) *
+          possessionFeelConfig.carrySwaySmoothing,
+      ) *
+      possessionFeelConfig.carrySwayAmount *
+      Phaser.Math.Clamp(speed / 8, 0, 1)
+    const forward = carrier.getStickForward()
+    const right = carrier.getStickRight()
+    const chargeLoadback =
+      this.getChargeNormalized() *
+      possessionFeelConfig.chargeLoadbackDistance
+    const lateral =
+      (control + sway) *
+      possessionFeelConfig.carrySocketLateralRange
+    const forwardOffset =
+      (1 - Math.abs(control)) *
+        possessionFeelConfig.carrySocketForwardRange *
+        0.35 -
+      chargeLoadback
+    const offset = clampVector(
+      {
+        x: forward.x * forwardOffset + right.x * lateral,
+        y: forward.y * forwardOffset + right.y * lateral,
+      },
+      possessionFeelConfig.carrySocketMaxOffset,
+    )
+
+    this.desiredCarrySocket = {
+      x: baseSocket.x + offset.x,
+      y: baseSocket.y + offset.y,
+    }
+
+    const lagSeconds = Math.max(
+      0.016,
+      possessionFeelConfig.carrySocketLag,
+    )
+    const response =
+      possessionFeelConfig.carryControlResponsiveness *
+      (0.12 / lagSeconds)
+    const blend =
+      1 - Math.exp(-response * Math.max(0, deltaMs / 1000))
+    const current = this.carrySocket ?? { ...corePosition }
+
+    this.carrySocket = {
+      x: Phaser.Math.Linear(current.x, this.desiredCarrySocket.x, blend),
+      y: Phaser.Math.Linear(current.y, this.desiredCarrySocket.y, blend),
+    }
+    carrier.setCarrySocket(this.carrySocket)
   }
 
   private advancePendingRelease(deltaMs: number): void {
@@ -605,9 +810,18 @@ export class StickInteractionSystem {
     }
 
     const releaseAtMs =
-      stickConfig.releaseWindupMs +
-      stickConfig.releaseSwingMs *
-        Phaser.Math.Clamp(stickConfig.releasePointNormalized, 0, 1)
+      (stickConfig.releaseWindupMs +
+        stickConfig.releaseSwingMs *
+          Phaser.Math.Clamp(stickConfig.releasePointNormalized, 0, 1)) *
+      Phaser.Math.Linear(
+        1,
+        0.65,
+        Phaser.Math.Clamp(
+          possessionFeelConfig.releaseResponsivenessBias,
+          0,
+          1,
+        ),
+      )
 
     if (!pending.released && pending.elapsedMs >= releaseAtMs) {
       this.executePendingRelease(core, carrier, pending)
@@ -622,6 +836,7 @@ export class StickInteractionSystem {
 
     if (pending.elapsedMs >= totalDuration) {
       this.pendingRelease = null
+      this.clearCarryControl()
       this.setActionState(carrier.id, 'RELEASE_COOLDOWN')
     }
   }
@@ -646,7 +861,7 @@ export class StickInteractionSystem {
       .filter(
         ({ player, socketDistance, localPoint }) =>
           localPoint.y * player.getPocketFacingSign() > 0 &&
-          socketDistance <= stickConfig.cradleAssistRadius,
+          socketDistance <= possessionFeelConfig.gatherAssistRadius,
       )
       .sort((a, b) => {
         if (a.player.id === preferredPlayerId) {
@@ -670,22 +885,28 @@ export class StickInteractionSystem {
       y: socket.y - core.position.y,
     })
     const distanceRatio = Phaser.Math.Clamp(
-      1 - candidate.socketDistance / stickConfig.cradleAssistRadius,
+      1 - candidate.socketDistance / possessionFeelConfig.gatherAssistRadius,
       0.15,
       1,
     )
     const targetVelocity = {
       x:
         candidate.player.velocity.x +
-        direction.x * stickConfig.cradleAssistMaxSpeed * distanceRatio,
+        direction.x *
+          possessionFeelConfig.gatherAssistMaxSpeed *
+          distanceRatio,
       y:
         candidate.player.velocity.y +
-        direction.y * stickConfig.cradleAssistMaxSpeed * distanceRatio,
+        direction.y *
+          possessionFeelConfig.gatherAssistMaxSpeed *
+          distanceRatio,
     }
     const blend =
       1 -
       Math.exp(
-        -stickConfig.cradleAssistStrength * 10 * Math.max(deltaMs / 1000, 0),
+        -possessionFeelConfig.gatherAssistStrength *
+          10 *
+          Math.max(deltaMs / 1000, 0),
       )
 
     core.setVelocity({
@@ -764,6 +985,7 @@ export class StickInteractionSystem {
     }
 
     this.carrierId = selected.player.id
+    this.carryPlayer = selected.player
     this.coreState = 'CRADLED_STABLE'
     this.cradleElapsedMs = 0
     this.lastInteraction = 'cradle'
@@ -775,7 +997,23 @@ export class StickInteractionSystem {
     this.cradleFailures.set(selected.player.id, 'already cradled')
     core.setSensor(true)
     core.setVelocity({ x: 0, y: 0 })
-    core.holdAt(selected.player.getCradleSocket())
+    const baseSocket = selected.player.getBaseCradleSocket()
+    const snappedSocket =
+      selected.socketDistance <= possessionFeelConfig.gatherSnapDistance
+        ? baseSocket
+        : core.position
+
+    this.carrySocket = { ...snappedSocket }
+    this.desiredCarrySocket = { ...baseSocket }
+    selected.player.setCarrySocket(snappedSocket)
+    core.holdAt(snappedSocket)
+
+    if (possessionFeelConfig.gatherSnapEffectEnabled) {
+      this.gatherRipple = {
+        position: { ...snappedSocket },
+        msRemaining: 220,
+      }
+    }
   }
 
   private processContacts(core: Core, players: Player[]): void {
@@ -876,6 +1114,7 @@ export class StickInteractionSystem {
         aimAngle + swingSign * arc * (1 - powerTiming + 0.28),
       swingSign,
       chargeElapsedMs: this.cradleElapsedMs,
+      hardCharge: this.hardChargeActive,
       released: false,
     }
     this.releaseForcePreview = magnitude(
@@ -884,6 +1123,7 @@ export class StickInteractionSystem {
         carrier,
         this.cradleElapsedMs,
         swingSign,
+        this.hardChargeActive,
       ),
     )
     this.setActionState(carrier.id, 'RELEASE_WINDUP')
@@ -900,6 +1140,7 @@ export class StickInteractionSystem {
       carrier,
       pending.chargeElapsedMs,
       pending.swingSign,
+      pending.hardCharge,
     )
     const chargeNormalized = Phaser.Math.Clamp(
       pending.chargeElapsedMs / stickConfig.overchargeMs,
@@ -987,6 +1228,7 @@ export class StickInteractionSystem {
     this.cradleElapsedMs = 0
     this.releaseCooldownMsRemaining = stickConfig.releaseCooldownMs
     this.lastInteraction = nextState === 'FUMBLED' ? 'fumble' : 'release'
+    this.clearCarryControl()
     this.setActionState(
       carrier.id,
       nextState === 'FUMBLED' ? 'FUMBLED_COOLDOWN' : 'RELEASE_RECOVERY',
@@ -1006,6 +1248,7 @@ export class StickInteractionSystem {
     carrier: Player,
     chargeElapsedMs = this.cradleElapsedMs,
     swingSign: HandednessSign = carrier.getPocketFacingSign(),
+    hardCharge = this.hardChargeActive,
   ): Point {
     const chargeNormalized = Phaser.Math.Clamp(
       chargeElapsedMs / stickConfig.overchargeMs,
@@ -1018,7 +1261,11 @@ export class StickInteractionSystem {
     )
     const baseForce = Phaser.Math.Linear(
       stickConfig.releaseForceMin,
-      stickConfig.releaseForceMax,
+      stickConfig.releaseForceMax *
+        (possessionFeelConfig.hardChargeEnabled &&
+        hardCharge
+          ? possessionFeelConfig.hardChargeMultiplier
+          : 1),
       curvedCharge,
     )
     const overchargeProgress = Phaser.Math.Clamp(
@@ -1074,7 +1321,11 @@ export class StickInteractionSystem {
     return clampVectorRange(
       velocity,
       stickConfig.releaseForceMin,
-      stickConfig.releaseForceMax,
+      stickConfig.releaseForceMax *
+        (possessionFeelConfig.hardChargeEnabled &&
+        hardCharge
+          ? possessionFeelConfig.hardChargeMultiplier
+          : 1),
     )
   }
 
@@ -1088,7 +1339,10 @@ export class StickInteractionSystem {
     const force = active
       ? stickConfig.activeSwingForce
       : stickConfig.passiveNudgeForce *
-        (state === 'CATCH_READY' ? stickConfig.catchReadyDeflectMultiplier : 1)
+        (state === 'CATCH_READY'
+          ? stickConfig.catchReadyDeflectMultiplier *
+            possessionFeelConfig.gatherDeflectSuppression
+          : 1)
     const direction = active
       ? normalized({
           x: player.getStickForward().x * 0.82 + hit.normal.x * 0.42,
@@ -1118,6 +1372,16 @@ export class StickInteractionSystem {
 
     runtime.state = state
     runtime.elapsedMs = 0
+  }
+
+  private clearCarryControl(): void {
+    this.carryPlayer?.setCarrySocket(null)
+    this.carryPlayer?.setChargeVisual(0, false, false)
+    this.carryPlayer = null
+    this.carrySocket = null
+    this.desiredCarrySocket = null
+    this.hardChargeActive = false
+    this.currentChargeIntensity = 0
   }
 
   private isCradled(): boolean {
@@ -1183,6 +1447,20 @@ export class StickInteractionSystem {
 
   private drawReleaseSwing(players: Player[]): void {
     this.releaseGraphics.clear()
+
+    if (this.gatherRipple) {
+      const progress = 1 - this.gatherRipple.msRemaining / 220
+      this.releaseGraphics.lineStyle(
+        4,
+        possessionFeelConfig.chargeCoreColorStable,
+        0.75 * (1 - progress),
+      )
+      this.releaseGraphics.strokeCircle(
+        this.gatherRipple.position.x,
+        this.gatherRipple.position.y,
+        10 + progress * 24,
+      )
+    }
 
     const pending = this.pendingRelease
 
@@ -1307,8 +1585,26 @@ export class StickInteractionSystem {
       this.debugGraphics.strokeCircle(
         socket.x,
         socket.y,
-        stickConfig.cradleAssistRadius,
+        possessionFeelConfig.gatherAssistRadius,
       )
+      if (this.desiredCarrySocket && focus.id === this.carrierId) {
+        this.debugGraphics.lineStyle(
+          3,
+          stickConfig.debug.cradleOpenColor,
+          0.9,
+        )
+        this.debugGraphics.strokeCircle(
+          this.desiredCarrySocket.x,
+          this.desiredCarrySocket.y,
+          6,
+        )
+        this.debugGraphics.lineBetween(
+          socket.x,
+          socket.y,
+          this.desiredCarrySocket.x,
+          this.desiredCarrySocket.y,
+        )
+      }
       this.drawDirectionVector(
         focus.position,
         focus.getReleaseAimForward(),
@@ -1348,6 +1644,7 @@ export class StickInteractionSystem {
         `CHARGE ${Math.round(this.cradleElapsedMs)}ms / ${this
           .getChargeNormalized()
           .toFixed(2)}\n` +
+        `HARD ${this.hardChargeActive ? 'ACTIVE' : 'INACTIVE'} / ${this.currentChargeIntensity.toFixed(2)}\n` +
         `FORCE ${this.releaseForcePreview.toFixed(2)}\n` +
         `POSSESSION ${this.carrierId ?? 'LOOSE'}\n` +
         `HAND ${focus ? focus.handedness.toUpperCase() : 'n/a'}\n` +
@@ -1372,6 +1669,15 @@ export class StickInteractionSystem {
             : 'n/a'
         }\n` +
         `VISUAL ${focus ? focus.getStickVisualRotation().toFixed(2) : 'n/a'}\n` +
+        `RAW AIM ${focus ? focus.getReleaseAimAngle().toFixed(2) : 'n/a'}\n` +
+        `CARRY POSE ${
+          focus ? this.getCarryPoseAngle(focus.id).toFixed(2) : 'n/a'
+        }\n` +
+        `LOADBACK ${
+          focus ? this.getLoadbackAngle(focus.id).toFixed(2) : 'n/a'
+        }\n` +
+        `CARRY SOCKET ${formatPoint(this.carrySocket)}\n` +
+        `DESIRED SOCKET ${formatPoint(this.desiredCarrySocket)}\n` +
         `READY ${
           focus
             ? signedNumber(
@@ -1725,4 +2031,8 @@ function distance(a: Point, b: Point): number {
 
 function signedNumber(value: number): string {
   return `${value >= 0 ? '+' : ''}${value.toFixed(2)}`
+}
+
+function formatPoint(point: Point | null): string {
+  return point ? `${point.x.toFixed(1)},${point.y.toFixed(1)}` : 'n/a'
 }

@@ -1,5 +1,6 @@
 import Phaser from 'phaser'
 import { inputConfig } from '../config/inputConfig'
+import { possessionFeelConfig } from '../config/possessionFeelConfig'
 import { stickConfig } from '../config/stickConfig'
 import type { Point } from '../data/geometry'
 
@@ -11,6 +12,7 @@ export type PlayerInputState = {
   primaryStickAction: boolean
   primaryStickActionStarted: boolean
   releasePrimaryStickAction: boolean
+  primaryIntensity: number
   truckAction: boolean
   explicitSlashAction: boolean
 }
@@ -66,6 +68,7 @@ export class PlayerInputController {
   private truckActionEnabled = true
   private defaultJoystickCenter: Point = { x: 0, y: 0 }
   private defaultAimCenter: Point = { x: 0, y: 0 }
+  private rawAimAngle = 0
 
   constructor(scene: Phaser.Scene, hudRoot: HTMLDivElement) {
     const keyboard = scene.input.keyboard
@@ -173,6 +176,9 @@ export class PlayerInputController {
       primaryStickAction && !this.previousPrimaryAction
     const releasePrimaryStickAction =
       !primaryStickAction && this.previousPrimaryAction
+    const primaryIntensity = primaryStickAction
+      ? this.getPrimaryIntensity(pointer)
+      : 0
     const truckAction =
       this.mode === 'touch'
         ? this.consumeTouchTruck()
@@ -213,6 +219,8 @@ export class PlayerInputController {
         this.gameplayEnabled && primaryStickActionStarted,
       releasePrimaryStickAction:
         this.gameplayEnabled && releasePrimaryStickAction,
+      primaryIntensity:
+        this.gameplayEnabled ? primaryIntensity : 0,
       truckAction:
         this.gameplayEnabled && !this.carrying && truckAction,
       explicitSlashAction:
@@ -231,6 +239,10 @@ export class PlayerInputController {
       leftJoystick: { ...this.debugVectors.leftJoystick },
       rightAim: { ...this.debugVectors.rightAim },
     }
+  }
+
+  getRawAimAngle(): number {
+    return this.rawAimAngle
   }
 
   setGameplayContext(
@@ -432,6 +444,7 @@ export class PlayerInputController {
     deltaMs: number,
   ): number {
     const targetAimAngle = this.getTargetAimAngle(origin, currentAimAngle)
+    this.rawAimAngle = targetAimAngle
     const deltaSeconds = deltaMs / 1000
     const smoothing = 1 - Math.exp(-stickConfig.aimSmoothing * deltaSeconds)
     const angularDelta = Phaser.Math.Angle.Wrap(targetAimAngle - currentAimAngle)
@@ -504,6 +517,23 @@ export class PlayerInputController {
     }
 
     return normalizedWithMagnitude(vector, 0, Math.hypot(vector.x, vector.y))
+  }
+
+  private getPrimaryIntensity(pointer: Phaser.Input.Pointer): number {
+    const pressure =
+      pointer.event instanceof PointerEvent
+        ? pointer.event.pressure
+        : 0
+    const dragDistance = this.rightTouch
+      ? Math.hypot(
+          this.rightTouch.current.x - this.rightTouch.start.x,
+          this.rightTouch.current.y - this.rightTouch.start.y,
+        )
+      : 0
+    const dragIntensity =
+      dragDistance / Math.max(1, possessionFeelConfig.hardChargeDragThreshold)
+
+    return Phaser.Math.Clamp(Math.max(pressure, dragIntensity), 0, 1)
   }
 
   private hasKeyboardMovement(): boolean {

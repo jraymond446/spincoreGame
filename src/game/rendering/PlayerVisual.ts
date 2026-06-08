@@ -10,6 +10,7 @@ import {
 import { visualConfig } from '../config/visualConfig'
 import { assetOverrideConfig } from '../config/assetOverrideConfig'
 import { stickConfig } from '../config/stickConfig'
+import { possessionFeelConfig } from '../config/possessionFeelConfig'
 import type {
   PlayerControllerType,
   PlayerHandedness,
@@ -41,6 +42,11 @@ export type PlayerVisualUpdate = {
   visualMirrorSign: -1 | 1
   cradleSocketSign: -1 | 1
   cradleSocket: Point
+  chargeVisual: {
+    normalized: number
+    hardCharge: boolean
+    overcharged: boolean
+  }
   stickState: StickActionState
   defenseState: DefensiveVisualState
 }
@@ -59,6 +65,7 @@ export class PlayerVisual {
   private readonly scene: Phaser.Scene
   private readonly options: PlayerVisualOptions
   private readonly shadow: Phaser.GameObjects.Graphics
+  private readonly chargeAura: Phaser.GameObjects.Graphics
   private readonly character: Phaser.GameObjects.Graphics
   private readonly controlledIndicator: Phaser.GameObjects.Graphics
   private readonly roleLabel: Phaser.GameObjects.Text
@@ -80,6 +87,7 @@ export class PlayerVisual {
     this.hairStyle = hairStyles[options.profile.hairStyle]
     this.animationPhase = this.hash(options.id) * 0.01
 
+    this.chargeAura = scene.add.graphics().setDepth(2)
     this.shadow = scene.add.graphics().setDepth(3)
     this.stick = new StickVisual(scene, options.profile.stickStyle)
     this.character = scene.add.graphics().setDepth(6)
@@ -139,6 +147,15 @@ export class PlayerVisual {
       data.pocketFacingSign,
       this.scene.time.now,
     )
+    if (data.chargeVisual.normalized > 0) {
+      const charge = data.chargeVisual.normalized
+      pose.bodyForwardOffset -= charge * 3.5
+      pose.bodySideOffset -=
+        charge * 2.2 * data.handednessMountSign
+      pose.bodyScaleX *= Phaser.Math.Linear(1, 1.06, charge)
+      pose.bodyScaleY *= Phaser.Math.Linear(1, 0.95, charge)
+      pose.anticipation = Math.max(pose.anticipation, charge)
+    }
     const bodyRotation = data.facingRotation + pose.bodyRotationOffset
     const forward = {
       x: Math.cos(bodyRotation),
@@ -157,6 +174,7 @@ export class PlayerVisual {
         right.y * pose.bodySideOffset,
     }
 
+    this.drawChargeAura(data.position, data.chargeVisual)
     this.drawShadow(data.position, speed, pose)
     this.drawControlledIndicator(data.position)
     if (this.assetLayers.length > 0) {
@@ -172,7 +190,9 @@ export class PlayerVisual {
       data.visualMirrorSign,
       data.cradleSocket,
       data.stickState,
+      data.defenseState,
       pose,
+      data.chargeVisual,
       this.scene.time.now,
     )
 
@@ -183,6 +203,52 @@ export class PlayerVisual {
     this.aiStateLabel.setPosition(
       data.position.x,
       data.position.y + visualConfig.label.aiOffsetY,
+    )
+  }
+
+  private drawChargeAura(
+    position: Point,
+    charge: PlayerVisualUpdate['chargeVisual'],
+  ): void {
+    this.chargeAura.clear()
+
+    if (
+      !possessionFeelConfig.playerChargeAuraEnabled ||
+      charge.normalized < possessionFeelConfig.playerChargeAuraThreshold
+    ) {
+      return
+    }
+
+    const progress = Phaser.Math.Clamp(
+      (charge.normalized - possessionFeelConfig.playerChargeAuraThreshold) /
+        Math.max(0.01, 1 - possessionFeelConfig.playerChargeAuraThreshold),
+      0,
+      1,
+    )
+    const flicker =
+      charge.overcharged && possessionFeelConfig.overchargeAuraFlicker
+        ? 0.72 + Math.sin(this.scene.time.now * 0.055) * 0.28
+        : 1
+    const color = charge.overcharged
+      ? possessionFeelConfig.chargeCoreColorOvercharged
+      : charge.hardCharge
+        ? possessionFeelConfig.chargeCoreColorHard
+        : possessionFeelConfig.chargeCoreColorCharging
+    const alpha =
+      possessionFeelConfig.playerChargeAuraMaxAlpha *
+      Phaser.Math.Linear(0.35, 1, progress) *
+      flicker
+    const radius =
+      possessionFeelConfig.playerChargeAuraRadius *
+      Phaser.Math.Linear(0.82, 1.12, progress)
+
+    this.chargeAura.lineStyle(4, color, alpha)
+    this.chargeAura.strokeCircle(position.x, position.y + 4, radius)
+    this.chargeAura.lineStyle(2, color, alpha * 0.55)
+    this.chargeAura.strokeCircle(
+      position.x,
+      position.y + 4,
+      radius * 1.22,
     )
   }
 

@@ -56,7 +56,14 @@ export class Player {
   private spawn: Point
   private visual: PlayerVisual
   private releaseAimAngle = 0
+  private bodyFacingAngle = 0
   private stickVisualRotation = 0
+  private carrySocket: Point | null = null
+  private chargeVisual = {
+    normalized: 0,
+    hardCharge: false,
+    overcharged: false,
+  }
   private aiState: AIState = 'IDLE'
   private stickState: StickActionState = 'IDLE'
   private defenseVisualState: DefensiveVisualState = 'IDLE'
@@ -124,6 +131,18 @@ export class Player {
 
   update(moveVector: Phaser.Math.Vector2, aimAngle: number): void {
     this.releaseAimAngle = aimAngle
+    if (moveVector.lengthSq() > 0.02) {
+      const movementAngle = Math.atan2(moveVector.y, moveVector.x)
+      const turn = Phaser.Math.Clamp(
+        Phaser.Math.Angle.Wrap(movementAngle - this.bodyFacingAngle),
+        -0.16,
+        0.16,
+      )
+
+      this.bodyFacingAngle = Phaser.Math.Angle.Wrap(
+        this.bodyFacingAngle + turn,
+      )
+    }
     const maxSpeed = playerRuntimeConfig.baseMaxSpeed * this.attributes.speed
 
     this.scene.matter.body.setVelocity(this.body, {
@@ -146,7 +165,14 @@ export class Player {
     this.scene.matter.body.setVelocity(this.body, { x: 0, y: 0 })
     this.scene.matter.body.setAngularVelocity(this.body, 0)
     this.releaseAimAngle = this.teamSide === 'A' ? -Math.PI / 2 : Math.PI / 2
+    this.bodyFacingAngle = this.releaseAimAngle
     this.stickVisualRotation = this.releaseAimAngle
+    this.carrySocket = null
+    this.chargeVisual = {
+      normalized: 0,
+      hardCharge: false,
+      overcharged: false,
+    }
     this.aiState = 'IDLE'
     this.stickState = 'IDLE'
     this.defenseVisualState = 'IDLE'
@@ -195,6 +221,10 @@ export class Player {
 
   getReleaseAimAngle(): number {
     return this.releaseAimAngle
+  }
+
+  getBodyFacingAngle(): number {
+    return this.bodyFacingAngle
   }
 
   getStickVisualRotation(): number {
@@ -346,13 +376,47 @@ export class Player {
     return points
   }
 
-  getCradleSocket(): Point {
+  getBaseCradleSocket(): Point {
     return this.stickLocalToWorld({
       x: stickConfig.cradleSocketOffset.forward,
       y:
         stickConfig.cradleSocketOffset.side *
         this.getHandednessMountScale(),
     })
+  }
+
+  getCradleSocket(): Point {
+    return this.carrySocket
+      ? { ...this.carrySocket }
+      : this.getBaseCradleSocket()
+  }
+
+  setCarrySocket(socket: Point | null): void {
+    this.carrySocket = socket ? { ...socket } : null
+    this.syncVisuals()
+  }
+
+  setChargeVisual(
+    normalized: number,
+    hardCharge: boolean,
+    overcharged: boolean,
+  ): void {
+    const next = {
+      normalized: Phaser.Math.Clamp(normalized, 0, 1),
+      hardCharge,
+      overcharged,
+    }
+
+    if (
+      this.chargeVisual.normalized === next.normalized &&
+      this.chargeVisual.hardCharge === next.hardCharge &&
+      this.chargeVisual.overcharged === next.overcharged
+    ) {
+      return
+    }
+
+    this.chargeVisual = next
+    this.syncVisuals()
   }
 
   getCradleZone(): CradleZone {
@@ -413,7 +477,7 @@ export class Player {
     this.visual.update({
       position: this.position,
       velocity: this.velocity,
-      facingRotation: this.releaseAimAngle,
+      facingRotation: this.bodyFacingAngle,
       stickMountPoint: this.getVisualStickMountPoint(),
       stickForward: this.getStickForward(),
       stickSide: this.getCradleSideDirection(),
@@ -422,6 +486,7 @@ export class Player {
       visualMirrorSign: this.getVisualMirrorSign(),
       cradleSocketSign: this.getCradleSocketSign(),
       cradleSocket: this.getCradleSocket(),
+      chargeVisual: this.chargeVisual,
       stickState: this.stickState,
       defenseState: this.defenseVisualState,
     })

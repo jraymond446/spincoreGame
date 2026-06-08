@@ -13,6 +13,7 @@ import { keeperAreaConfig } from '../config/keeperAreaConfig'
 import { keeperConfig } from '../config/keeperConfig'
 import { matchFlowConfig } from '../config/matchFlowConfig'
 import { playerRuntimeConfig } from '../config/playerConfig'
+import { possessionFeelConfig } from '../config/possessionFeelConfig'
 import { stickConfig } from '../config/stickConfig'
 import { stickVisualConfig } from '../config/stickVisualConfig'
 import { visualConfig } from '../config/visualConfig'
@@ -159,6 +160,34 @@ export function applyLabSettings(state: LabTuningState): void {
   Object.assign(stickConfig.visual, {
     length: baseStickGameplay.length * field.stickGameplayScale,
     curve: baseStickGameplay.curve * field.stickGameplayScale,
+  })
+  Object.assign(possessionFeelConfig, {
+    carryControlEnabled: stick.carryControlEnabled,
+    carrySocketLag: stick.carrySocketLag,
+    carrySocketMaxOffset: stick.carrySocketMaxOffset,
+    carrySocketLateralRange: stick.carrySocketLateralRange,
+    carrySocketForwardRange: stick.carrySocketForwardRange,
+    carrySwayAmount: stick.carrySwayAmount,
+    carrySwaySmoothing: stick.carrySwaySmoothing,
+    carryControlDeadzone: stick.carryControlDeadzone,
+    carryControlResponsiveness: stick.carryControlResponsiveness,
+    carryAimBlend: stick.carryAimBlend,
+    carryPoseOffsetRadians: stick.carryPoseOffsetRadians,
+    carryPoseMaxArcRadians: stick.carryPoseMaxArcRadians,
+    carryPoseSmoothing: stick.carryPoseSmoothing,
+    carryPoseRotationLimit: stick.carryPoseRotationLimit,
+    gatherAssistStrength: stick.gatherAssistStrength,
+    gatherAssistRadius: stick.gatherAssistRadius,
+    gatherAssistMaxSpeed: stick.gatherAssistMaxSpeed,
+    gatherSnapDistance: stick.gatherSnapDistance,
+    gatherSnapEffectEnabled: stick.gatherSnapEffectEnabled,
+    gatherDeflectSuppression: stick.gatherDeflectSuppression,
+    chargeLoadbackDistance: stick.chargeLoadbackDistance,
+    hardChargeEnabled: stick.hardChargeEnabled,
+    hardChargeHoldMs: stick.hardChargeHoldMs,
+    hardChargeMultiplier: stick.hardChargeMultiplier,
+    playerChargeAuraEnabled: stick.playerChargeAuraEnabled,
+    playerChargeAuraThreshold: stick.playerChargeAuraThreshold,
   })
   Object.assign(stickConfig, {
     deflectRadius:

@@ -337,6 +337,7 @@ export class GameScene extends Phaser.Scene {
     stickIntents.set(player.id, {
       hold: input.primaryStickAction,
       suppressEmptyReleaseSwing: !isCarrier,
+      chargeIntensity: input.primaryIntensity,
     })
     defenseIntents.set(player.id, {
       truck: !isCarrier && input.truckAction,
@@ -622,10 +623,26 @@ export class GameScene extends Phaser.Scene {
       cradleSocketSign: controlledPlayer.getCradleSocketSign(),
       chargeElapsedMs: this.stickInteractionSystem.getCradleElapsedMs(),
       chargeNormalized: this.stickInteractionSystem.getChargeNormalized(),
+      hardChargeActive:
+        this.stickInteractionSystem.isHardChargeActive(),
       releaseForcePreview:
         this.stickInteractionSystem.getReleaseForcePreview(),
       cradlePhase: this.stickInteractionSystem.getCradlePhase(),
       stickVisualRotation: controlledPlayer.getStickVisualRotation(),
+      rawInputAimAngle: this.inputController.getRawAimAngle(),
+      releaseAimAngle: controlledPlayer.getReleaseAimAngle(),
+      carryPoseAngle:
+        this.stickInteractionSystem.getCarryPoseAngle(
+          controlledPlayer.id,
+        ),
+      loadbackAngle:
+        this.stickInteractionSystem.getLoadbackAngle(
+          controlledPlayer.id,
+        ),
+      carrySocket:
+        this.stickInteractionSystem.getCurrentCarrySocket(),
+      desiredCarrySocket:
+        this.stickInteractionSystem.getDesiredCarrySocket(),
       readyStanceOffset:
         stickConfig.readyStanceOffsetRadians *
         controlledPlayer.getPocketFacingSign(),
