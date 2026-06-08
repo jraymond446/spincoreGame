@@ -89,7 +89,12 @@ export class PlayerVisual {
 
     this.chargeAura = scene.add.graphics().setDepth(2)
     this.shadow = scene.add.graphics().setDepth(3)
-    this.stick = new StickVisual(scene, options.profile.stickStyle)
+    this.stick = new StickVisual(
+      scene,
+      options.profile.stickStyle,
+      options.role,
+      options.teamSide,
+    )
     this.character = scene.add.graphics().setDepth(6)
     getPlayerAssetKeys(options.teamSide).forEach((textureKey, index) => {
       if (!hasVisualAsset(scene, textureKey)) {

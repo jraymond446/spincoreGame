@@ -7,6 +7,7 @@ import {
   getKeeperTargetRatio,
   keeperConfig,
 } from '../config/keeperConfig'
+import { keeperShieldConfig } from '../config/keeperShieldConfig'
 import { keeperAreaConfig } from '../config/keeperAreaConfig'
 import { playerRuntimeConfig } from '../config/playerConfig'
 import { stickConfig } from '../config/stickConfig'
@@ -125,6 +126,9 @@ export class KeeperAISystem {
     }
 
     const coreDistance = context.distanceToCore
+    const usesShield =
+      keeperShieldConfig.keeperUsesShieldDefault &&
+      keeperShieldConfig.keeperEquipmentType === 'shield'
     const catchRadius =
       aiConfig.aiCradleRadius *
       Phaser.Math.Linear(0.82, 1.08, player.attributes.control)
@@ -133,6 +137,7 @@ export class KeeperAISystem {
       distance(core.position, ownGoal) <=
       keeperAreaConfig.keeperZoneRadius + stickConfig.aiSwingRange
     const hold =
+      (!usesShield || keeperShieldConfig.keeperShieldCanTrap) &&
       looseCore &&
       coreInKeeperArea &&
       coreDistance <= catchRadius
@@ -167,7 +172,9 @@ export class KeeperAISystem {
       moveVector,
       moveSpeedMultiplier,
       aimTarget:
-        wantsSwing && keeperConfig.keeperClearUsesThreatVector
+        !usesShield &&
+        wantsSwing &&
+        keeperConfig.keeperClearUsesThreatVector
           ? clearTarget
           : core.position,
       hold,

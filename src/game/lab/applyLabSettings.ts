@@ -12,10 +12,13 @@ import {
 } from '../config/goalConfig'
 import { keeperAreaConfig } from '../config/keeperAreaConfig'
 import { keeperConfig } from '../config/keeperConfig'
+import { keeperShieldConfig } from '../config/keeperShieldConfig'
 import { matchFlowConfig } from '../config/matchFlowConfig'
 import { playerRuntimeConfig } from '../config/playerConfig'
 import { possessionFeelConfig } from '../config/possessionFeelConfig'
 import { stickConfig } from '../config/stickConfig'
+import { spacingConfig } from '../config/spacingConfig'
+import { stickStanceConfig } from '../config/stickStanceConfig'
 import { stickVisualConfig } from '../config/stickVisualConfig'
 import { visualConfig } from '../config/visualConfig'
 import type { LabTuningState } from './LabConfig'
@@ -152,6 +155,32 @@ export function applyLabSettings(state: LabTuningState): void {
       state.keeper.keeperHumanBiasDecay,
     keeperAutoSwitchThreatRadius:
       state.keeper.keeperAutoSwitchThreatRadius,
+  })
+  Object.assign(keeperShieldConfig, {
+    keeperEquipmentType: state.keeper.keeperEquipmentType,
+    keeperShieldWidth: state.keeper.keeperShieldWidth,
+    keeperShieldDepth: state.keeper.keeperShieldDepth,
+    keeperShieldDeflectForce:
+      state.keeper.keeperShieldDeflectForce,
+    keeperShieldDeflectDamping:
+      state.keeper.keeperShieldDeflectDamping,
+    keeperShieldClearForce:
+      state.keeper.keeperShieldClearForce,
+    keeperShieldTrapTimeMs:
+      state.keeper.keeperShieldTrapTimeMs,
+    keeperShieldMaxDeflectAngle:
+      state.keeper.keeperShieldMaxDeflectAngle,
+    keeperShieldOwnGoalSafetyBias:
+      state.keeper.keeperShieldOwnGoalSafetyBias,
+  })
+  Object.assign(spacingConfig, state.spacing)
+  Object.assign(stickStanceConfig, {
+    stanceResetEnabled: stick.stanceResetEnabled,
+    stanceResetDelayMs: stick.stanceResetDelayMs,
+    stanceReturnSmoothing: stick.stanceReturnSmoothing,
+    runningStanceOffsetRadians:
+      stick.runningStanceOffsetRadians,
+    aimOnlyWhileActionHeld: stick.aimOnlyWhileActionHeld,
   })
   Object.assign(controlConfig, {
     keeperControlMode: state.keeper.keeperControlMode,

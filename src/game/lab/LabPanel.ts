@@ -130,6 +130,7 @@ export class LabPanel {
       this.createTeamSection('B'),
       this.createFieldSection(),
       this.createKeeperSection(),
+      this.createSpacingSection(),
       this.createStickSection(),
       this.createDefenseSection(),
       this.createMatchFlowSection(),
@@ -540,6 +541,16 @@ export class LabPanel {
     content.className = 'lab-range-list'
     content.append(
       this.createSelect(
+        'Keeper equipment',
+        keeper.keeperEquipmentType,
+        labOptions.keeperEquipmentTypes,
+        (value) => {
+          keeper.keeperEquipmentType =
+            value as LabTuningState['keeper']['keeperEquipmentType']
+          this.markDraftChanged()
+        },
+      ),
+      this.createSelect(
         'Keeper control mode',
         keeper.keeperControlMode,
         labOptions.keeperControlModes,
@@ -625,6 +636,7 @@ export class LabPanel {
         string,
         Exclude<
           keyof LabTuningState['keeper'],
+          | 'keeperEquipmentType'
           | 'keeperControlMode'
           | 'keeperHumanBiasEnabled'
           | 'autoSwitchOnLooseBall'
@@ -638,6 +650,14 @@ export class LabPanel {
         RangeOptions,
       ]
     > = [
+      ['Shield width', 'keeperShieldWidth', { min: 36, max: 96, step: 1 }],
+      ['Shield depth', 'keeperShieldDepth', { min: 12, max: 48, step: 1 }],
+      ['Shield deflect force', 'keeperShieldDeflectForce', { min: 1, max: 12, step: 0.1, digits: 1 }],
+      ['Shield damping', 'keeperShieldDeflectDamping', { min: 0, max: 1, step: 0.05, digits: 2 }],
+      ['Shield clear force', 'keeperShieldClearForce', { min: 2, max: 16, step: 0.2, digits: 1 }],
+      ['Shield trap time ms', 'keeperShieldTrapTimeMs', { min: 0, max: 1000, step: 25 }],
+      ['Shield max deflect angle', 'keeperShieldMaxDeflectAngle', { min: 0.2, max: 1.57, step: 0.02, digits: 2 }],
+      ['Shield own-goal safety', 'keeperShieldOwnGoalSafetyBias', { min: 0, max: 1, step: 0.05, digits: 2 }],
       ['Tight target ratio', 'keeperTightTargetRadiusRatio', { min: 0, max: 1, step: 0.05, digits: 2 }],
       ['Balanced target ratio', 'keeperBalancedTargetRadiusRatio', { min: 0, max: 1, step: 0.05, digits: 2 }],
       ['Sweeper target ratio', 'keeperSweeperTargetRadiusRatio', { min: 0, max: 1, step: 0.05, digits: 2 }],
@@ -677,11 +697,74 @@ export class LabPanel {
     return this.createSection('Keeper Geometry / Control', content)
   }
 
+  private createSpacingSection(): HTMLElement {
+    const spacing = this.draft.spacing
+    const content = document.createElement('div')
+    content.className = 'lab-range-list'
+    content.append(
+      this.createCheckbox(
+        'Enable behind-goal cuts',
+        spacing.enableBehindGoalCuts,
+        (value) => {
+          spacing.enableBehindGoalCuts = value
+          this.markDraftChanged()
+        },
+      ),
+    )
+    const controls: Array<
+      [
+        string,
+        Exclude<
+          keyof LabTuningState['spacing'],
+          'enableBehindGoalCuts'
+        >,
+        RangeOptions,
+      ]
+    > = [
+      ['Max Core pressers / team', 'maxCorePressersPerTeam', { min: 0, max: 2, step: 1 }],
+      ['Presser switch cooldown', 'presserSwitchCooldownMs', { min: 0, max: 2500, step: 50 }],
+      ['Presser distance advantage', 'presserDistanceAdvantageRequired', { min: 0, max: 220, step: 5 }],
+      ['Support preferred spacing', 'supportPreferredSpacing', { min: 100, max: 360, step: 5 }],
+      ['Avoid cluster radius', 'avoidClusterRadius', { min: 60, max: 240, step: 5 }],
+      ['Teammate repulsion', 'teammateRepulsionStrength', { min: 0, max: 1, step: 0.05, digits: 2 }],
+      ['Support behind-goal chance', 'behindGoalCutChanceSupport', { min: 0, max: 1, step: 0.05, digits: 2 }],
+      ['Striker behind-goal chance', 'behindGoalCutChanceStriker', { min: 0, max: 1, step: 0.05, digits: 2 }],
+      ['Bank-shot preference', 'bankShotPreference', { min: 0, max: 1, step: 0.05, digits: 2 }],
+    ]
+
+    for (const [label, key, options] of controls) {
+      content.appendChild(
+        this.createRange(label, spacing[key], options, (value) => {
+          spacing[key] = value
+          this.markDraftChanged()
+        }),
+      )
+    }
+
+    return this.createSection('Team Shape / Spacing', content)
+  }
+
   private createStickSection(): HTMLElement {
     const stick = this.draft.stick
     const content = document.createElement('div')
     content.className = 'lab-range-list'
     content.append(
+      this.createCheckbox(
+        'Stance reset enabled',
+        stick.stanceResetEnabled,
+        (value) => {
+          stick.stanceResetEnabled = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createCheckbox(
+        'Aim only while action held',
+        stick.aimOnlyWhileActionHeld,
+        (value) => {
+          stick.aimOnlyWhileActionHeld = value
+          this.markDraftChanged()
+        },
+      ),
       this.createCheckbox(
         'Carry control enabled',
         stick.carryControlEnabled,
@@ -736,6 +819,8 @@ export class LabPanel {
         string,
         Exclude<
           keyof LabTuningState['stick'],
+          | 'stanceResetEnabled'
+          | 'aimOnlyWhileActionHeld'
           | 'carryControlEnabled'
           | 'gatherSnapEffectEnabled'
           | 'hardChargeEnabled'
@@ -746,6 +831,9 @@ export class LabPanel {
         RangeOptions,
       ]
     > = [
+      ['Stance reset delay ms', 'stanceResetDelayMs', { min: 0, max: 600, step: 10 }],
+      ['Stance return smoothing', 'stanceReturnSmoothing', { min: 1, max: 28, step: 0.5, digits: 1 }],
+      ['Running stance offset', 'runningStanceOffsetRadians', { min: -1.2, max: 1.2, step: 0.02, digits: 2 }],
       ['Carry socket lag', 'carrySocketLag', { min: 0.02, max: 0.2, step: 0.01, digits: 2 }],
       ['Carry socket max offset', 'carrySocketMaxOffset', { min: 0, max: 24, step: 1 }],
       ['Carry lateral range', 'carrySocketLateralRange', { min: 0, max: 24, step: 1 }],

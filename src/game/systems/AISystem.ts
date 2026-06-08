@@ -18,11 +18,13 @@ import {
   KeeperAISystem,
   type KeeperAIDebugState,
 } from './KeeperAISystem'
+import { TeamShapeSystem } from './TeamShapeSystem'
 
 export class AISystem {
   private readonly debugGraphics: Phaser.GameObjects.Graphics
   private readonly formationBiases: Record<TeamSide, FormationAIBias>
   private readonly keeperAI: KeeperAISystem
+  private readonly teamShape: TeamShapeSystem
   private debugEnabled = false
   private decisionTimerMs = 0
   private intents = new Map<string, PlayerControlIntent>()
@@ -34,6 +36,7 @@ export class AISystem {
     this.formationBiases = formationBiases
     this.debugGraphics = scene.add.graphics().setDepth(18)
     this.keeperAI = new KeeperAISystem(scene)
+    this.teamShape = new TeamShapeSystem(scene)
   }
 
   update(
@@ -44,6 +47,13 @@ export class AISystem {
     deltaMs: number,
     humanKeeperBias: Point,
   ): Map<string, PlayerControlIntent> {
+    this.teamShape.update(
+      players,
+      core,
+      carrierId,
+      controlledPlayerId,
+      deltaMs,
+    )
     this.updateKeepers(
       players,
       core,
@@ -65,6 +75,7 @@ export class AISystem {
   setDebugEnabled(enabled: boolean): void {
     this.debugEnabled = enabled
     this.keeperAI.setDebugEnabled(enabled)
+    this.teamShape.setDebugEnabled(enabled)
 
     if (!enabled) {
       this.debugGraphics.clear()
@@ -73,6 +84,12 @@ export class AISystem {
 
   getKeeperDebugState(side: TeamSide): KeeperAIDebugState | null {
     return this.keeperAI.getDebugState(side)
+  }
+
+  reset(): void {
+    this.decisionTimerMs = 0
+    this.intents.clear()
+    this.teamShape.reset()
   }
 
   private updateKeepers(
@@ -137,13 +154,36 @@ export class AISystem {
         this.formationBiases[player.teamSide],
       )
       const intent = decideRoleIntent(context)
-      const defense = decideDefenseActions(context)
+      const assignment = this.teamShape.getAssignment(player.id)
+      const followsShape =
+        !context.isCarrier &&
+        assignment !== null &&
+        assignment.role !== 'presser' &&
+        assignment.role !== 'keeper'
+      const shapedIntent = followsShape
+        ? {
+            ...intent,
+            moveTarget: assignment.target,
+            aimTarget: core.position,
+            hold: false,
+            swing: false,
+            releaseTarget: undefined,
+            aiReleaseDelayMs: undefined,
+            aiState:
+              assignment.role === 'cover'
+                ? ('MARK_CARRIER' as const)
+                : ('SUPPORT_ATTACK' as const),
+          }
+        : intent
+      const defense = followsShape
+        ? { truck: false, slash: false }
+        : decideDefenseActions(context)
 
       this.intents.set(player.id, {
-        ...intent,
+        ...shapedIntent,
         ...defense,
       })
-      player.setAIState(intent.aiState)
+      player.setAIState(shapedIntent.aiState)
     }
   }
 

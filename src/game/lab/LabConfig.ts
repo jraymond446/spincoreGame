@@ -1,4 +1,5 @@
 import type { GameMode } from '../config/gameplayConfig'
+import type { KeeperEquipmentType } from '../config/keeperShieldConfig'
 import type {
   FormationId,
   KeeperControlMode,
@@ -49,6 +50,15 @@ export type LabFieldTuning = {
 }
 
 export type LabKeeperTuning = {
+  keeperEquipmentType: KeeperEquipmentType
+  keeperShieldWidth: number
+  keeperShieldDepth: number
+  keeperShieldDeflectForce: number
+  keeperShieldDeflectDamping: number
+  keeperShieldClearForce: number
+  keeperShieldTrapTimeMs: number
+  keeperShieldMaxDeflectAngle: number
+  keeperShieldOwnGoalSafetyBias: number
   keeperControlMode: KeeperControlMode
   keeperTightTargetRadiusRatio: number
   keeperBalancedTargetRadiusRatio: number
@@ -86,6 +96,11 @@ export type LabKeeperTuning = {
 }
 
 export type LabStickTuning = {
+  stanceResetEnabled: boolean
+  stanceResetDelayMs: number
+  stanceReturnSmoothing: number
+  runningStanceOffsetRadians: number
+  aimOnlyWhileActionHeld: boolean
   carryControlEnabled: boolean
   carrySocketLag: number
   carrySocketMaxOffset: number
@@ -164,6 +179,19 @@ export type LabStickTuning = {
   visualStickControlsImpulse: boolean
 }
 
+export type LabSpacingTuning = {
+  maxCorePressersPerTeam: number
+  presserSwitchCooldownMs: number
+  presserDistanceAdvantageRequired: number
+  supportPreferredSpacing: number
+  avoidClusterRadius: number
+  teammateRepulsionStrength: number
+  enableBehindGoalCuts: boolean
+  behindGoalCutChanceSupport: number
+  behindGoalCutChanceStriker: number
+  bankShotPreference: number
+}
+
 export type LabDefenseTuning = {
   truckEnabled: boolean
   slashEnabled: boolean
@@ -219,6 +247,7 @@ export type LabTuningState = {
   players: Record<string, LabPlayerTuning>
   field: LabFieldTuning
   keeper: LabKeeperTuning
+  spacing: LabSpacingTuning
   stick: LabStickTuning
   defense: LabDefenseTuning
   matchFlow: LabMatchFlowTuning
@@ -241,6 +270,10 @@ export const labOptions = {
     { value: 'manualAll', label: 'Manual all' },
     { value: 'autoNearest', label: 'Auto nearest' },
   ] satisfies Array<{ value: KeeperControlMode; label: string }>,
+  keeperEquipmentTypes: [
+    { value: 'shield', label: 'Shield / paddle' },
+    { value: 'normalStick', label: 'Normal cesta-bat' },
+  ] satisfies Array<{ value: KeeperEquipmentType; label: string }>,
   roles: [
     'keeper',
     'striker',

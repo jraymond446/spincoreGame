@@ -1,6 +1,8 @@
 import Phaser from 'phaser'
 import { playerRuntimeConfig } from '../config/playerConfig'
+import { keeperShieldConfig } from '../config/keeperShieldConfig'
 import { stickConfig } from '../config/stickConfig'
+import { stickStanceConfig } from '../config/stickStanceConfig'
 import type { Point } from '../data/geometry'
 import type {
   AIState,
@@ -58,6 +60,7 @@ export class Player {
   private releaseAimAngle = 0
   private bodyFacingAngle = 0
   private stickVisualRotation = 0
+  private runningStickStanceActive = false
   private carrySocket: Point | null = null
   private chargeVisual = {
     normalized: 0,
@@ -167,6 +170,7 @@ export class Player {
     this.releaseAimAngle = this.teamSide === 'A' ? -Math.PI / 2 : Math.PI / 2
     this.bodyFacingAngle = this.releaseAimAngle
     this.stickVisualRotation = this.releaseAimAngle
+    this.runningStickStanceActive = false
     this.carrySocket = null
     this.chargeVisual = {
       normalized: 0,
@@ -238,6 +242,19 @@ export class Player {
   setStickVisualRotation(rotation: number): void {
     this.stickVisualRotation = Phaser.Math.Angle.Wrap(rotation)
     this.syncVisuals()
+  }
+
+  setRunningStickStanceActive(active: boolean): void {
+    if (this.runningStickStanceActive === active) {
+      return
+    }
+
+    this.runningStickStanceActive = active
+    this.syncVisuals()
+  }
+
+  isRunningStickStanceActive(): boolean {
+    return this.runningStickStanceActive
   }
 
   getReleaseAimForward(): Point {
@@ -443,11 +460,65 @@ export class Player {
       this.handedness === 'right'
         ? stickConfig.rightHandedStickOffset
         : stickConfig.leftHandedStickOffset
+    const mountSign = this.getHandednessMountSign()
+
+    if (
+      this.role === 'keeper' &&
+      keeperShieldConfig.keeperUsesShieldDefault &&
+      keeperShieldConfig.keeperEquipmentType === 'shield'
+    ) {
+      const forward = this.getStickForward()
+      const right = this.getStickRight()
+      const centerLead =
+        keeperShieldConfig.keeperShieldForwardOffset -
+        keeperShieldConfig.keeperShieldDepth * 0.35
+      const sideOffset =
+        keeperShieldConfig.keeperShieldSideOffset * mountSign
+
+      return {
+        x:
+          this.position.x +
+          forward.x * centerLead +
+          right.x * sideOffset,
+        y:
+          this.position.y +
+          forward.y * centerLead +
+          right.y * sideOffset,
+      }
+    }
+
+    if (this.runningStickStanceActive) {
+      const forward = {
+        x: Math.cos(this.bodyFacingAngle),
+        y: Math.sin(this.bodyFacingAngle),
+      }
+      const right = { x: -forward.y, y: forward.x }
+      const forwardOffset =
+        playerRuntimeConfig.radius -
+        stickConfig.visual.rootOffset -
+        stickStanceConfig.runningStanceBackOffset
+      const sideOffset =
+        mountSign *
+        (Math.abs(configuredOffset) +
+          stickStanceConfig.runningStanceSideOffset) *
+        stickConfig.handednessMirrorMultiplier
+
+      return {
+        x:
+          this.position.x +
+          forward.x * forwardOffset +
+          right.x * sideOffset,
+        y:
+          this.position.y +
+          forward.y * forwardOffset +
+          right.y * sideOffset,
+      }
+    }
 
     return this.stickLocalToWorld({
       x: playerRuntimeConfig.radius - stickConfig.visual.rootOffset,
       y:
-        this.getHandednessMountSign() *
+        mountSign *
         Math.abs(configuredOffset) *
         stickConfig.handednessMirrorMultiplier,
     })

@@ -11,6 +11,7 @@ import {
 } from '../config/gameplayConfig'
 import { goalConfigs } from '../config/goalConfig'
 import { inputConfig } from '../config/inputConfig'
+import { keeperShieldConfig } from '../config/keeperShieldConfig'
 import { matchFlowConfig } from '../config/matchFlowConfig'
 import { stickConfig } from '../config/stickConfig'
 import { viewConfig } from '../config/viewConfig'
@@ -331,6 +332,10 @@ export class GameScene extends Phaser.Scene {
     )
     const primaryStickAction =
       input.primaryStickAction || keeperPossessionLatch
+    const usesKeeperShield =
+      player.role === 'keeper' &&
+      keeperShieldConfig.keeperUsesShieldDefault &&
+      keeperShieldConfig.keeperEquipmentType === 'shield'
     const movement =
       player.role === 'keeper'
         ? this.keeperControlAssistSystem.getManualMovement(
@@ -342,6 +347,10 @@ export class GameScene extends Phaser.Scene {
     player.update(movement, input.aimAngle)
     stickIntents.set(player.id, {
       hold: primaryStickAction,
+      swing:
+        usesKeeperShield &&
+        (input.primaryStickActionStarted ||
+          input.explicitSlashAction),
       suppressEmptyReleaseSwing: !isCarrier,
       chargeIntensity: input.primaryIntensity,
     })
@@ -349,6 +358,7 @@ export class GameScene extends Phaser.Scene {
       truck: !isCarrier && input.truckAction,
       slash:
         !isCarrier &&
+        !usesKeeperShield &&
         (input.primaryStickActionStarted ||
           input.explicitSlashAction),
       aimDirection: {
@@ -411,16 +421,22 @@ export class GameScene extends Phaser.Scene {
       )
 
       player.update(move, aimAngle)
+      const usesKeeperShield =
+        player.role === 'keeper' &&
+        keeperShieldConfig.keeperUsesShieldDefault &&
+        keeperShieldConfig.keeperEquipmentType === 'shield'
       stickIntents.set(player.id, {
         hold: intent.hold,
-        swing: false,
+        swing: usesKeeperShield ? intent.swing : false,
         suppressEmptyReleaseSwing: true,
         releaseTarget: intent.releaseTarget,
         aiReleaseDelayMs: intent.aiReleaseDelayMs,
       })
       defenseIntents.set(player.id, {
         truck: intent.truck ?? false,
-        slash: (intent.slash ?? false) || (intent.swing ?? false),
+        slash:
+          !usesKeeperShield &&
+          ((intent.slash ?? false) || (intent.swing ?? false)),
         aimDirection: normalizedDirection(
           player.position,
           intent.aimTarget,
@@ -495,6 +511,7 @@ export class GameScene extends Phaser.Scene {
     this.inputController.reset()
     this.keeperControlAssistSystem.reset()
     this.keeperSaveSystem.reset()
+    this.aiSystem.reset()
     this.stickInteractionSystem.clearForReset(this.core)
     this.defenseSystem.clear()
     this.fumbleSystem.clear()
@@ -534,6 +551,7 @@ export class GameScene extends Phaser.Scene {
     this.inputController.reset()
     this.keeperControlAssistSystem.reset()
     this.keeperSaveSystem.reset()
+    this.aiSystem.reset()
     this.stickInteractionSystem.clearForReset(this.core)
     this.defenseSystem.clear()
     this.fumbleSystem.clear()

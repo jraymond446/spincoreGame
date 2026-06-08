@@ -1,6 +1,8 @@
 import Phaser from 'phaser'
 import { aiConfig } from '../config/aiConfig'
+import { keeperShieldConfig } from '../config/keeperShieldConfig'
 import { stickConfig } from '../config/stickConfig'
+import { stickStanceConfig } from '../config/stickStanceConfig'
 import { possessionFeelConfig } from '../config/possessionFeelConfig'
 import type { Point } from '../data/geometry'
 import type { StickActionState } from '../data/matchTypes'
@@ -11,6 +13,7 @@ import {
   KeeperClearSafetySystem,
   type KeeperClearSafetyResult,
 } from './KeeperClearSafetySystem'
+import { KeeperShieldSystem } from './KeeperShieldSystem'
 
 export type CorePossessionState =
   | 'FREE'
@@ -128,6 +131,10 @@ export class StickInteractionSystem {
   private gatherRipple: GatherRipple | null = null
   private lastReleaseImpulseDirection: Point | null = null
   private readonly keeperClearSafety = new KeeperClearSafetySystem()
+  private readonly keeperShield = new KeeperShieldSystem(
+    this.keeperClearSafety,
+  )
+  private stanceIdleMs = new Map<string, number>()
 
   constructor(scene: Phaser.Scene) {
     this.releaseGraphics = scene.add.graphics().setDepth(19)
@@ -381,11 +388,13 @@ export class StickInteractionSystem {
     this.cradleOpenDirections.clear()
     this.carryPoseAngles.clear()
     this.loadbackAngles.clear()
+    this.stanceIdleMs.clear()
     this.releaseVector = null
     this.gatherRipple = null
     this.pendingRelease = null
     this.lastReleaseImpulseDirection = null
     this.keeperClearSafety.reset()
+    this.keeperShield.reset()
     this.clearCarryControl()
     this.lastInteraction = 'none'
     this.interactionEvent = null
@@ -410,6 +419,10 @@ export class StickInteractionSystem {
           elapsedMs: 0,
           swingCooldownMs: 0,
         })
+      }
+
+      if (!this.stanceIdleMs.has(player.id)) {
+        this.stanceIdleMs.set(player.id, 0)
       }
     }
   }
@@ -468,11 +481,10 @@ export class StickInteractionSystem {
       const runtime = this.actionRuntimes.get(player.id)!
       const intent = intents.get(player.id) ?? { hold: false }
 
-      if (
-        runtime.state === 'SWINGING' &&
-        runtime.elapsedMs >= stickConfig.swingDurationMs
-      ) {
-        this.setActionState(player.id, 'RELEASE_RECOVERY')
+      if (runtime.state === 'SWINGING') {
+        if (runtime.elapsedMs >= stickConfig.swingDurationMs) {
+          this.setActionState(player.id, 'RELEASE_RECOVERY')
+        }
         continue
       }
 
@@ -529,6 +541,8 @@ export class StickInteractionSystem {
 
     for (const player of players) {
       if (player.id === this.pendingRelease?.playerId) {
+        player.setRunningStickStanceActive(false)
+        this.stanceIdleMs.set(player.id, 0)
         player.setStickVisualRotation(
           this.getPendingReleaseRotation(this.pendingRelease),
         )
@@ -555,6 +569,22 @@ export class StickInteractionSystem {
           stickConfig.catchAssistDetectionRadius
       const state = this.getStickState(player.id)
       const isCarrier = this.isCradled() && player.id === this.carrierId
+      const usesKeeperShield = this.keeperShield.usesShield(player)
+      const idleForStance =
+        state === 'IDLE' &&
+        !isCarrier &&
+        player.getDefenseVisualState() === 'IDLE'
+      const idleMs = idleForStance
+        ? (this.stanceIdleMs.get(player.id) ?? 0) + deltaMs
+        : 0
+      const stanceResetActive =
+        stickStanceConfig.stanceResetEnabled &&
+        idleForStance &&
+        !usesKeeperShield &&
+        idleMs >= stickStanceConfig.stanceResetDelayMs
+
+      this.stanceIdleMs.set(player.id, idleMs)
+      player.setRunningStickStanceActive(stanceResetActive)
       let targetRotation = player.getReleaseAimAngle()
       let loadback = 0
 
@@ -611,14 +641,26 @@ export class StickInteractionSystem {
           coreAngle +
           stickConfig.cradleFacingOffsetRadians *
             player.getPocketFacingSign()
+      } else if (usesKeeperShield) {
+        targetRotation = player.getReleaseAimAngle()
+      } else if (stanceResetActive) {
+        targetRotation =
+          player.getBodyFacingAngle() +
+          stickStanceConfig.runningStanceOffsetRadians *
+            player.getHandednessMountSign()
       } else if (
         !isCarrier &&
-        (state === 'IDLE' || state === 'CATCH_READY') &&
+        state === 'CATCH_READY' &&
         player.getDefenseVisualState() === 'IDLE'
       ) {
         targetRotation +=
           stickConfig.readyStanceOffsetRadians *
           player.getPocketFacingSign()
+      } else if (
+        state === 'IDLE' &&
+        player.getDefenseVisualState() === 'IDLE'
+      ) {
+        targetRotation = player.getStickVisualRotation()
       }
       const strength = autoOrientActive
         ? stickConfig.catchAutoOrientStrength
@@ -627,6 +669,8 @@ export class StickInteractionSystem {
               possessionFeelConfig.carryPoseSmoothing,
               stickConfig.chargeLoadbackSmoothing,
             )
+          : stanceResetActive
+            ? stickStanceConfig.stanceReturnSmoothing
           : stickConfig.aimSmoothing
       const smoothing = 1 - Math.exp(-strength * deltaSeconds)
       const angularDelta = Phaser.Math.Angle.Wrap(
@@ -873,7 +917,12 @@ export class StickInteractionSystem {
     }
 
     const candidate = players
-      .filter((player) => this.getStickState(player.id) === 'CATCH_READY')
+      .filter(
+        (player) =>
+          this.getStickState(player.id) === 'CATCH_READY' &&
+          (!this.keeperShield.usesShield(player) ||
+            keeperShieldConfig.keeperShieldCanTrap),
+      )
       .map((player) => ({
         player,
         socketDistance: distance(core.position, player.getCradleSocket()),
@@ -974,7 +1023,12 @@ export class StickInteractionSystem {
     }
 
     const candidates = players
-      .filter((player) => this.getStickState(player.id) === 'CATCH_READY')
+      .filter(
+        (player) =>
+          this.getStickState(player.id) === 'CATCH_READY' &&
+          (!this.keeperShield.usesShield(player) ||
+            keeperShieldConfig.keeperShieldCanTrap),
+      )
       .map((player) => {
         const test = testLegalCradle(core, player)
 
@@ -1043,8 +1097,39 @@ export class StickInteractionSystem {
   }
 
   private processContacts(core: Core, players: Player[]): void {
+    const shieldPlayers = players.filter(
+      (player) =>
+        this.keeperShield.usesShield(player) &&
+        (this.contactCooldowns.get(player.id) ?? 0) === 0,
+    )
+
+    for (const player of shieldPlayers) {
+      const active =
+        this.getStickState(player.id) === 'SWINGING' ||
+        player.getDefenseVisualState() === 'SLASH_ACTIVE'
+
+      if (!this.keeperShield.tryDeflect(core, player, active)) {
+        continue
+      }
+
+      this.contactCooldowns.set(
+        player.id,
+        keeperShieldConfig.contactCooldownMs,
+      )
+      this.lastInteraction = active ? 'active swing' : 'passive nudge'
+      this.interactionEvent = {
+        result: this.lastInteraction,
+        playerId: player.id,
+      }
+      return
+    }
+
     const contacts = players
-      .filter((player) => (this.contactCooldowns.get(player.id) ?? 0) === 0)
+      .filter(
+        (player) =>
+          !this.keeperShield.usesShield(player) &&
+          (this.contactCooldowns.get(player.id) ?? 0) === 0,
+      )
       .map((player) => ({
         player,
         hit: testDeflectZone(core, player),
@@ -1602,8 +1687,12 @@ export class StickInteractionSystem {
     this.debugGraphics.clear()
 
     if (focus) {
-      this.drawDeflectZone(focus)
-      this.drawCradleZone(focus.getCradleZone())
+      if (this.keeperShield.usesShield(focus)) {
+        this.drawKeeperShieldDebug(focus)
+      } else {
+        this.drawDeflectZone(focus)
+        this.drawCradleZone(focus.getCradleZone())
+      }
       const mountPoint = focus.getVisualStickMountPoint()
       const socket = focus.getCradleSocket()
       if (stickConfig.debug.showStickLocalFrame) {
@@ -1707,7 +1796,17 @@ export class StickInteractionSystem {
 
     this.debugText.setVisible(true)
     this.debugText.setText(
-      `STICK ${focus ? this.getStickState(focus.id) : 'IDLE'}\n` +
+        `STICK ${focus ? this.getStickState(focus.id) : 'IDLE'}\n` +
+        `EQUIPMENT ${
+          focus && this.keeperShield.usesShield(focus)
+            ? 'KEEPER SHIELD'
+            : 'CESTA-BAT'
+        }\n` +
+        `STANCE ${
+          focus && focus.isRunningStickStanceActive()
+            ? 'RUNNING RESET'
+            : 'ACTION / HELD'
+        }\n` +
         `CORE ${this.coreState}\n` +
         `PHASE ${this.getCradlePhase()}\n` +
         `RELEASE ${this.getPendingReleasePhase()}\n` +
@@ -1772,6 +1871,52 @@ export class StickInteractionSystem {
         `CONTACT ${this.lastInteraction}\n` +
         `SPEED ${Math.hypot(core.velocity.x, core.velocity.y).toFixed(2)}`,
     )
+  }
+
+  private drawKeeperShieldDebug(player: Player): void {
+    const state = this.keeperShield.getDebugState(player.teamSide)
+    const forward = player.getStickForward()
+    const right = player.getStickRight()
+    const side =
+      keeperShieldConfig.keeperShieldSideOffset *
+      player.getHandednessMountSign()
+    const center = state?.center ?? {
+      x:
+        player.position.x +
+        forward.x * keeperShieldConfig.keeperShieldForwardOffset +
+        right.x * side,
+      y:
+        player.position.y +
+        forward.y * keeperShieldConfig.keeperShieldForwardOffset +
+        right.y * side,
+    }
+
+    this.debugGraphics.lineStyle(
+      keeperShieldConfig.keeperShieldDepth,
+      state?.contacted
+        ? keeperShieldConfig.debug.contactColor
+        : keeperShieldConfig.debug.faceColor,
+      0.24,
+    )
+    this.debugGraphics.lineBetween(
+      center.x - right.x * keeperShieldConfig.keeperShieldWidth / 2,
+      center.y - right.y * keeperShieldConfig.keeperShieldWidth / 2,
+      center.x + right.x * keeperShieldConfig.keeperShieldWidth / 2,
+      center.y + right.y * keeperShieldConfig.keeperShieldWidth / 2,
+    )
+    this.drawDirectionVector(
+      center,
+      state?.normal ?? forward,
+      keeperShieldConfig.debug.faceColor,
+    )
+
+    if (state) {
+      this.drawDirectionVector(
+        center,
+        state.clearDirection,
+        keeperShieldConfig.debug.safeClearColor,
+      )
+    }
   }
 
   private getPendingReleasePhase(): string {
