@@ -345,6 +345,10 @@ export class GameScene extends Phaser.Scene {
         !isCarrier &&
         (input.primaryStickActionStarted ||
           input.explicitSlashAction),
+      aimDirection: {
+        x: Math.cos(input.aimAngle),
+        y: Math.sin(input.aimAngle),
+      },
     })
     this.currentInputIntent = isCarrier
       ? input.releasePrimaryStickAction
@@ -411,6 +415,11 @@ export class GameScene extends Phaser.Scene {
       defenseIntents.set(player.id, {
         truck: intent.truck ?? false,
         slash: (intent.slash ?? false) || (intent.swing ?? false),
+        aimDirection: normalizedDirection(
+          player.position,
+          intent.aimTarget,
+          player.getReleaseAimForward(),
+        ),
       })
     }
   }
@@ -631,6 +640,16 @@ export class GameScene extends Phaser.Scene {
       stickVisualRotation: controlledPlayer.getStickVisualRotation(),
       rawInputAimAngle: this.inputController.getRawAimAngle(),
       releaseAimAngle: controlledPlayer.getReleaseAimAngle(),
+      rawInputAimDirection: {
+        x: Math.cos(this.inputController.getRawAimAngle()),
+        y: Math.sin(this.inputController.getRawAimAngle()),
+      },
+      releaseAimDirection:
+        this.stickInteractionSystem.getPendingReleaseAimDirection() ??
+        controlledPlayer.getReleaseAimForward(),
+      visualStickDirection: controlledPlayer.getStickForward(),
+      releaseImpulseDirection:
+        this.stickInteractionSystem.getReleaseImpulseDirection(),
       carryPoseAngle:
         this.stickInteractionSystem.getCarryPoseAngle(
           controlledPlayer.id,
@@ -746,6 +765,20 @@ function movementToward(position: Point, target: Point): Phaser.Math.Vector2 {
   }
 
   return vector.normalize()
+}
+
+function normalizedDirection(
+  from: Point,
+  to: Point,
+  fallback: Point,
+): Point {
+  const x = to.x - from.x
+  const y = to.y - from.y
+  const length = Math.hypot(x, y)
+
+  return length === 0
+    ? { ...fallback }
+    : { x: x / length, y: y / length }
 }
 
 function getCssPixelValue(propertyName: string): number {

@@ -54,6 +54,12 @@ export class KeeperAISystem {
     const { player, core, attackGoal, ownGoal } = context
     const threat = predictThreat(context)
     const target = this.getTarget(context, threat, humanBias)
+    const clearTarget = getKeeperClearTarget(
+      player.position,
+      core.position,
+      ownGoal,
+      player.teamSide,
+    )
     const moveVector = this.getOrbitMovement(player.position, target, player.teamSide)
     const farFromGoal =
       distance(core.position, ownGoal) >
@@ -81,13 +87,17 @@ export class KeeperAISystem {
     this.recordDebug(context, target, threat, humanBias)
 
     if (context.isCarrier) {
+      const releaseTarget = keeperConfig.keeperClearUsesThreatVector
+        ? clearTarget
+        : attackGoal
+
       return {
         moveTarget: target,
         moveVector,
         moveSpeedMultiplier,
-        aimTarget: attackGoal,
+        aimTarget: releaseTarget,
         hold: true,
-        releaseTarget: attackGoal,
+        releaseTarget,
         aiReleaseDelayMs:
           aiConfig.aiReleaseDelayMs /
           Math.max(0.25, keeperConfig.keeperClearAggression),
@@ -137,7 +147,10 @@ export class KeeperAISystem {
       moveTarget: target,
       moveVector,
       moveSpeedMultiplier,
-      aimTarget: core.position,
+      aimTarget:
+        wantsSwing && keeperConfig.keeperClearUsesThreatVector
+          ? clearTarget
+          : core.position,
       hold,
       swing,
       aiState:
@@ -415,4 +428,33 @@ function normalized(vector: Point, fallback: Point): Point {
 
 function distance(a: Point, b: Point): number {
   return Math.hypot(a.x - b.x, a.y - b.y)
+}
+
+function getKeeperClearTarget(
+  keeperPosition: Point,
+  corePosition: Point,
+  ownGoal: Point,
+  side: TeamSide,
+): Point {
+  const fieldward = getKeeperHomeDirection(side)
+  const fromGoal = normalized(
+    subtract(corePosition, ownGoal),
+    fieldward,
+  )
+  const pointsIntoField =
+    fromGoal.x * fieldward.x + fromGoal.y * fieldward.y > 0.05
+  const clearDirection = pointsIntoField
+    ? normalized(
+        {
+          x: fromGoal.x + fieldward.x * 0.35,
+          y: fromGoal.y + fieldward.y * 0.35,
+        },
+        fieldward,
+      )
+    : fieldward
+
+  return {
+    x: keeperPosition.x + clearDirection.x * 360,
+    y: keeperPosition.y + clearDirection.y * 360,
+  }
 }

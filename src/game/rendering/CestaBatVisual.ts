@@ -102,19 +102,13 @@ export class CestaBatVisual {
       stateScale.y *
       styleScale *
       thicknessScale
-    const imagePosition = this.positionPocketAtSocket(
-      data.cradleSocket,
-      angle,
-      scaleX,
-      scaleY,
-    )
     const flicker =
       data.state === 'CRADLED_OVERCHARGED'
         ? 0.94 + Math.sin(elapsed * 0.07) * 0.06
         : 1
 
     this.image
-      .setPosition(imagePosition.x, imagePosition.y)
+      .setPosition(data.root.x, data.root.y)
       .setRotation(angle)
       .setScale(
         scaleX * this.textureScaleX,
@@ -804,29 +798,6 @@ export class CestaBatVisual {
         mirror < 0,
       )
       this.foreground.strokePath()
-    }
-  }
-
-  private positionPocketAtSocket(
-    socket: Point,
-    rotation: number,
-    scaleX: number,
-    scaleY: number,
-  ): Point {
-    const localX =
-      stickVisualConfig.pocketAnchorX - stickVisualConfig.rootX
-    const localY =
-      stickVisualConfig.pocketAnchorY - stickVisualConfig.centerY
-    const cosine = Math.cos(rotation)
-    const sine = Math.sin(rotation)
-    const worldX =
-      cosine * localX * scaleX - sine * localY * scaleY
-    const worldY =
-      sine * localX * scaleX + cosine * localY * scaleY
-
-    return {
-      x: socket.x - worldX,
-      y: socket.y - worldY,
     }
   }
 

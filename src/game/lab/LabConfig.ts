@@ -58,6 +58,7 @@ export type LabKeeperTuning = {
   keeperReturnHomeSpeed: number
   keeperClearAggression: number
   keeperDeflectAggression: number
+  keeperClearUsesThreatVector: boolean
   keeperOrbitSmoothing: number
   keeperMaxLateralSpeed: number
   keeperHumanBiasEnabled: boolean
@@ -147,6 +148,8 @@ export type LabStickTuning = {
   stickStanceOffsetRadians: number
   handednessStickOffset: number
   handednessMirrorMultiplier: number
+  loadbackAffectsAim: boolean
+  visualStickControlsImpulse: boolean
 }
 
 export type LabDefenseTuning = {

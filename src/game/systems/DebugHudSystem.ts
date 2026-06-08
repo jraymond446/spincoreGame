@@ -45,6 +45,10 @@ type DebugHudState = {
   stickVisualRotation: number
   rawInputAimAngle: number
   releaseAimAngle: number
+  rawInputAimDirection: Point
+  releaseAimDirection: Point
+  visualStickDirection: Point
+  releaseImpulseDirection: Point | null
   carryPoseAngle: number
   loadbackAngle: number
   carrySocket: Point | null
@@ -224,6 +228,10 @@ export class DebugHudSystem {
       `RECOVERY ${state.recoveryStatus}\n` +
       `RAW AIM  ${signed(state.rawInputAimAngle)} rad\n` +
       `RELEASE  ${signed(state.releaseAimAngle)} rad\n` +
+      `RAW DIR  ${formatVector(state.rawInputAimDirection)}\n` +
+      `AIM DIR  ${formatVector(state.releaseAimDirection)}\n` +
+      `VIS DIR  ${formatVector(state.visualStickDirection)}\n` +
+      `IMPULSE  ${formatOptionalVector(state.releaseImpulseDirection)}\n` +
       `CARRY    ${signed(state.carryPoseAngle)} rad\n` +
       `LOADBACK ${signed(state.loadbackAngle)} rad\n` +
       `SOCKET   ${formatOptionalVector(state.carrySocket)}\n` +

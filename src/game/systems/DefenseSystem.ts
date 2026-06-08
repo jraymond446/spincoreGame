@@ -11,6 +11,7 @@ import type { StickInteractionSystem } from './StickInteractionSystem'
 export type DefenseIntent = {
   truck: boolean
   slash: boolean
+  aimDirection?: Point
 }
 
 export type DefensiveActionState = DefensiveVisualState
@@ -35,6 +36,7 @@ type DefenseRuntime = {
   truckCooldownMs: number
   slashCooldownMs: number
   connected: boolean
+  actionDirection: Point
 }
 
 type Burst = {
@@ -105,7 +107,10 @@ export class DefenseSystem {
           intent.slash &&
           runtime.slashCooldownMs === 0
         ) {
-          this.startSlash(runtime)
+          this.startSlash(
+            runtime,
+            intent.aimDirection ?? player.getReleaseAimForward(),
+          )
         }
       }
 
@@ -207,6 +212,7 @@ export class DefenseSystem {
       truckCooldownMs: 0,
       slashCooldownMs: 0,
       connected: false,
+      actionDirection: { x: 1, y: 0 },
     }
     this.runtimes.set(playerId, runtime)
     return runtime
@@ -258,10 +264,14 @@ export class DefenseSystem {
     runtime.truckCooldownMs = defenseConfig.truckCooldownMs
   }
 
-  private startSlash(runtime: DefenseRuntime): void {
+  private startSlash(
+    runtime: DefenseRuntime,
+    direction: Point,
+  ): void {
     runtime.state = 'SLASH_STARTUP'
     runtime.elapsedMs = 0
     runtime.connected = false
+    runtime.actionDirection = normalized(direction)
     runtime.slashCooldownMs = defenseConfig.slashCooldownMs
   }
 
@@ -375,7 +385,7 @@ export class DefenseSystem {
       return
     }
 
-    const direction = actionDirection(attacker, false)
+    const direction = runtime.actionDirection
     const precisionMultiplier =
       attacker.role === 'support'
         ? defenseConfig.supportSlashPrecisionMultiplier
@@ -547,7 +557,7 @@ export class DefenseSystem {
       } else if (runtime.state === 'SLASH_ACTIVE') {
         this.drawActionArc(
           player,
-          actionDirection(player, false),
+          runtime.actionDirection,
           defenseConfig.slashRange,
           defenseConfig.slashArcRadians,
           defenseConfig.debug.slashColor,
@@ -762,6 +772,14 @@ function actionDirection(player: Player, preferMovement: boolean): Point {
   }
 
   return player.getReleaseAimForward()
+}
+
+function normalized(vector: Point): Point {
+  const length = Math.hypot(vector.x, vector.y)
+
+  return length === 0
+    ? { x: 1, y: 0 }
+    : { x: vector.x / length, y: vector.y / length }
 }
 
 function distance(a: Point, b: Point): number {

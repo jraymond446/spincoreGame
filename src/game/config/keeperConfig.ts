@@ -10,6 +10,7 @@ export const keeperConfig = {
   keeperReturnHomeSpeed: 0.72,
   keeperClearAggression: 0.86,
   keeperDeflectAggression: 0.9,
+  keeperClearUsesThreatVector: true,
   keeperOrbitSmoothing: 3.4,
   keeperMaxLateralSpeed: 5.6,
   keeperHumanBiasEnabled: true,

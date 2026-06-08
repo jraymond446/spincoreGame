@@ -215,6 +215,10 @@ export class Player {
     return this.aiState
   }
 
+  getDefenseVisualState(): DefensiveVisualState {
+    return this.defenseVisualState
+  }
+
   getAimAngle(): number {
     return this.releaseAimAngle
   }

@@ -124,6 +124,8 @@ export function applyLabSettings(state: LabTuningState): void {
       state.keeper.keeperClearAggression,
     keeperDeflectAggression:
       state.keeper.keeperDeflectAggression,
+    keeperClearUsesThreatVector:
+      state.keeper.keeperClearUsesThreatVector,
     keeperOrbitSmoothing:
       state.keeper.keeperOrbitSmoothing,
     keeperMaxLateralSpeed:
@@ -188,6 +190,8 @@ export function applyLabSettings(state: LabTuningState): void {
     hardChargeMultiplier: stick.hardChargeMultiplier,
     playerChargeAuraEnabled: stick.playerChargeAuraEnabled,
     playerChargeAuraThreshold: stick.playerChargeAuraThreshold,
+    loadbackAffectsAim: stick.loadbackAffectsAim,
+    visualStickControlsImpulse: stick.visualStickControlsImpulse,
   })
   Object.assign(stickConfig, {
     deflectRadius:

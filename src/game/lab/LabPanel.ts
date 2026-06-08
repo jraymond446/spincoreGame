@@ -565,6 +565,14 @@ export class LabPanel {
           this.markDraftChanged()
         },
       ),
+      this.createCheckbox(
+        'Clear uses threat vector',
+        keeper.keeperClearUsesThreatVector,
+        (value) => {
+          keeper.keeperClearUsesThreatVector = value
+          this.markDraftChanged()
+        },
+      ),
     )
     const modeDescription = document.createElement('p')
     modeDescription.className = 'lab-empty'
@@ -580,6 +588,7 @@ export class LabPanel {
           | 'keeperControlMode'
           | 'keeperHumanBiasEnabled'
           | 'keeperAutoSwitchEnabled'
+          | 'keeperClearUsesThreatVector'
         >,
         RangeOptions,
       ]
@@ -653,6 +662,22 @@ export class LabPanel {
           this.markDraftChanged()
         },
       ),
+      this.createCheckbox(
+        'Load-back affects aim',
+        stick.loadbackAffectsAim,
+        (value) => {
+          stick.loadbackAffectsAim = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createCheckbox(
+        'Visual stick controls impulse',
+        stick.visualStickControlsImpulse,
+        (value) => {
+          stick.visualStickControlsImpulse = value
+          this.markDraftChanged()
+        },
+      ),
     )
     const controls: Array<
       [
@@ -663,14 +688,16 @@ export class LabPanel {
           | 'gatherSnapEffectEnabled'
           | 'hardChargeEnabled'
           | 'playerChargeAuraEnabled'
+          | 'loadbackAffectsAim'
+          | 'visualStickControlsImpulse'
         >,
         RangeOptions,
       ]
     > = [
-      ['Carry socket lag', 'carrySocketLag', { min: 0.02, max: 0.4, step: 0.01, digits: 2 }],
-      ['Carry socket max offset', 'carrySocketMaxOffset', { min: 0, max: 70, step: 1 }],
-      ['Carry lateral range', 'carrySocketLateralRange', { min: 0, max: 60, step: 1 }],
-      ['Carry forward range', 'carrySocketForwardRange', { min: 0, max: 45, step: 1 }],
+      ['Carry socket lag', 'carrySocketLag', { min: 0.02, max: 0.2, step: 0.01, digits: 2 }],
+      ['Carry socket max offset', 'carrySocketMaxOffset', { min: 0, max: 24, step: 1 }],
+      ['Carry lateral range', 'carrySocketLateralRange', { min: 0, max: 24, step: 1 }],
+      ['Carry forward range', 'carrySocketForwardRange', { min: 0, max: 18, step: 1 }],
       ['Carry sway amount', 'carrySwayAmount', { min: 0, max: 0.5, step: 0.01, digits: 2 }],
       ['Carry sway smoothing', 'carrySwaySmoothing', { min: 1, max: 24, step: 0.5, digits: 1 }],
       ['Carry control deadzone', 'carryControlDeadzone', { min: 0, max: 0.4, step: 0.01, digits: 2 }],
