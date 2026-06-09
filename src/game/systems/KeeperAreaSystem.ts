@@ -1,7 +1,7 @@
 import Phaser from 'phaser'
 import { goalConfigs } from '../config/goalConfig'
 import { keeperAreaConfig } from '../config/keeperAreaConfig'
-import { playerRuntimeConfig } from '../config/playerConfig'
+import { keeperZoneRulesConfig } from '../config/keeperZoneRulesConfig'
 import { visualStyleConfig } from '../config/visualStyleConfig'
 import type { Point } from '../data/geometry'
 import type { TeamSide } from '../data/matchTypes'
@@ -10,12 +10,21 @@ import {
   getKeeperHomeDirection,
   getKeeperLegalRadii,
 } from '../rules/KeeperGeometry'
+import {
+  getInnerPlayerBoundaryRadius,
+  getOuterPlayerBoundaryRadius,
+  type PlayerZoneAccessState,
+} from '../rules/KeeperZoneAccess'
 
 export type KeeperLegalState =
   | 'legal'
   | 'outside outer ring'
   | 'inside no-body ring'
   | 'corrected'
+
+export type KeeperZoneAccessState =
+  | PlayerZoneAccessState
+  | 'blocked own zone'
 
 export class KeeperAreaSystem {
   private scene: Phaser.Scene
@@ -27,6 +36,7 @@ export class KeeperAreaSystem {
   private legalStates = new Map<string, KeeperLegalState>()
   private lastViolations = new Map<string, KeeperLegalState>()
   private correctionTimers = new Map<string, number>()
+  private accessStates = new Map<string, KeeperZoneAccessState>()
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene
@@ -46,19 +56,17 @@ export class KeeperAreaSystem {
       const corrected =
         player.role === 'keeper'
           ? this.constrainKeeperToDonut(player)
-          : this.constrainFieldPlayerOutsideZones(player)
+          : this.constrainFieldPlayerByZoneAccess(player)
 
       if (corrected) {
         player.updateVisuals()
       }
 
-      if (player.role === 'keeper') {
-        this.updateKeeperStateLabel(player)
-      }
+      this.updatePlayerStateLabel(player)
     }
   }
 
-  private updateKeeperStateLabel(player: Player): void {
+  private updatePlayerStateLabel(player: Player): void {
     let label = this.stateLabels.get(player.id)
 
     if (!label) {
@@ -76,15 +84,17 @@ export class KeeperAreaSystem {
       this.labels.push(label)
     }
 
-    const state = this.getKeeperLegalState(player.id)
+    const keeperState = this.getKeeperLegalState(player.id)
     const violation = this.getKeeperLastViolation(player.id)
+    const state =
+      player.role === 'keeper'
+        ? keeperState === 'corrected'
+          ? `CORRECTED: ${violation}`
+          : keeperState
+        : this.getZoneAccessState(player.id)
     label
       .setPosition(player.position.x + 18, player.position.y - 34)
-      .setText(
-        state === 'corrected'
-          ? `CORRECTED: ${violation}`
-          : state.toUpperCase(),
-      )
+      .setText(state.toUpperCase())
       .setVisible(this.active && this.debugEnabled)
   }
 
@@ -94,6 +104,10 @@ export class KeeperAreaSystem {
 
   getKeeperLastViolation(playerId: string): KeeperLegalState {
     return this.lastViolations.get(playerId) ?? 'legal'
+  }
+
+  getZoneAccessState(playerId: string): KeeperZoneAccessState {
+    return this.accessStates.get(playerId) ?? 'legal'
   }
 
   setDebugEnabled(enabled: boolean): void {
@@ -127,41 +141,87 @@ export class KeeperAreaSystem {
     )
 
     if (length > legal.outer) {
+      this.accessStates.set(player.id, 'legal own zone')
       this.correctKeeper(player, center, normal, legal.outer, 'outside outer ring')
       return true
     }
 
     if (length < legal.inner) {
+      this.accessStates.set(player.id, 'blocked inner ring')
       this.correctKeeper(player, center, normal, legal.inner, 'inside no-body ring')
       return true
     }
 
+    this.accessStates.set(player.id, 'legal own zone')
     if ((this.correctionTimers.get(player.id) ?? 0) <= 0) {
       this.legalStates.set(player.id, 'legal')
     }
     return false
   }
 
-  private constrainFieldPlayerOutsideZones(player: Player): boolean {
-    const minimumDistance =
-      keeperAreaConfig.keeperZoneRadius +
-      playerRuntimeConfig.radius +
-      keeperAreaConfig.keeperZoneBoundaryBuffer
-
+  private constrainFieldPlayerByZoneAccess(player: Player): boolean {
     for (const side of ['A', 'B'] as const) {
       const center = keeperAreaConfig.areas[side]
       const offset = subtract(player.position, center)
       const length = magnitude(offset)
+      const normal = normalized(offset, fallbackDirection(side))
 
-      if (length >= minimumDistance) {
-        continue
+      if (
+        side !== player.teamSide &&
+        keeperZoneRulesConfig.attackersBlockedFromOpponentKeeperZone &&
+        length < getOuterPlayerBoundaryRadius()
+      ) {
+        this.accessStates.set(player.id, 'blocked opponent zone')
+        this.moveBodyToRadius(
+          player,
+          center,
+          normal,
+          getOuterPlayerBoundaryRadius(),
+          'inside',
+        )
+        return true
       }
 
-      const normal = normalized(offset, fallbackDirection(side))
-      this.moveBodyToRadius(player, center, normal, minimumDistance, 'inside')
-      return true
+      if (
+        keeperZoneRulesConfig.innerRingBlocksAllPlayers &&
+        length < getInnerPlayerBoundaryRadius()
+      ) {
+        this.accessStates.set(player.id, 'blocked inner ring')
+        this.moveBodyToRadius(
+          player,
+          center,
+          normal,
+          getInnerPlayerBoundaryRadius(),
+          'inside',
+        )
+        return true
+      }
+
+      if (side === player.teamSide) {
+        if (
+          !keeperZoneRulesConfig.defendersAllowedInOwnKeeperZone &&
+          length < getOuterPlayerBoundaryRadius()
+        ) {
+          this.accessStates.set(player.id, 'blocked own zone')
+          this.moveBodyToRadius(
+            player,
+            center,
+            normal,
+            getOuterPlayerBoundaryRadius(),
+            'inside',
+          )
+          return true
+        }
+
+        if (length < keeperAreaConfig.keeperZoneRadius) {
+          this.accessStates.set(player.id, 'legal own zone')
+          return false
+        }
+      }
+
     }
 
+    this.accessStates.set(player.id, 'legal')
     return false
   }
 

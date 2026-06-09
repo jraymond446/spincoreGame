@@ -172,6 +172,9 @@ function abbreviateJob(job: TacticalAssignment['job']): string {
     zoneGuard: 'ZONE',
     reboundHunter: 'REBOUND',
     bankRebound: 'BANK',
+    defensiveCleanup: 'CLEAN',
+    creaseSupport: 'CREASE',
+    outletAfterClear: 'OUTLET',
     keeper: 'KEEP',
   }
 

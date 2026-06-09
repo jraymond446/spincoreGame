@@ -346,6 +346,8 @@ export class StickInteractionSystem {
     players: Player[],
     targetPlayerId: string,
     contactDirection?: Point,
+    speed: number = stickConfig.fumbleSpeed,
+    cradleSideBias: number = 0.35,
   ): boolean {
     if (this.carrierId !== targetPlayerId || !this.isCradled()) {
       return false
@@ -357,7 +359,13 @@ export class StickInteractionSystem {
       return false
     }
 
-    this.fumble(core, carrier, contactDirection)
+    this.fumble(
+      core,
+      carrier,
+      contactDirection,
+      speed,
+      cradleSideBias,
+    )
     return true
   }
 
@@ -1319,13 +1327,15 @@ export class StickInteractionSystem {
     core: Core,
     carrier: Player,
     contactDirection?: Point,
+    speed: number = stickConfig.fumbleSpeed,
+    cradleSideBias: number = 0.35,
   ): void {
     const aim = carrier.getStickForward()
     const right = carrier.getCradleSideDirection()
     const direction = contactDirection
       ? normalized({
-          x: contactDirection.x + right.x * 0.35,
-          y: contactDirection.y + right.y * 0.35,
+          x: contactDirection.x + right.x * cradleSideBias,
+          y: contactDirection.y + right.y * cradleSideBias,
         })
       : normalized({
           x: aim.x + right.x * 0.55,
@@ -1336,8 +1346,8 @@ export class StickInteractionSystem {
       core,
       carrier,
       {
-        x: direction.x * stickConfig.fumbleSpeed,
-        y: direction.y * stickConfig.fumbleSpeed,
+        x: direction.x * speed,
+        y: direction.y * speed,
       },
       'FUMBLED',
     )

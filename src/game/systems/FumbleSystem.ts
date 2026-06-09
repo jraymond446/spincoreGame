@@ -81,6 +81,43 @@ export class FumbleSystem {
     return this.pressure >= defenseConfig.fumblePressureThreshold
   }
 
+  addWallPressure(
+    amount: number,
+    coreState: CorePossessionState,
+    carrier: Player,
+    overchargeMultiplier: number,
+  ): boolean {
+    const handling = Phaser.Math.Clamp(
+      carrier.attributes.ballHandling,
+      0,
+      1,
+    )
+    const toughness = Phaser.Math.Clamp(
+      carrier.attributes.toughness,
+      0,
+      1,
+    )
+    const resistance = Phaser.Math.Linear(
+      1.16,
+      0.62,
+      (handling + toughness) / 2,
+    )
+    const phaseMultiplier =
+      coreState === 'CRADLED_OVERCHARGED'
+        ? overchargeMultiplier
+        : coreState === 'CRADLED_CHARGING'
+          ? 1.08
+          : 0.86
+
+    this.pressure = Phaser.Math.Clamp(
+      this.pressure + amount * resistance * phaseMultiplier,
+      0,
+      defenseConfig.fumblePressureThreshold * 1.5,
+    )
+
+    return this.pressure >= defenseConfig.fumblePressureThreshold
+  }
+
   clear(): void {
     this.carrierId = null
     this.pressure = 0

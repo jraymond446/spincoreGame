@@ -51,6 +51,8 @@ import {
 } from '../systems/StickInteractionSystem'
 import { TeamSystem } from '../systems/TeamSystem'
 import { TacticalGuideRenderer } from '../systems/TacticalGuideRenderer'
+import { WallBounceSystem } from '../systems/WallBounceSystem'
+import { WallCarryPressureSystem } from '../systems/WallCarryPressureSystem'
 
 export class GameScene extends Phaser.Scene {
   private core!: Core
@@ -71,6 +73,8 @@ export class GameScene extends Phaser.Scene {
   private stickInteractionSystem!: StickInteractionSystem
   private defenseSystem!: DefenseSystem
   private fumbleSystem!: FumbleSystem
+  private wallBounceSystem!: WallBounceSystem
+  private wallCarryPressureSystem!: WallCarryPressureSystem
   private matchFlowSystem!: MatchFlowSystem
   private matchStatsTracker!: MatchStatsTracker
   private debugHudSystem!: DebugHudSystem
@@ -115,6 +119,7 @@ export class GameScene extends Phaser.Scene {
       .map((config) => new GoalGate(this, config))
     this.goalRules.clear()
     this.core = new Core(this)
+    this.wallBounceSystem = new WallBounceSystem(this, this.core)
     this.teamSystem = new TeamSystem(this, this.gameMode)
     this.playerControlSystem = new PlayerControlSystem()
     this.keeperControlAssistSystem = new KeeperControlAssistSystem()
@@ -129,6 +134,7 @@ export class GameScene extends Phaser.Scene {
     this.stickInteractionSystem = new StickInteractionSystem(this)
     this.defenseSystem = new DefenseSystem(this)
     this.fumbleSystem = new FumbleSystem()
+    this.wallCarryPressureSystem = new WallCarryPressureSystem(this)
     this.coreRecoverySystem = new CoreRecoverySystem()
     this.creaseBattleSystem = new CreaseBattleSystem(this)
     this.matchFlowSystem = new MatchFlowSystem(
@@ -167,6 +173,8 @@ export class GameScene extends Phaser.Scene {
       this.scoreboardOverlay.destroy()
       this.arenaDressing.destroy()
       this.tacticalGuideRenderer.destroy()
+      this.wallBounceSystem.destroy()
+      this.wallCarryPressureSystem.destroy()
     })
   }
 
@@ -314,9 +322,20 @@ export class GameScene extends Phaser.Scene {
       this.updateHud()
     }
 
+    this.wallCarryPressureSystem.update(
+      this.core,
+      players,
+      this.stickInteractionSystem,
+      this.fumbleSystem,
+      delta,
+    )
     this.arenaSystem.containPlayers(players)
     this.keeperAreaSystem.update(players, delta)
 
+    this.wallBounceSystem.update(
+      this.stickInteractionSystem.getCarrierId() !== null,
+      delta,
+    )
     this.core.update()
 
     let goalScored = false
@@ -548,6 +567,8 @@ export class GameScene extends Phaser.Scene {
     this.stickInteractionSystem.clearForReset(this.core)
     this.defenseSystem.clear()
     this.fumbleSystem.clear()
+    this.wallBounceSystem.reset()
+    this.wallCarryPressureSystem.reset()
     this.coreRecoverySystem.reset()
     this.creaseBattleSystem.reset()
     this.matchStatsTracker.clearPossession()
@@ -590,6 +611,8 @@ export class GameScene extends Phaser.Scene {
     this.stickInteractionSystem.clearForReset(this.core)
     this.defenseSystem.clear()
     this.fumbleSystem.clear()
+    this.wallBounceSystem.reset()
+    this.wallCarryPressureSystem.reset()
     this.coreRecoverySystem.reset()
     this.creaseBattleSystem.reset()
     this.matchStatsTracker.clearPossession()
@@ -626,6 +649,8 @@ export class GameScene extends Phaser.Scene {
     this.stickInteractionSystem.clearForReset(this.core)
     this.defenseSystem.clear()
     this.fumbleSystem.clear()
+    this.wallBounceSystem.reset()
+    this.wallCarryPressureSystem.reset()
     this.coreRecoverySystem.reset()
     this.creaseBattleSystem.reset()
     this.freezeEntities(this.teamSystem.players)
@@ -747,6 +772,10 @@ export class GameScene extends Phaser.Scene {
       controlledTacticalJob:
         this.aiSystem.getTacticalAssignment(controlledPlayer.id)?.job ??
         null,
+      cleanupPlayers: {
+        A: this.aiSystem.getCleanupPlayerIds('A'),
+        B: this.aiSystem.getCleanupPlayerIds('B'),
+      },
       creaseBattle: this.creaseBattleSystem.getDebugState(),
       defenseState: this.defenseSystem.getState(controlledPlayer.id),
       defenseAction:
@@ -756,6 +785,8 @@ export class GameScene extends Phaser.Scene {
       fumblePressure: this.fumbleSystem.getPressure(),
       fumblePressureNormalized:
         this.fumbleSystem.getNormalizedPressure(),
+      wallBounce: this.wallBounceSystem.getDebugState(),
+      wallCarry: this.wallCarryPressureSystem.getDebugState(),
       matchFlowState: this.matchFlowSystem.getState(),
       matchFlowTimerMs: this.matchFlowSystem.getTimerMs(),
       countdownLabel: this.matchFlowSystem.getCountdownLabel(),
@@ -816,6 +847,8 @@ export class GameScene extends Phaser.Scene {
       keeperLastViolation: keeper
         ? this.keeperAreaSystem.getKeeperLastViolation(keeper.id)
         : 'legal',
+      controlledZoneAccess:
+        this.keeperAreaSystem.getZoneAccessState(controlledPlayer.id),
     })
   }
 

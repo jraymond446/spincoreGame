@@ -1,6 +1,7 @@
 import Phaser from 'phaser'
 import { arenaConfig } from '../config/arenaConfig'
 import { keeperAreaConfig } from '../config/keeperAreaConfig'
+import { keeperZoneRulesConfig } from '../config/keeperZoneRulesConfig'
 import { playerRuntimeConfig } from '../config/playerConfig'
 import { spacingConfig } from '../config/spacingConfig'
 import { tacticsConfig } from '../config/tacticsConfig'
@@ -8,6 +9,10 @@ import type { Point } from '../data/geometry'
 import type { TeamSide } from '../data/matchTypes'
 import type { Core } from '../entities/Core'
 import type { Player } from '../entities/Player'
+import {
+  clampFieldPlayerTargetToLegalZones,
+  isPointInKeeperZone,
+} from '../rules/KeeperZoneAccess'
 import type {
   TacticalAssignment,
   TacticalJob,
@@ -50,6 +55,10 @@ export class TeamShapeSystem {
   private readonly transitionTimers: Record<TeamSide, number> = {
     A: 0,
     B: 0,
+  }
+  private readonly cleanupAssignments: Record<TeamSide, string[]> = {
+    A: [],
+    B: [],
   }
   private readonly previousCarrierIds: Record<TeamSide, string | null> = {
     A: null,
@@ -129,6 +138,10 @@ export class TeamShapeSystem {
     return this.pressers[side].playerId
   }
 
+  getCleanupPlayerIds(side: TeamSide): string[] {
+    return [...this.cleanupAssignments[side]]
+  }
+
   getPhase(side: TeamSide): TeamPhase {
     return this.phases[side]
   }
@@ -184,6 +197,8 @@ export class TeamShapeSystem {
     this.phases.B = 'LOOSE'
     this.transitionTimers.A = 0
     this.transitionTimers.B = 0
+    this.cleanupAssignments.A = []
+    this.cleanupAssignments.B = []
     this.previousCarrierIds.A = null
     this.previousCarrierIds.B = null
     this.lastCarrierId = null
@@ -254,10 +269,21 @@ export class TeamShapeSystem {
     const pressurePoint = opponentCarrier?.position ?? core.position
     const phase = this.phases[side]
     const strategy = this.strategies[side]
+    const cleanupPlayers = this.selectDefensiveCleaners(
+      side,
+      fieldPlayers,
+      core,
+      carrier,
+    )
+    const cleanupIds = new Set(cleanupPlayers.map((player) => player.id))
+    this.cleanupAssignments[side] = cleanupPlayers.map(
+      (player) => player.id,
+    )
     const needsPresser =
-      phase === 'DEFENSE' ||
-      phase === 'LOOSE' ||
-      (phase === 'TRANSITION' && !teamCarrier)
+      cleanupPlayers.length === 0 &&
+      (phase === 'DEFENSE' ||
+        phase === 'LOOSE' ||
+        (phase === 'TRANSITION' && !teamCarrier))
     const presser = needsPresser
       ? this.selectPresser(
           side,
@@ -278,8 +304,51 @@ export class TeamShapeSystem {
         continue
       }
 
+      if (cleanupIds.has(player.id)) {
+        const cleanupIndex = cleanupPlayers.findIndex(
+          (candidate) => candidate.id === player.id,
+        )
+        const cleanupJob =
+          cleanupIndex === 0 ? 'defensiveCleanup' : 'creaseSupport'
+        const target = this.applySpacing(
+          core.position,
+          player,
+          teammates,
+          cleanupJob,
+        )
+        this.setAssignment(player, cleanupJob, target)
+        continue
+      }
+
+      if (cleanupPlayers.length > 0) {
+        const job: TacticalJob = 'outletAfterClear'
+        const target = this.applySpacing(
+          this.getJobTarget(
+            job,
+            player,
+            teammates,
+            opponents,
+            teamCarrier,
+            opponentCarrier,
+            core,
+            strategy.defenseScheme,
+          ).target,
+          player,
+          teammates,
+          job,
+        )
+        this.setAssignment(player, job, target)
+        continue
+      }
+
       if (player.id === presser?.id) {
-        this.setAssignment(player, 'primaryPresser', pressurePoint)
+        const target = this.applySpacing(
+          pressurePoint,
+          player,
+          teammates,
+          'primaryPresser',
+        )
+        this.setAssignment(player, 'primaryPresser', target)
         continue
       }
 
@@ -306,6 +375,7 @@ export class TeamShapeSystem {
         tacticalTarget.target,
         player,
         teammates,
+        job,
       )
 
       this.assignments.set(player.id, {
@@ -368,6 +438,53 @@ export class TeamShapeSystem {
     }
 
     return current
+  }
+
+  private selectDefensiveCleaners(
+    side: TeamSide,
+    players: Player[],
+    core: Core,
+    carrier: Player | null,
+  ): Player[] {
+    if (
+      !keeperZoneRulesConfig.defendersAllowedInOwnKeeperZone ||
+      keeperZoneRulesConfig.maxDefensiveCleanersInZone <= 0 ||
+      carrier !== null ||
+      !isPointInKeeperZone(core.position, side)
+    ) {
+      return []
+    }
+
+    const maximumApproachDistance =
+      keeperAreaConfig.keeperZoneRadius +
+      keeperZoneRulesConfig.defensiveCleanupRadius
+    const priority = keeperZoneRulesConfig.defensiveCleanupPriority
+
+    return players
+      .filter(
+        (player) =>
+          distance(player.position, core.position) <=
+          maximumApproachDistance,
+      )
+      .sort((a, b) => {
+        const aRoleBonus =
+          a.role === 'brute' ? 0.35 : a.role === 'support' ? 0.22 : 0.1
+        const bRoleBonus =
+          b.role === 'brute' ? 0.35 : b.role === 'support' ? 0.22 : 0.1
+        const aScore =
+          distance(a.position, core.position) -
+          aRoleBonus *
+            priority *
+            keeperZoneRulesConfig.defensiveCleanupRadius
+        const bScore =
+          distance(b.position, core.position) -
+          bRoleBonus *
+            priority *
+            keeperZoneRulesConfig.defensiveCleanupRadius
+
+        return aScore - bScore
+      })
+      .slice(0, keeperZoneRulesConfig.maxDefensiveCleanersInZone)
   }
 
   private setPresser(side: TeamSide, playerId: string): void {
@@ -740,6 +857,44 @@ export class TeamShapeSystem {
           },
         }
       }
+      case 'defensiveCleanup':
+        return { target: { ...core.position } }
+      case 'creaseSupport': {
+        const lateralSign =
+          player.position.x < ownGoal.x ? -1 : 1
+        return {
+          target: {
+            x:
+              ownGoal.x +
+              lateralSign *
+                keeperAreaConfig.keeperZoneRadius *
+                0.58,
+            y:
+              ownGoal.y +
+              direction.y *
+                keeperAreaConfig.keeperZoneRadius *
+                0.34,
+          },
+        }
+      }
+      case 'outletAfterClear': {
+        const lateralSign =
+          core.position.x < ownGoal.x ? 1 : -1
+        return {
+          target: {
+            x:
+              ownGoal.x +
+              lateralSign *
+                keeperZoneRulesConfig.creaseOutletSpacing *
+                0.72,
+            y:
+              ownGoal.y +
+              direction.y *
+                (keeperAreaConfig.keeperZoneRadius +
+                  keeperZoneRulesConfig.creaseOutletSpacing),
+          },
+        }
+      }
       default:
         return { target: { ...core.position } }
     }
@@ -836,6 +991,7 @@ export class TeamShapeSystem {
     target: Point,
     player: Player,
     teammates: Player[],
+    job: TacticalJob,
   ): Point {
     let adjusted = { ...target }
 
@@ -864,35 +1020,16 @@ export class TeamShapeSystem {
       }
     }
 
-    return this.clampOutsideKeeperZones(this.clampToArena(adjusted))
-  }
+    const allowOwnOuterZone =
+      job === 'defensiveCleanup' || job === 'creaseSupport'
 
-  private clampOutsideKeeperZones(point: Point): Point {
-    let adjusted = { ...point }
-    const minimumDistance =
-      keeperAreaConfig.keeperZoneRadius +
-      keeperAreaConfig.keeperZoneBoundaryBuffer +
-      playerRuntimeConfig.radius +
-      8
-
-    for (const side of ['A', 'B'] as const) {
-      const goal = keeperAreaConfig.areas[side]
-      const offset = subtract(adjusted, goal)
-      const currentDistance = Math.hypot(offset.x, offset.y)
-
-      if (currentDistance >= minimumDistance) {
-        continue
-      }
-
-      const fallback = this.attackDirection(side)
-      const direction = normalized(offset, fallback)
-      adjusted = {
-        x: goal.x + direction.x * minimumDistance,
-        y: goal.y + direction.y * minimumDistance,
-      }
-    }
-
-    return this.clampToArena(adjusted)
+    return this.clampToArena(
+      clampFieldPlayerTargetToLegalZones(
+        player,
+        this.clampToArena(adjusted),
+        allowOwnOuterZone,
+      ),
+    )
   }
 
   private clampToArena(point: Point): Point {
@@ -976,6 +1113,7 @@ export class TeamShapeSystem {
     const ownGoal = this.ownGoal(side)
     const direction = this.attackDirection(side)
     const presser = this.pressers[side].playerId ?? '-'
+    const cleanup = this.cleanupAssignments[side].join(', ') || '-'
     const labelY =
       ownGoal.y + direction.y * (keeperAreaConfig.keeperZoneRadius + 92)
 
@@ -984,7 +1122,7 @@ export class TeamShapeSystem {
       .setText(
         `${side} ${this.phases[side]} | ${strategy.offenseScheme} / ` +
           `${strategy.defenseScheme} / ${strategy.transitionScheme}\n` +
-          `PRESSER ${presser}`,
+          `PRESSER ${presser} | CLEANUP ${cleanup}`,
       )
       .setVisible(true)
 
@@ -1104,6 +1242,8 @@ function jobColor(job: TacticalJob): number {
     case 'defensiveCover':
     case 'zoneGuard':
     case 'manMark':
+    case 'defensiveCleanup':
+    case 'creaseSupport':
       return spacingConfig.debug.coverColor
     case 'behindNet':
     case 'bankRebound':
@@ -1113,6 +1253,7 @@ function jobColor(job: TacticalJob): number {
     case 'verticalHigh':
     case 'verticalMiddle':
     case 'verticalLow':
+    case 'outletAfterClear':
       return spacingConfig.debug.frontSlotColor
     default:
       return 0xffffff

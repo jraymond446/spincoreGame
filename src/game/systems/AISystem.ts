@@ -6,6 +6,7 @@ import { decideRoleIntent } from '../ai/RoleBehaviors'
 import { aiConfig } from '../config/aiConfig'
 import { defenseConfig } from '../config/defenseConfig'
 import { keeperAreaConfig } from '../config/keeperAreaConfig'
+import { keeperZoneRulesConfig } from '../config/keeperZoneRulesConfig'
 import { stickConfig } from '../config/stickConfig'
 import { tacticsConfig } from '../config/tacticsConfig'
 import type { Point } from '../data/geometry'
@@ -16,6 +17,10 @@ import type {
 } from '../data/matchTypes'
 import type { Core } from '../entities/Core'
 import type { Player } from '../entities/Player'
+import {
+  clampFieldPlayerTargetToLegalZones,
+  isPointInOpponentKeeperZone,
+} from '../rules/KeeperZoneAccess'
 import type { TacticalAssignment, TacticalJob } from '../tactics/TacticalJobs'
 import type { TeamStrategy } from '../tactics/TeamStrategy'
 import {
@@ -124,6 +129,10 @@ export class AISystem {
 
   getTacticalAssignments(): Map<string, TacticalAssignment> {
     return this.teamShape.getAssignments()
+  }
+
+  getCleanupPlayerIds(side: TeamSide): string[] {
+    return this.teamShape.getCleanupPlayerIds(side)
   }
 
   getDecisionDebug(playerId: string): AIDecisionDebugState | null {
@@ -264,9 +273,20 @@ export class AISystem {
       const defense = highPressing
         ? boostHighPressDefense(context, baseDefense)
         : baseDefense
+      const allowOwnOuterZone =
+        context.isCarrier ||
+        activelyGathering ||
+        assignment?.job === 'defensiveCleanup' ||
+        assignment?.job === 'creaseSupport'
+      const legalMoveTarget = clampFieldPlayerTargetToLegalZones(
+        player,
+        shapedIntent.moveTarget,
+        allowOwnOuterZone,
+      )
 
       this.intents.set(player.id, {
         ...shapedIntent,
+        moveTarget: legalMoveTarget,
         ...defense,
       })
       player.setAIState(shapedIntent.aiState)
@@ -367,7 +387,13 @@ export class AISystem {
       }
     }
 
-    if (isInsideKeeperZone(context.core.position)) {
+    if (
+      isPointInOpponentKeeperZone(
+        context.core.position,
+        player.teamSide,
+      ) &&
+      keeperZoneRulesConfig.attackersBlockedFromOpponentKeeperZone
+    ) {
       this.finishOverride(player.id)
       return {
         allowed: false,
@@ -407,7 +433,14 @@ export class AISystem {
     return {
       allowed: true,
       reason: 'ready',
-      decision: catchable ? 'RECEIVE_CORE' : 'EMERGENCY_GATHER',
+      decision:
+        assignment?.job === 'defensiveCleanup'
+          ? 'DEFENSIVE_CLEANUP'
+          : assignment?.job === 'creaseSupport'
+            ? 'CREASE_SUPPORT'
+            : catchable
+              ? 'RECEIVE_CORE'
+              : 'EMERGENCY_GATHER',
     }
   }
 
@@ -642,7 +675,9 @@ function isDefensiveJob(job: TacticalJob): boolean {
   return (
     job === 'defensiveCover' ||
     job === 'zoneGuard' ||
-    job === 'manMark'
+    job === 'manMark' ||
+    job === 'defensiveCleanup' ||
+    job === 'creaseSupport'
   )
 }
 
@@ -810,14 +845,6 @@ function isCoreMovingTowardPlayer(core: Core, player: Player): boolean {
   return (
     distance(closest, player.position) <=
     tacticsConfig.receiverCatchRadius * 0.72
-  )
-}
-
-function isInsideKeeperZone(point: Point): boolean {
-  return (['A', 'B'] as const).some(
-    (side) =>
-      distance(point, keeperAreaConfig.areas[side]) <
-      keeperAreaConfig.keeperZoneRadius,
   )
 }
 

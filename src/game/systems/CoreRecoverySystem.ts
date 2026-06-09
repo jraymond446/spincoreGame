@@ -1,8 +1,12 @@
 import { arenaConfig } from '../config/arenaConfig'
 import { coreSafetyConfig } from '../config/coreSafetyConfig'
+import { wallConfig } from '../config/wallConfig'
 import type { Point } from '../data/geometry'
 
-export type CoreRecoveryReason = 'OUT_OF_BOUNDS' | 'STUCK_NEAR_WALL'
+export type CoreRecoveryReason =
+  | 'OUT_OF_BOUNDS'
+  | 'STUCK_NEAR_WALL'
+  | 'INVALID_POSITION'
 
 export class CoreRecoverySystem {
   private outOfBoundsElapsedMs = 0
@@ -22,12 +26,19 @@ export class CoreRecoverySystem {
       this.recoveredMessageMsRemaining - deltaMs,
     )
 
+    if (!isFinitePoint(position) || !isFinitePoint(velocity)) {
+      return this.recover('INVALID_POSITION')
+    }
+
     if (this.isBeyondRecoveryBounds(position)) {
       this.outOfBoundsElapsedMs += deltaMs
 
       if (
         this.outOfBoundsElapsedMs >=
-        coreSafetyConfig.coreRecoveryDelayMs
+        Math.max(
+          wallConfig.coreRecoveryDelayMs,
+          wallConfig.coreSafetyResetToCenterAfterMs,
+        )
       ) {
         return this.recover('OUT_OF_BOUNDS')
       }
@@ -79,8 +90,13 @@ export class CoreRecoverySystem {
     }
 
     if (this.outOfBoundsElapsedMs > 0) {
-      return `OUT OF BOUNDS ${Math.round(this.outOfBoundsElapsedMs)} / ${
-        coreSafetyConfig.coreRecoveryDelayMs
+      const status =
+        this.outOfBoundsElapsedMs >= wallConfig.coreRecoveryDelayMs
+          ? 'RECOVERY ARMED'
+          : 'OUT OF BOUNDS'
+
+      return `${status} ${Math.round(this.outOfBoundsElapsedMs)} / ${
+        wallConfig.coreSafetyResetToCenterAfterMs
       }ms`
     }
 
@@ -113,7 +129,7 @@ export class CoreRecoverySystem {
   private isBeyondRecoveryBounds(position: Point): boolean {
     const halfWidth = arenaConfig.width / 2
     const halfHeight = arenaConfig.height / 2
-    const margin = coreSafetyConfig.coreOutOfBoundsMargin
+    const margin = wallConfig.coreOutOfBoundsMargin
 
     return (
       position.x < arenaConfig.center.x - halfWidth - margin ||
@@ -146,4 +162,8 @@ export class CoreRecoverySystem {
 
 function distance(a: Point, b: Point): number {
   return Math.hypot(a.x - b.x, a.y - b.y)
+}
+
+function isFinitePoint(point: Point): boolean {
+  return Number.isFinite(point.x) && Number.isFinite(point.y)
 }

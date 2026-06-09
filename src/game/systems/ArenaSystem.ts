@@ -1,6 +1,7 @@
 import Phaser from 'phaser'
 import { arenaConfig } from '../config/arenaConfig'
 import { playerRuntimeConfig } from '../config/playerConfig'
+import { wallConfig } from '../config/wallConfig'
 import type { Player } from '../entities/Player'
 import { CourtRenderer } from '../rendering/CourtRenderer'
 
@@ -55,43 +56,36 @@ export class ArenaSystem {
   private createWalls(): void {
     const halfWidth = arenaConfig.width / 2
     const halfHeight = arenaConfig.height / 2
-    const wall = arenaConfig.wallThickness
+    const wall = wallConfig.wallThickness
     const center = arenaConfig.center
-    const wallOptions = {
-      isStatic: true,
-      label: 'arena-wall',
-      restitution: arenaConfig.wallRestitution,
-      friction: arenaConfig.wallFriction,
-      frictionStatic: 0,
-    }
 
     this.scene.matter.add.rectangle(
       center.x,
       center.y - halfHeight - wall / 2,
       arenaConfig.width,
       wall,
-      wallOptions,
+      this.getWallOptions('top'),
     )
     this.scene.matter.add.rectangle(
       center.x,
       center.y + halfHeight + wall / 2,
       arenaConfig.width,
       wall,
-      wallOptions,
+      this.getWallOptions('bottom'),
     )
     this.scene.matter.add.rectangle(
       center.x - halfWidth - wall / 2,
       center.y,
       wall,
       arenaConfig.height + wall * 2,
-      wallOptions,
+      this.getWallOptions('left'),
     )
     this.scene.matter.add.rectangle(
       center.x + halfWidth + wall / 2,
       center.y,
       wall,
       arenaConfig.height + wall * 2,
-      wallOptions,
+      this.getWallOptions('right'),
     )
 
     this.createSafetyWalls(halfWidth, halfHeight)
@@ -103,42 +97,57 @@ export class ArenaSystem {
     const thickness = arenaConfig.safetyWallThickness
     const width = arenaConfig.width + offset * 2 + thickness * 2
     const height = arenaConfig.height + offset * 2 + thickness * 2
-    const options = {
-      isStatic: true,
-      label: 'arena-safety-wall',
-      restitution: arenaConfig.safetyWallRestitution,
-      friction: arenaConfig.wallFriction,
-      frictionStatic: 0,
-    }
-
     this.scene.matter.add.rectangle(
       center.x,
       center.y - halfHeight - offset - thickness / 2,
       width,
       thickness,
-      options,
+      this.getSafetyWallOptions('top'),
     )
     this.scene.matter.add.rectangle(
       center.x,
       center.y + halfHeight + offset + thickness / 2,
       width,
       thickness,
-      options,
+      this.getSafetyWallOptions('bottom'),
     )
     this.scene.matter.add.rectangle(
       center.x - halfWidth - offset - thickness / 2,
       center.y,
       thickness,
       height,
-      options,
+      this.getSafetyWallOptions('left'),
     )
     this.scene.matter.add.rectangle(
       center.x + halfWidth + offset + thickness / 2,
       center.y,
       thickness,
       height,
-      options,
+      this.getSafetyWallOptions('right'),
     )
   }
 
+  private getWallOptions(side: WallSide): Phaser.Types.Physics.Matter.MatterBodyConfig {
+    return {
+      isStatic: true,
+      label: `arena-wall:${side}`,
+      restitution: wallConfig.wallRestitution,
+      friction: wallConfig.wallFriction,
+      frictionStatic: 0,
+    }
+  }
+
+  private getSafetyWallOptions(
+    side: WallSide,
+  ): Phaser.Types.Physics.Matter.MatterBodyConfig {
+    return {
+      isStatic: true,
+      label: `arena-safety-wall:${side}`,
+      restitution: arenaConfig.safetyWallRestitution,
+      friction: wallConfig.wallFriction,
+      frictionStatic: 0,
+    }
+  }
 }
+
+type WallSide = 'top' | 'bottom' | 'left' | 'right'

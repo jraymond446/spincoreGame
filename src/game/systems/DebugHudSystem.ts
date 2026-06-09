@@ -19,9 +19,14 @@ import type {
 import type { InputMode } from './PlayerInputController'
 import type { DefensiveActionState } from './DefenseSystem'
 import type { MatchFlowState } from './MatchFlowSystem'
-import type { KeeperLegalState } from './KeeperAreaSystem'
+import type {
+  KeeperLegalState,
+  KeeperZoneAccessState,
+} from './KeeperAreaSystem'
 import type { ControlSwitchReason } from './ControlOwnershipSystem'
 import type { CreaseBattleDebugState } from './CreaseBattleSystem'
+import type { WallBounceDebugState } from './WallBounceSystem'
+import type { WallCarryDebugState } from './WallCarryPressureSystem'
 import type {
   TacticalJob,
   TeamPhase,
@@ -71,6 +76,7 @@ type DebugHudState = {
   strategies: Record<TeamSide, TeamStrategy>
   tacticalPhases: Record<TeamSide, TeamPhase>
   controlledTacticalJob: TacticalJob | null
+  cleanupPlayers: Record<TeamSide, string[]>
   creaseBattle: CreaseBattleDebugState
   defenseState: DefensiveActionState
   defenseAction: string
@@ -80,6 +86,8 @@ type DebugHudState = {
   }
   fumblePressure: number
   fumblePressureNormalized: number
+  wallBounce: WallBounceDebugState
+  wallCarry: WallCarryDebugState
   matchFlowState: MatchFlowState
   matchFlowTimerMs: number
   countdownLabel: string
@@ -110,6 +118,7 @@ type DebugHudState = {
   ownGoalPreventionCorrected: boolean
   keeperLegalState: KeeperLegalState
   keeperLastViolation: KeeperLegalState
+  controlledZoneAccess: KeeperZoneAccessState
 }
 
 type DebugHudActions = {
@@ -215,6 +224,7 @@ export class DebugHudSystem {
       `INTENT   ${state.inputIntent}\n` +
       `PLAYER   ${state.controlledPlayerId} / ${state.controlledPlayerRole}\n` +
       `JOB      ${state.controlledTacticalJob ?? '-'}\n` +
+      `CLEANUP  A ${state.cleanupPlayers.A.join(', ') || '-'} / B ${state.cleanupPlayers.B.join(', ') || '-'}\n` +
       `CREASE   ${state.creaseBattle.side ?? '-'} ${Math.round(state.creaseBattle.timerMs)}ms / ${state.creaseBattle.contactCount} contacts\n` +
       `BREAKER  ${state.creaseBattle.triggered ? 'TRIGGERED' : 'IDLE'} / CD ${Math.round(state.creaseBattle.cooldownMs)}ms\n` +
       `C CLEAR  ${formatOptionalVector(state.creaseBattle.clearDirection)}\n` +
@@ -233,6 +243,7 @@ export class DebugHudSystem {
       `K HAS    ${state.keeperHasPossession ? 'YES' : 'NO'} / LATCH ${state.keeperInputLatched ? 'ON' : 'OFF'}\n` +
       `K CLEAR  ${formatVector(state.keeperClearDirection)} / SAFE ${state.ownGoalPreventionCorrected ? 'CORRECTED' : 'CLEAN'}\n` +
       `K LEGAL  ${state.keeperLegalState} / LAST ${state.keeperLastViolation}\n` +
+      `ZONE     ${state.controlledZoneAccess}\n` +
       `STICK    ${state.stickState}\n` +
       `CORE     ${state.coreState}\n` +
       `PHASE    ${state.cradlePhase}\n` +
@@ -248,6 +259,11 @@ export class DebugHudSystem {
       `TRUCK CD ${Math.ceil(state.defenseCooldowns.truckMs)}ms\n` +
       `SLASH CD ${Math.ceil(state.defenseCooldowns.slashMs)}ms\n` +
       `FUMBLE   ${state.fumblePressure.toFixed(2)} / ${state.fumblePressureNormalized.toFixed(2)}\n` +
+      `WALL HIT ${state.wallBounce.lastCollision}\n` +
+      `SAFETY   ${state.wallBounce.safetyBounceTriggered ? 'TRIGGERED' : 'IDLE'}\n` +
+      `BANK     ${state.wallBounce.recentBankShot ? 'RECENT' : 'NONE'}\n` +
+      `W CARRY  ${state.wallCarry.event} @ ${state.wallCarry.impactSpeed.toFixed(2)}\n` +
+      `W PRESS  +${state.wallCarry.pressureAdded.toFixed(3)} / PIN ${Math.round(state.wallCarry.pinnedMs)}ms\n` +
       `HANDLING ${state.carrierBallHandling?.toFixed(2) ?? '-'}\n` +
       `TOUGH    ${state.controlledToughness.toFixed(2)}\n` +
       `TARGET   ${state.defenseTargetId ?? '-'} / ${state.defenseTargetAction ?? '-'}\n` +

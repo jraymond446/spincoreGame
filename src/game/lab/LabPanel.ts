@@ -129,7 +129,9 @@ export class LabPanel {
       this.createTeamSection('A'),
       this.createTeamSection('B'),
       this.createFieldSection(),
+      this.createWallSection(),
       this.createKeeperSection(),
+      this.createKeeperZoneRulesSection(),
       this.createSpacingSection(),
       this.createAITacticsSection(),
       this.createTacticalGuidesSection(),
@@ -758,6 +760,161 @@ export class LabPanel {
     }
 
     return this.createSection('Keeper Geometry / Control', content)
+  }
+
+  private createWallSection(): HTMLElement {
+    const wall = this.draft.wall
+    const content = document.createElement('div')
+    content.className = 'lab-range-list'
+    content.append(
+      this.createCheckbox(
+        'Core safety bounce enabled',
+        wall.coreSafetyBounceEnabled,
+        (value) => {
+          wall.coreSafetyBounceEnabled = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createCheckbox(
+        'Wall carry fumble enabled',
+        wall.wallCarryFumbleEnabled,
+        (value) => {
+          wall.wallCarryFumbleEnabled = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createCheckbox(
+        'Wall impact VFX enabled',
+        wall.wallImpactVfxEnabled,
+        (value) => {
+          wall.wallImpactVfxEnabled = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createCheckbox(
+        'Bank shot tracking enabled',
+        wall.bankShotTrackingEnabled,
+        (value) => {
+          wall.bankShotTrackingEnabled = value
+          this.markDraftChanged()
+        },
+      ),
+    )
+
+    const controls: Array<
+      [
+        string,
+        Exclude<
+          keyof LabTuningState['wall'],
+          | 'coreSafetyBounceEnabled'
+          | 'wallCarryFumbleEnabled'
+          | 'wallImpactVfxEnabled'
+          | 'bankShotTrackingEnabled'
+        >,
+        RangeOptions,
+      ]
+    > = [
+      ['Wall restitution', 'wallRestitution', { min: 0.5, max: 1.15, step: 0.01, digits: 2 }],
+      ['Wall friction', 'wallFriction', { min: 0, max: 0.2, step: 0.01, digits: 2 }],
+      ['Wall thickness', 'wallThickness', { min: 48, max: 120, step: 2 }],
+      ['Core bounce multiplier', 'coreWallBounceMultiplier', { min: 0.8, max: 1.25, step: 0.01, digits: 2 }],
+      ['Maximum wall bounce speed', 'maxWallBounceSpeed', { min: 8, max: 30, step: 0.5, digits: 1 }],
+      ['Minimum wall bounce speed', 'minWallBounceSpeed', { min: 0, max: 8, step: 0.2, digits: 1 }],
+      ['Core out-of-bounds margin', 'coreOutOfBoundsMargin', { min: 0, max: 140, step: 5 }],
+      ['Recovery armed delay ms', 'coreRecoveryDelayMs', { min: 0, max: 1500, step: 50 }],
+      ['Safety bounce impulse', 'coreSafetyBounceImpulse', { min: 0, max: 12, step: 0.2, digits: 1 }],
+      ['Safety reset to center ms', 'coreSafetyResetToCenterAfterMs', { min: 250, max: 3000, step: 50 }],
+      ['Carry impact threshold', 'wallCarryImpactSpeedThreshold', { min: 0.5, max: 10, step: 0.1, digits: 1 }],
+      ['Carry fumble pressure', 'wallCarryFumblePressure', { min: 0, max: 1.2, step: 0.02, digits: 2 }],
+      ['Overcharge wall multiplier', 'wallCarryOverchargeMultiplier', { min: 1, max: 3, step: 0.05, digits: 2 }],
+      ['Pinned time ms', 'wallCarryPinnedTimeMs', { min: 100, max: 2500, step: 50 }],
+      ['Pinned fumble pressure / sec', 'wallCarryPinnedFumblePressure', { min: 0, max: 1.5, step: 0.05, digits: 2 }],
+      ['Wall brush grace speed', 'wallCarryBrushGraceSpeed', { min: 0, max: 5, step: 0.1, digits: 1 }],
+      ['Fumble inward impulse', 'wallFumblePopInwardImpulse', { min: 1, max: 12, step: 0.2, digits: 1 }],
+      ['Wall pin detection distance', 'wallPinDetectionDistance', { min: 2, max: 40, step: 1 }],
+      ['Wall pin velocity threshold', 'wallPinVelocityThreshold', { min: 0, max: 4, step: 0.1, digits: 1 }],
+    ]
+
+    for (const [label, key, options] of controls) {
+      content.appendChild(
+        this.createRange(label, wall[key], options, (value) => {
+          wall[key] = value
+          this.markDraftChanged()
+        }),
+      )
+    }
+
+    return this.createSection('Wall / Court Physics', content)
+  }
+
+  private createKeeperZoneRulesSection(): HTMLElement {
+    const rules = this.draft.keeperZoneRules
+    const content = document.createElement('div')
+    content.className = 'lab-range-list'
+    content.append(
+      this.createCheckbox(
+        'Defenders allowed in own keeper zone',
+        rules.defendersAllowedInOwnKeeperZone,
+        (value) => {
+          rules.defendersAllowedInOwnKeeperZone = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createCheckbox(
+        'Attackers blocked from opponent keeper zone',
+        rules.attackersBlockedFromOpponentKeeperZone,
+        (value) => {
+          rules.attackersBlockedFromOpponentKeeperZone = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createCheckbox(
+        'Inner ring blocks all players',
+        rules.innerRingBlocksAllPlayers,
+        (value) => {
+          rules.innerRingBlocksAllPlayers = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Max defensive cleaners',
+        rules.maxDefensiveCleanersInZone,
+        { min: 0, max: 2, step: 1 },
+        (value) => {
+          rules.maxDefensiveCleanersInZone = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Defensive cleanup radius',
+        rules.defensiveCleanupRadius,
+        { min: 50, max: 260, step: 5 },
+        (value) => {
+          rules.defensiveCleanupRadius = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Defensive cleanup priority',
+        rules.defensiveCleanupPriority,
+        { min: 0, max: 1, step: 0.05, digits: 2 },
+        (value) => {
+          rules.defensiveCleanupPriority = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Crease outlet spacing',
+        rules.creaseOutletSpacing,
+        { min: 70, max: 240, step: 5 },
+        (value) => {
+          rules.creaseOutletSpacing = value
+          this.markDraftChanged()
+        },
+      ),
+    )
+
+    return this.createSection('Keeper Zone Rules', content)
   }
 
   private createSpacingSection(): HTMLElement {

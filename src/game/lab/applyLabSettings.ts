@@ -14,6 +14,7 @@ import {
 import { keeperAreaConfig } from '../config/keeperAreaConfig'
 import { keeperConfig } from '../config/keeperConfig'
 import { keeperShieldConfig } from '../config/keeperShieldConfig'
+import { keeperZoneRulesConfig } from '../config/keeperZoneRulesConfig'
 import { matchFlowConfig } from '../config/matchFlowConfig'
 import { playerRuntimeConfig } from '../config/playerConfig'
 import { possessionFeelConfig } from '../config/possessionFeelConfig'
@@ -24,6 +25,7 @@ import { tacticalGuideConfig } from '../config/tacticalGuideConfig'
 import { stickStanceConfig } from '../config/stickStanceConfig'
 import { stickVisualConfig } from '../config/stickVisualConfig'
 import { visualConfig } from '../config/visualConfig'
+import { wallConfig } from '../config/wallConfig'
 import type { LabTuningState } from './LabConfig'
 
 const baseStickVisual = {
@@ -54,7 +56,11 @@ export function applyLabSettings(state: LabTuningState): void {
   Object.assign(arenaConfig, {
     width: field.arenaWidth,
     height: field.arenaHeight,
+    wallThickness: state.wall.wallThickness,
+    wallRestitution: state.wall.wallRestitution,
+    wallFriction: state.wall.wallFriction,
   })
+  Object.assign(wallConfig, state.wall)
   const topY =
     arenaConfig.center.y -
     arenaConfig.height / 2 +
@@ -192,6 +198,7 @@ export function applyLabSettings(state: LabTuningState): void {
   })
   Object.assign(tacticalGuideConfig, state.tacticalGuides)
   Object.assign(creaseBattleConfig, state.creaseBattle)
+  Object.assign(keeperZoneRulesConfig, state.keeperZoneRules)
   for (const side of ['A', 'B'] as const) {
     Object.assign(tacticsConfig.teamStrategies[side], {
       formation: state.formations[side],

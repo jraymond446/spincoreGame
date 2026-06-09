@@ -55,6 +55,32 @@ export type LabFieldTuning = {
   scoringPlaneTolerance: number
 }
 
+export type LabWallTuning = {
+  wallRestitution: number
+  wallFriction: number
+  wallThickness: number
+  coreWallBounceMultiplier: number
+  maxWallBounceSpeed: number
+  minWallBounceSpeed: number
+  coreOutOfBoundsMargin: number
+  coreRecoveryDelayMs: number
+  coreSafetyBounceEnabled: boolean
+  coreSafetyBounceImpulse: number
+  coreSafetyResetToCenterAfterMs: number
+  wallCarryFumbleEnabled: boolean
+  wallCarryImpactSpeedThreshold: number
+  wallCarryFumblePressure: number
+  wallCarryOverchargeMultiplier: number
+  wallCarryPinnedTimeMs: number
+  wallCarryPinnedFumblePressure: number
+  wallCarryBrushGraceSpeed: number
+  wallFumblePopInwardImpulse: number
+  wallPinDetectionDistance: number
+  wallPinVelocityThreshold: number
+  wallImpactVfxEnabled: boolean
+  bankShotTrackingEnabled: boolean
+}
+
 export type LabKeeperTuning = {
   keeperEquipmentType: KeeperEquipmentType
   keeperShieldWidth: number
@@ -227,6 +253,16 @@ export type LabCreaseBattleTuning = {
   creaseBattleSideBias: number
 }
 
+export type LabKeeperZoneRulesTuning = {
+  defendersAllowedInOwnKeeperZone: boolean
+  attackersBlockedFromOpponentKeeperZone: boolean
+  innerRingBlocksAllPlayers: boolean
+  maxDefensiveCleanersInZone: number
+  defensiveCleanupRadius: number
+  defensiveCleanupPriority: number
+  creaseOutletSpacing: number
+}
+
 export type LabDefenseTuning = {
   truckEnabled: boolean
   slashEnabled: boolean
@@ -282,11 +318,13 @@ export type LabTuningState = {
   strategies: Record<TeamSide, LabTeamStrategy>
   players: Record<string, LabPlayerTuning>
   field: LabFieldTuning
+  wall: LabWallTuning
   keeper: LabKeeperTuning
   spacing: LabSpacingTuning
   aiTactics: LabAITacticsTuning
   tacticalGuides: LabTacticalGuideTuning
   creaseBattle: LabCreaseBattleTuning
+  keeperZoneRules: LabKeeperZoneRulesTuning
   stick: LabStickTuning
   defense: LabDefenseTuning
   matchFlow: LabMatchFlowTuning

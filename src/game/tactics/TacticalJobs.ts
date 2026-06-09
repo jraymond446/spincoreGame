@@ -15,6 +15,9 @@ export type TacticalJob =
   | 'zoneGuard'
   | 'reboundHunter'
   | 'bankRebound'
+  | 'defensiveCleanup'
+  | 'creaseSupport'
+  | 'outletAfterClear'
   | 'keeper'
 
 export type TeamPhase = 'OFFENSE' | 'DEFENSE' | 'TRANSITION' | 'LOOSE'
