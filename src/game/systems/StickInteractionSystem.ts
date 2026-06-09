@@ -1,5 +1,6 @@
 import Phaser from 'phaser'
 import { aiConfig } from '../config/aiConfig'
+import { clearSafetyConfig } from '../config/clearSafetyConfig'
 import { keeperShieldConfig } from '../config/keeperShieldConfig'
 import { stickConfig } from '../config/stickConfig'
 import { stickStanceConfig } from '../config/stickStanceConfig'
@@ -14,6 +15,7 @@ import {
   type KeeperClearSafetyResult,
 } from './KeeperClearSafetySystem'
 import { KeeperShieldSystem } from './KeeperShieldSystem'
+import { isNearOwnGoal } from './ClearSafetySystem'
 
 export type CorePossessionState =
   | 'FREE'
@@ -1218,6 +1220,7 @@ export class StickInteractionSystem {
         ? this.keeperClearSafety.sanitize(
             intendedDirection,
             carrier.teamSide,
+            carrier.position,
           ).direction
         : intendedDirection
     let releaseImpulseDirection =
@@ -1479,10 +1482,26 @@ export class StickInteractionSystem {
           y: player.getStickForward().y * 0.82 + hit.normal.y * 0.42,
         })
       : hit.normal
-    if (player.role === 'keeper') {
+    const defensiveSafetyActive =
+      player.role === 'keeper' ||
+      (clearSafetyConfig.defensiveDeflectionSafetyEnabled &&
+        isNearOwnGoal(core.position, player.teamSide))
+
+    if (defensiveSafetyActive) {
       direction = this.keeperClearSafety.sanitize(
         direction,
         player.teamSide,
+        core.position,
+        {
+          awayBias:
+            player.role === 'keeper'
+              ? clearSafetyConfig.keeperShieldAwayBias
+              : Math.max(
+                  clearSafetyConfig.defenderStickAwayBias,
+                  clearSafetyConfig.defensiveDeflectionAwayBias,
+                ),
+          reason: 'nearGoalDeflection',
+        },
       ).direction
     }
     const impulse = clampVector(
@@ -1497,11 +1516,22 @@ export class StickInteractionSystem {
       y: core.velocity.y + impulse.y,
     }
 
-    if (player.role === 'keeper') {
+    if (defensiveSafetyActive) {
       const speed = magnitude(nextVelocity)
       const safe = this.keeperClearSafety.sanitize(
         nextVelocity,
         player.teamSide,
+        core.position,
+        {
+          awayBias:
+            player.role === 'keeper'
+              ? clearSafetyConfig.keeperShieldAwayBias
+              : Math.max(
+                  clearSafetyConfig.defenderStickAwayBias,
+                  clearSafetyConfig.defensiveDeflectionAwayBias,
+                ),
+          reason: 'nearGoalDeflection',
+        },
       )
       core.setVelocity({
         x: safe.direction.x * speed,

@@ -2,6 +2,8 @@ import {
   arenaConfig,
   arenaDimensionsConfig,
 } from '../config/arenaConfig'
+import { aiOffenseConfig } from '../config/aiOffenseConfig'
+import { clearSafetyConfig } from '../config/clearSafetyConfig'
 import { coreConfig } from '../config/entityConfig'
 import { controlConfig } from '../config/controlConfig'
 import { creaseBattleConfig } from '../config/creaseBattleConfig'
@@ -197,6 +199,18 @@ export function applyLabSettings(state: LabTuningState): void {
     supportPassBias: state.aiTactics.supportPassBias,
   })
   Object.assign(tacticalGuideConfig, state.tacticalGuides)
+  Object.assign(aiOffenseConfig, state.aiOffense)
+  Object.assign(clearSafetyConfig, state.clearSafety)
+  Object.assign(keeperConfig, {
+    keeperOwnGoalPreventionEnabled:
+      state.clearSafety.ownGoalPreventionEnabled,
+    keeperClearMinAwayDot:
+      state.clearSafety.ownGoalClearMinAwayDot,
+  })
+  Object.assign(keeperShieldConfig, {
+    keeperShieldOwnGoalSafetyBias:
+      state.clearSafety.keeperShieldAwayBias,
+  })
   Object.assign(creaseBattleConfig, state.creaseBattle)
   Object.assign(keeperZoneRulesConfig, state.keeperZoneRules)
   for (const side of ['A', 'B'] as const) {

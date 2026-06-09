@@ -237,6 +237,36 @@ export type LabAITacticsTuning = {
   supportPassBias: number
 }
 
+export type LabAIOffenseTuning = {
+  aiBankShotsEnabled: boolean
+  aiBankShotPreference: number
+  aiBankShotMinScore: number
+  aiSeekBetterShotAngleEnabled: boolean
+  aiShotBlockedThreshold: number
+  aiLateralAttackMoveStrength: number
+  aiBehindGoalPassEnabled: boolean
+  aiFrontSlotPassEnabled: boolean
+  aiShotPatienceMs: number
+  aiForceShotAfterMs: number
+}
+
+export type LabClearSafetyTuning = {
+  ownGoalPreventionEnabled: boolean
+  ownGoalClearPathCheckEnabled: boolean
+  ownGoalDangerConeRadians: number
+  ownGoalClearMinAwayDot: number
+  safeClearSideBias: number
+  safeClearMidfieldBias: number
+  safeClearTeammateBias: number
+  safeClearRandomVariance: number
+  blockClearIntoOwnGoalHard: boolean
+  defensiveDeflectionSafetyEnabled: boolean
+  defensiveDeflectionAwayBias: number
+  keeperShieldAwayBias: number
+  defenderStickAwayBias: number
+  nearOwnGoalSafetyRadius: number
+}
+
 export type LabTacticalGuideTuning = {
   tacticalGuidesEnabled: boolean
   tacticalGuideAlpha: number
@@ -322,6 +352,8 @@ export type LabTuningState = {
   keeper: LabKeeperTuning
   spacing: LabSpacingTuning
   aiTactics: LabAITacticsTuning
+  aiOffense: LabAIOffenseTuning
+  clearSafety: LabClearSafetyTuning
   tacticalGuides: LabTacticalGuideTuning
   creaseBattle: LabCreaseBattleTuning
   keeperZoneRules: LabKeeperZoneRulesTuning

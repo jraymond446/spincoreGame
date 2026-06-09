@@ -562,7 +562,14 @@ export class TeamShapeSystem {
       case 'crashNet':
         return player.role === 'striker' ? 'frontSlot' : 'reboundHunter'
       case 'bankHunter':
-        return 'bankRebound'
+        return carrier &&
+          this.isBehindGoal(
+            carrier.position,
+            this.attackGoal(player.teamSide),
+            player.teamSide,
+          )
+          ? 'frontSlot'
+          : 'bankRebound'
       case 'giveAndGo':
         return this.previousCarrierIds[player.teamSide] === player.id
           ? 'frontSlot'

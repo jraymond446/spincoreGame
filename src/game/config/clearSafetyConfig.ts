@@ -1,0 +1,16 @@
+export const clearSafetyConfig = {
+  ownGoalPreventionEnabled: true,
+  ownGoalClearPathCheckEnabled: true,
+  ownGoalDangerConeRadians: 0.75,
+  ownGoalClearMinAwayDot: 0.25,
+  safeClearSideBias: 0.45,
+  safeClearMidfieldBias: 0.55,
+  safeClearTeammateBias: 0.25,
+  safeClearRandomVariance: 0.12,
+  blockClearIntoOwnGoalHard: true,
+  defensiveDeflectionSafetyEnabled: true,
+  defensiveDeflectionAwayBias: 0.7,
+  keeperShieldAwayBias: 0.85,
+  defenderStickAwayBias: 0.55,
+  nearOwnGoalSafetyRadius: 260,
+}

@@ -27,6 +27,8 @@ import type { ControlSwitchReason } from './ControlOwnershipSystem'
 import type { CreaseBattleDebugState } from './CreaseBattleSystem'
 import type { WallBounceDebugState } from './WallBounceSystem'
 import type { WallCarryDebugState } from './WallCarryPressureSystem'
+import type { AIDecisionDebugState } from './AISystem'
+import type { ClearSafetyResult } from './ClearSafetySystem'
 import type {
   TacticalJob,
   TeamPhase,
@@ -76,6 +78,7 @@ type DebugHudState = {
   strategies: Record<TeamSide, TeamStrategy>
   tacticalPhases: Record<TeamSide, TeamPhase>
   controlledTacticalJob: TacticalJob | null
+  aiDecision: AIDecisionDebugState | null
   cleanupPlayers: Record<TeamSide, string[]>
   creaseBattle: CreaseBattleDebugState
   defenseState: DefensiveActionState
@@ -88,6 +91,7 @@ type DebugHudState = {
   fumblePressureNormalized: number
   wallBounce: WallBounceDebugState
   wallCarry: WallCarryDebugState
+  clearSafety: ClearSafetyResult | null
   matchFlowState: MatchFlowState
   matchFlowTimerMs: number
   countdownLabel: string
@@ -224,6 +228,9 @@ export class DebugHudSystem {
       `INTENT   ${state.inputIntent}\n` +
       `PLAYER   ${state.controlledPlayerId} / ${state.controlledPlayerRole}\n` +
       `JOB      ${state.controlledTacticalJob ?? '-'}\n` +
+      `AI WHY   ${state.aiDecision?.shotReason ?? state.aiDecision?.decision ?? '-'}\n` +
+      `AI SHOT  D ${(state.aiDecision?.directShotScore ?? 0).toFixed(2)} / BANK ${state.aiDecision?.bankShotSelected ? 'YES' : 'NO'}\n` +
+      `AI PASS  ${state.aiDecision?.passTargetId ?? '-'} ${(state.aiDecision?.passLaneScore ?? 0).toFixed(2)}\n` +
       `CLEANUP  A ${state.cleanupPlayers.A.join(', ') || '-'} / B ${state.cleanupPlayers.B.join(', ') || '-'}\n` +
       `CREASE   ${state.creaseBattle.side ?? '-'} ${Math.round(state.creaseBattle.timerMs)}ms / ${state.creaseBattle.contactCount} contacts\n` +
       `BREAKER  ${state.creaseBattle.triggered ? 'TRIGGERED' : 'IDLE'} / CD ${Math.round(state.creaseBattle.cooldownMs)}ms\n` +
@@ -264,6 +271,9 @@ export class DebugHudSystem {
       `BANK     ${state.wallBounce.recentBankShot ? 'RECENT' : 'NONE'}\n` +
       `W CARRY  ${state.wallCarry.event} @ ${state.wallCarry.impactSpeed.toFixed(2)}\n` +
       `W PRESS  +${state.wallCarry.pressureAdded.toFixed(3)} / PIN ${Math.round(state.wallCarry.pinnedMs)}ms\n` +
+      `CLEAR    ${state.clearSafety?.reason ?? '-'} / ${state.clearSafety?.corrected ? 'CORRECTED' : 'CLEAN'}\n` +
+      `RAW CLR  ${formatOptionalVector(state.clearSafety?.rawDirection ?? null)}\n` +
+      `SAFE CLR ${formatOptionalVector(state.clearSafety?.direction ?? null)}\n` +
       `HANDLING ${state.carrierBallHandling?.toFixed(2) ?? '-'}\n` +
       `TOUGH    ${state.controlledToughness.toFixed(2)}\n` +
       `TARGET   ${state.defenseTargetId ?? '-'} / ${state.defenseTargetAction ?? '-'}\n` +

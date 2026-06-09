@@ -772,6 +772,8 @@ export class GameScene extends Phaser.Scene {
       controlledTacticalJob:
         this.aiSystem.getTacticalAssignment(controlledPlayer.id)?.job ??
         null,
+      aiDecision:
+        this.aiSystem.getDecisionDebug(controlledPlayer.id),
       cleanupPlayers: {
         A: this.aiSystem.getCleanupPlayerIds('A'),
         B: this.aiSystem.getCleanupPlayerIds('B'),
@@ -787,6 +789,11 @@ export class GameScene extends Phaser.Scene {
         this.fumbleSystem.getNormalizedPressure(),
       wallBounce: this.wallBounceSystem.getDebugState(),
       wallCarry: this.wallCarryPressureSystem.getDebugState(),
+      clearSafety:
+        this.defenseSystem.getClearSafetyDebug() ??
+        this.stickInteractionSystem.getKeeperClearSafetyResult(
+          controlledPlayer.teamSide,
+        ),
       matchFlowState: this.matchFlowSystem.getState(),
       matchFlowTimerMs: this.matchFlowSystem.getTimerMs(),
       countdownLabel: this.matchFlowSystem.getCountdownLabel(),

@@ -1,39 +1,16 @@
-import Phaser from 'phaser'
 import { keeperConfig } from '../config/keeperConfig'
 import type { Point } from '../data/geometry'
 import type { TeamSide } from '../data/matchTypes'
 import { getKeeperHomeDirection } from '../rules/KeeperGeometry'
+import {
+  ClearSafetySystem,
+  sanitizeClearDirection,
+  type ClearSafetyResult,
+} from './ClearSafetySystem'
 
-export type KeeperClearSafetyResult = {
-  direction: Point
-  corrected: boolean
-  awayDot: number
-}
+export type KeeperClearSafetyResult = ClearSafetyResult
 
-export class KeeperClearSafetySystem {
-  private readonly lastResults = new Map<TeamSide, KeeperClearSafetyResult>()
-
-  sanitize(direction: Point, side: TeamSide): KeeperClearSafetyResult {
-    const result = sanitizeKeeperClearDirection(direction, side)
-    this.lastResults.set(side, result)
-    return result
-  }
-
-  getLastResult(side: TeamSide): KeeperClearSafetyResult | null {
-    const result = this.lastResults.get(side)
-
-    return result
-      ? {
-          ...result,
-          direction: { ...result.direction },
-        }
-      : null
-  }
-
-  reset(): void {
-    this.lastResults.clear()
-  }
-}
+export class KeeperClearSafetySystem extends ClearSafetySystem {}
 
 export function isDirectionTowardOwnGoal(
   direction: Point,
@@ -48,60 +25,9 @@ export function isDirectionTowardOwnGoal(
 export function sanitizeKeeperClearDirection(
   direction: Point,
   side: TeamSide,
+  origin?: Point,
 ): KeeperClearSafetyResult {
-  const away = getKeeperHomeDirection(side)
-  const candidate = normalized(direction, away)
-  const awayDot = dot(candidate, away)
-
-  if (
-    !keeperConfig.keeperOwnGoalPreventionEnabled ||
-    awayDot >= keeperConfig.keeperClearMinAwayDot
-  ) {
-    return {
-      direction: candidate,
-      corrected: false,
-      awayDot,
-    }
-  }
-
-  const lateral = {
-    x: candidate.x - away.x * awayDot,
-    y: candidate.y - away.y * awayDot,
-  }
-  const lateralLength = Math.hypot(lateral.x, lateral.y)
-  const lateralDirection =
-    lateralLength === 0
-      ? { x: side === 'A' ? 1 : -1, y: 0 }
-      : {
-          x: lateral.x / lateralLength,
-          y: lateral.y / lateralLength,
-        }
-  const lateralStrength = Phaser.Math.Clamp(
-    lateralLength,
-    0,
-    keeperConfig.keeperClearLateralVariance,
-  )
-  const centerBias = Math.max(
-    keeperConfig.keeperClearMinAwayDot,
-    keeperConfig.keeperClearTowardCenterBias,
-  )
-  const safeDirection = normalized(
-    {
-      x:
-        away.x * centerBias +
-        lateralDirection.x * lateralStrength,
-      y:
-        away.y * centerBias +
-        lateralDirection.y * lateralStrength,
-    },
-    away,
-  )
-
-  return {
-    direction: safeDirection,
-    corrected: true,
-    awayDot,
-  }
+  return sanitizeClearDirection(direction, side, origin)
 }
 
 function normalized(vector: Point, fallback: Point): Point {

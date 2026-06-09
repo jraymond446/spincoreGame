@@ -6,7 +6,7 @@ import type { TeamSide } from '../data/matchTypes'
 import type { Core } from '../entities/Core'
 import type { Player } from '../entities/Player'
 import { getKeeperHomeDirection } from '../rules/KeeperGeometry'
-import { sanitizeKeeperClearDirection } from './KeeperClearSafetySystem'
+import { sanitizeClearDirection } from './ClearSafetySystem'
 import type { StickInteractionEvent } from './StickInteractionSystem'
 
 export type CreaseBattleDebugState = {
@@ -145,7 +145,11 @@ export class CreaseBattleSystem {
       x: sideSign * creaseBattleConfig.creaseBattleSideBias,
       y: away.y,
     })
-    const safe = sanitizeKeeperClearDirection(desired, activeSide)
+    const safe = sanitizeClearDirection(
+      desired,
+      activeSide,
+      core.position,
+    )
 
     core.setVelocity({
       x:

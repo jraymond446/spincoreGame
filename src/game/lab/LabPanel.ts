@@ -134,6 +134,8 @@ export class LabPanel {
       this.createKeeperZoneRulesSection(),
       this.createSpacingSection(),
       this.createAITacticsSection(),
+      this.createAIOffenseSection(),
+      this.createClearSafetySection(),
       this.createTacticalGuidesSection(),
       this.createCreaseBattleSection(),
       this.createStickSection(),
@@ -686,6 +688,7 @@ export class LabPanel {
         keeper.keeperOwnGoalPreventionEnabled,
         (value) => {
           keeper.keeperOwnGoalPreventionEnabled = value
+          this.draft.clearSafety.ownGoalPreventionEnabled = value
           this.markDraftChanged()
         },
       ),
@@ -754,6 +757,11 @@ export class LabPanel {
       content.appendChild(
         this.createRange(label, keeper[key], options, (value) => {
           keeper[key] = value
+          if (key === 'keeperClearMinAwayDot') {
+            this.draft.clearSafety.ownGoalClearMinAwayDot = value
+          } else if (key === 'keeperShieldOwnGoalSafetyBias') {
+            this.draft.clearSafety.keeperShieldAwayBias = value
+          }
           this.markDraftChanged()
         }),
       )
@@ -1029,6 +1037,210 @@ export class LabPanel {
     )
 
     return this.createSection('AI / Tactical Overrides', content)
+  }
+
+  private createAIOffenseSection(): HTMLElement {
+    const offense = this.draft.aiOffense
+    const content = document.createElement('div')
+    content.className = 'lab-range-list'
+    content.append(
+      this.createCheckbox(
+        'AI bank shots enabled',
+        offense.aiBankShotsEnabled,
+        (value) => {
+          offense.aiBankShotsEnabled = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createCheckbox(
+        'Seek better shot angles',
+        offense.aiSeekBetterShotAngleEnabled,
+        (value) => {
+          offense.aiSeekBetterShotAngleEnabled = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createCheckbox(
+        'Behind-goal passes enabled',
+        offense.aiBehindGoalPassEnabled,
+        (value) => {
+          offense.aiBehindGoalPassEnabled = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createCheckbox(
+        'Front-slot passes enabled',
+        offense.aiFrontSlotPassEnabled,
+        (value) => {
+          offense.aiFrontSlotPassEnabled = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Bank-shot preference',
+        offense.aiBankShotPreference,
+        { min: 0, max: 1, step: 0.05, digits: 2 },
+        (value) => {
+          offense.aiBankShotPreference = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Bank-shot minimum score',
+        offense.aiBankShotMinScore,
+        { min: 0, max: 1, step: 0.05, digits: 2 },
+        (value) => {
+          offense.aiBankShotMinScore = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Shot blocked threshold',
+        offense.aiShotBlockedThreshold,
+        { min: 0.15, max: 0.9, step: 0.05, digits: 2 },
+        (value) => {
+          offense.aiShotBlockedThreshold = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Lateral attack strength',
+        offense.aiLateralAttackMoveStrength,
+        { min: 0, max: 1, step: 0.05, digits: 2 },
+        (value) => {
+          offense.aiLateralAttackMoveStrength = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Shot patience ms',
+        offense.aiShotPatienceMs,
+        { min: 0, max: 1800, step: 50 },
+        (value) => {
+          offense.aiShotPatienceMs = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Force shot after ms',
+        offense.aiForceShotAfterMs,
+        { min: 500, max: 3500, step: 50 },
+        (value) => {
+          offense.aiForceShotAfterMs = value
+          this.markDraftChanged()
+        },
+      ),
+    )
+
+    return this.createSection('AI Offense', content)
+  }
+
+  private createClearSafetySection(): HTMLElement {
+    const safety = this.draft.clearSafety
+    const content = document.createElement('div')
+    content.className = 'lab-range-list'
+    content.append(
+      this.createCheckbox(
+        'Own-goal prevention enabled',
+        safety.ownGoalPreventionEnabled,
+        (value) => {
+          safety.ownGoalPreventionEnabled = value
+          this.draft.keeper.keeperOwnGoalPreventionEnabled = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createCheckbox(
+        'Own-goal clear path check',
+        safety.ownGoalClearPathCheckEnabled,
+        (value) => {
+          safety.ownGoalClearPathCheckEnabled = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createCheckbox(
+        'Hard block clears into own goal',
+        safety.blockClearIntoOwnGoalHard,
+        (value) => {
+          safety.blockClearIntoOwnGoalHard = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createCheckbox(
+        'Defensive deflection safety',
+        safety.defensiveDeflectionSafetyEnabled,
+        (value) => {
+          safety.defensiveDeflectionSafetyEnabled = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Own-goal danger cone',
+        safety.ownGoalDangerConeRadians,
+        { min: 0.1, max: 1.5, step: 0.05, digits: 2 },
+        (value) => {
+          safety.ownGoalDangerConeRadians = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Minimum away dot',
+        safety.ownGoalClearMinAwayDot,
+        { min: -0.2, max: 0.8, step: 0.05, digits: 2 },
+        (value) => {
+          safety.ownGoalClearMinAwayDot = value
+          this.draft.keeper.keeperClearMinAwayDot = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Safe clear side bias',
+        safety.safeClearSideBias,
+        { min: 0, max: 1, step: 0.05, digits: 2 },
+        (value) => {
+          safety.safeClearSideBias = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Safe clear midfield bias',
+        safety.safeClearMidfieldBias,
+        { min: 0, max: 1, step: 0.05, digits: 2 },
+        (value) => {
+          safety.safeClearMidfieldBias = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Deflection away bias',
+        safety.defensiveDeflectionAwayBias,
+        { min: 0, max: 1, step: 0.05, digits: 2 },
+        (value) => {
+          safety.defensiveDeflectionAwayBias = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Keeper shield away bias',
+        safety.keeperShieldAwayBias,
+        { min: 0, max: 1, step: 0.05, digits: 2 },
+        (value) => {
+          safety.keeperShieldAwayBias = value
+          this.draft.keeper.keeperShieldOwnGoalSafetyBias = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Near-own-goal safety radius',
+        safety.nearOwnGoalSafetyRadius,
+        { min: 120, max: 420, step: 10 },
+        (value) => {
+          safety.nearOwnGoalSafetyRadius = value
+          this.markDraftChanged()
+        },
+      ),
+    )
+
+    return this.createSection('Clear Safety', content)
   }
 
   private createTacticalGuidesSection(): HTMLElement {

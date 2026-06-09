@@ -1,5 +1,7 @@
 import Phaser from 'phaser'
+import { clearSafetyConfig } from '../config/clearSafetyConfig'
 import { defenseConfig } from '../config/defenseConfig'
+import { goalConfigs } from '../config/goalConfig'
 import type { Point } from '../data/geometry'
 import type { TeamSide } from '../data/matchTypes'
 import type { Core } from '../entities/Core'
@@ -7,7 +9,11 @@ import type { Player } from '../entities/Player'
 import type { DefensiveVisualState } from '../rendering/AnimationState'
 import type { FumbleSystem } from './FumbleSystem'
 import type { StickInteractionSystem } from './StickInteractionSystem'
-import { sanitizeKeeperClearDirection } from './KeeperClearSafetySystem'
+import {
+  isNearOwnGoal,
+  sanitizeClearDirection,
+  type ClearSafetyResult,
+} from './ClearSafetySystem'
 
 export type DefenseIntent = {
   truck: boolean
@@ -61,6 +67,8 @@ export class DefenseSystem {
   private debugEnabled = false
   private focusPlayerId: string | null = null
   private lastTargetDebug: DefenseTargetDebug | null = null
+  private lastClearSafety: ClearSafetyResult | null = null
+  private lastClearSafetyPoint: Point | null = null
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene
@@ -170,6 +178,8 @@ export class DefenseSystem {
     this.shoves.clear()
     this.pendingEvents.length = 0
     this.lastTargetDebug = null
+    this.lastClearSafety = null
+    this.lastClearSafetyPoint = null
     this.graphics.clear()
   }
 
@@ -276,7 +286,7 @@ export class DefenseSystem {
     runtime.connected = false
     runtime.actionDirection =
       player.role === 'keeper'
-        ? sanitizeKeeperClearDirection(
+        ? sanitizeClearDirection(
             direction,
             player.teamSide,
           ).direction
@@ -487,12 +497,29 @@ export class DefenseSystem {
         y: core.velocity.y + direction.y * impulse,
       }
 
-      if (attacker.role === 'keeper') {
+      if (
+        attacker.role === 'keeper' ||
+        (clearSafetyConfig.defensiveDeflectionSafetyEnabled &&
+          isNearOwnGoal(core.position, attacker.teamSide))
+      ) {
         const speed = Math.hypot(nextVelocity.x, nextVelocity.y)
-        const safe = sanitizeKeeperClearDirection(
+        const safe = sanitizeClearDirection(
           nextVelocity,
           attacker.teamSide,
+          core.position,
+          {
+            awayBias:
+              attacker.role === 'keeper'
+                ? clearSafetyConfig.keeperShieldAwayBias
+                : Math.max(
+                    clearSafetyConfig.defenderStickAwayBias,
+                    clearSafetyConfig.defensiveDeflectionAwayBias,
+                  ),
+            reason: 'nearGoalDeflection',
+          },
         )
+        this.lastClearSafety = safe
+        this.lastClearSafetyPoint = { ...core.position }
         core.setVelocity({
           x: safe.direction.x * speed,
           y: safe.direction.y * speed,
@@ -501,6 +528,16 @@ export class DefenseSystem {
         core.setVelocity(nextVelocity)
       }
     }
+  }
+
+  getClearSafetyDebug(): ClearSafetyResult | null {
+    return this.lastClearSafety
+      ? {
+          ...this.lastClearSafety,
+          direction: { ...this.lastClearSafety.direction },
+          rawDirection: { ...this.lastClearSafety.rawDirection },
+        }
+      : null
   }
 
   private addBurst(
@@ -612,6 +649,8 @@ export class DefenseSystem {
           defenseConfig.debug.rangeAlpha,
         )
       }
+
+      this.drawClearSafetyDebug()
     }
 
     for (const burst of this.bursts) {
@@ -633,6 +672,57 @@ export class DefenseSystem {
         18 + progress * 32,
       )
     }
+  }
+
+  private drawClearSafetyDebug(): void {
+    for (const side of ['A', 'B'] as const) {
+      const goal = goalConfigs.find((candidate) =>
+        side === 'A'
+          ? candidate.id === 'bottom-goal'
+          : candidate.id === 'top-goal',
+      )
+
+      if (!goal) {
+        continue
+      }
+
+      const awayAngle = side === 'A' ? -Math.PI / 2 : Math.PI / 2
+      const towardAngle = awayAngle + Math.PI
+      const half = clearSafetyConfig.ownGoalDangerConeRadians / 2
+      const radius = clearSafetyConfig.nearOwnGoalSafetyRadius
+      const left = {
+        x: goal.x + Math.cos(towardAngle - half) * radius,
+        y: goal.y + Math.sin(towardAngle - half) * radius,
+      }
+      const right = {
+        x: goal.x + Math.cos(towardAngle + half) * radius,
+        y: goal.y + Math.sin(towardAngle + half) * radius,
+      }
+
+      this.graphics.lineStyle(2, 0xff7088, 0.22)
+      this.graphics.lineBetween(goal.x, goal.y, left.x, left.y)
+      this.graphics.lineBetween(goal.x, goal.y, right.x, right.y)
+    }
+
+    if (!this.lastClearSafety || !this.lastClearSafetyPoint) {
+      return
+    }
+
+    const point = this.lastClearSafetyPoint
+    this.graphics.lineStyle(3, 0xff7088, 0.7)
+    this.graphics.lineBetween(
+      point.x,
+      point.y,
+      point.x + this.lastClearSafety.rawDirection.x * 90,
+      point.y + this.lastClearSafety.rawDirection.y * 90,
+    )
+    this.graphics.lineStyle(4, 0x69ecff, 0.9)
+    this.graphics.lineBetween(
+      point.x,
+      point.y,
+      point.x + this.lastClearSafety.direction.x * 105,
+      point.y + this.lastClearSafety.direction.y * 105,
+    )
   }
 
   private drawActionArc(

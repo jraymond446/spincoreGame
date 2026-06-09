@@ -1,5 +1,6 @@
 import Phaser from 'phaser'
 import { coreConfig } from '../config/entityConfig'
+import { clearSafetyConfig } from '../config/clearSafetyConfig'
 import { keeperShieldConfig } from '../config/keeperShieldConfig'
 import type { Point } from '../data/geometry'
 import type { TeamSide } from '../data/matchTypes'
@@ -70,6 +71,11 @@ export class KeeperShieldSystem {
         keeperShieldConfig.keeperShieldMaxDeflectAngle,
       ),
       player.teamSide,
+      core.position,
+      {
+        awayBias: clearSafetyConfig.keeperShieldAwayBias,
+        reason: 'nearGoalDeflection',
+      },
     )
     const force = active
       ? keeperShieldConfig.keeperShieldClearForce
@@ -89,6 +95,11 @@ export class KeeperShieldSystem {
     const finalSafety = this.clearSafety.sanitize(
       nextVelocity,
       player.teamSide,
+      core.position,
+      {
+        awayBias: clearSafetyConfig.keeperShieldAwayBias,
+        reason: 'nearGoalDeflection',
+      },
     )
     const speed = Math.max(force, Math.hypot(nextVelocity.x, nextVelocity.y))
 

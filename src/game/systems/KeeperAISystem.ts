@@ -68,6 +68,7 @@ export class KeeperAISystem {
     const clearResult = this.clearSafety.sanitize(
       rawClearDirection,
       player.teamSide,
+      core.position,
     )
     const clearTarget = {
       x: player.position.x + clearResult.direction.x * 360,
