@@ -5,6 +5,7 @@ import {
 } from '../ai/AIAssist'
 import { aiConfig } from '../config/aiConfig'
 import { clearSafetyConfig } from '../config/clearSafetyConfig'
+import { gatherConfig } from '../config/gatherConfig'
 import { keeperShieldConfig } from '../config/keeperShieldConfig'
 import { stickConfig } from '../config/stickConfig'
 import { stickStanceConfig } from '../config/stickStanceConfig'
@@ -42,10 +43,35 @@ export type CradleFailureReason =
   | 'not catch-ready'
   | 'outside cradle zone'
   | 'speed too high'
+  | 'outside gather funnel'
+  | 'no eligible player'
   | 'cooldown active'
   | 'already cradled'
   | 'deflect fallback'
   | 'ready'
+
+export type GatherMode = 'active' | 'passive' | 'none'
+
+export type GatherDenyReason =
+  | 'ready'
+  | 'disabled'
+  | 'cooldown'
+  | 'outside radius'
+  | 'outside angle'
+  | 'speed too high'
+  | 'action state'
+  | 'keeper shield'
+  | 'cradle zone'
+  | 'acquired'
+
+export type GatherDebugState = {
+  mode: GatherMode
+  eligible: boolean
+  funnelAngleError: number
+  relativeSpeed: number
+  cooldownMs: number
+  denyReason: GatherDenyReason
+}
 
 export type StickInteractionResult =
   | 'none'
@@ -90,6 +116,16 @@ type GatherRipple = {
   msRemaining: number
 }
 
+type GatherEvaluation = GatherDebugState & {
+  player: Player
+  socketDistance: number
+  radius: number
+  strength: number
+  maxSpeed: number
+  snapRadius: number
+  snapEnabled: boolean
+}
+
 type PendingRelease = {
   playerId: string
   elapsedMs: number
@@ -112,6 +148,13 @@ export class StickInteractionSystem {
   private releaseCooldownMsRemaining = 0
   private actionRuntimes = new Map<string, ActionRuntime>()
   private contactCooldowns = new Map<string, number>()
+  private releaseRegrabCooldowns = new Map<string, number>()
+  private fumbleRegrabCooldowns = new Map<string, number>()
+  private gatherAttemptCooldowns = new Map<string, number>()
+  private failedGatherGrace = new Map<string, number>()
+  private catchReadyHoldMs = new Map<string, number>()
+  private catchReadyExitMs = new Map<string, number>()
+  private gatherDebug = new Map<string, GatherDebugState>()
   private previousHold = new Map<string, boolean>()
   private previousSwing = new Map<string, boolean>()
   private cradleFailures = new Map<string, CradleFailureReason>()
@@ -171,7 +214,7 @@ export class StickInteractionSystem {
     this.debugFocusPlayerId = this.carrierId ?? preferredPlayerId
     this.ensurePlayers(players)
     this.updateTimers(deltaMs)
-    this.updateActionStates(players, intents)
+    this.updateActionStates(players, intents, deltaMs)
     const hadPendingRelease = this.pendingRelease !== null
 
     if (hadPendingRelease) {
@@ -324,17 +367,22 @@ export class StickInteractionSystem {
   }
 
   isCoreInCatchAssistRadius(core: Core, player: Player): boolean {
-    const localPoint = player.worldToStickLocal(core.position)
-
-    return (
-      localPoint.y * player.getPocketFacingSign() > 0 &&
-      distance(core.position, player.getCradleSocket()) <=
-        possessionFeelConfig.gatherAssistRadius
-    )
+    return this.evaluateGather(core, player).eligible
   }
 
   getCradleFailureReason(playerId: string): CradleFailureReason {
     return this.cradleFailures.get(playerId) ?? 'not catch-ready'
+  }
+
+  getGatherDebugState(playerId: string): GatherDebugState {
+    return this.gatherDebug.get(playerId) ?? {
+      mode: 'none',
+      eligible: false,
+      funnelAngleError: 0,
+      relativeSpeed: 0,
+      cooldownMs: 0,
+      denyReason: 'action state',
+    }
   }
 
   getLastInteraction(): StickInteractionResult {
@@ -395,6 +443,13 @@ export class StickInteractionSystem {
     this.cradleElapsedMs = 0
     this.releaseCooldownMsRemaining = 0
     this.contactCooldowns.clear()
+    this.releaseRegrabCooldowns.clear()
+    this.fumbleRegrabCooldowns.clear()
+    this.gatherAttemptCooldowns.clear()
+    this.failedGatherGrace.clear()
+    this.catchReadyHoldMs.clear()
+    this.catchReadyExitMs.clear()
+    this.gatherDebug.clear()
     this.previousHold.clear()
     this.previousSwing.clear()
     this.cradleFailures.clear()
@@ -438,6 +493,12 @@ export class StickInteractionSystem {
       if (!this.stanceIdleMs.has(player.id)) {
         this.stanceIdleMs.set(player.id, 0)
       }
+      if (!this.catchReadyHoldMs.has(player.id)) {
+        this.catchReadyHoldMs.set(player.id, 0)
+      }
+      if (!this.catchReadyExitMs.has(player.id)) {
+        this.catchReadyExitMs.set(player.id, 0)
+      }
     }
   }
 
@@ -450,6 +511,10 @@ export class StickInteractionSystem {
     for (const [playerId, cooldown] of this.contactCooldowns) {
       this.contactCooldowns.set(playerId, Math.max(0, cooldown - deltaMs))
     }
+    this.tickCooldowns(this.releaseRegrabCooldowns, deltaMs)
+    this.tickCooldowns(this.fumbleRegrabCooldowns, deltaMs)
+    this.tickCooldowns(this.gatherAttemptCooldowns, deltaMs)
+    this.tickCooldowns(this.failedGatherGrace, deltaMs)
 
     for (const runtime of this.actionRuntimes.values()) {
       runtime.elapsedMs += deltaMs
@@ -480,9 +545,25 @@ export class StickInteractionSystem {
     }
   }
 
+  private tickCooldowns(
+    cooldowns: Map<string, number>,
+    deltaMs: number,
+  ): void {
+    for (const [playerId, cooldown] of cooldowns) {
+      const next = Math.max(0, cooldown - deltaMs)
+
+      if (next === 0) {
+        cooldowns.delete(playerId)
+      } else {
+        cooldowns.set(playerId, next)
+      }
+    }
+  }
+
   private updateActionStates(
     players: Player[],
     intents: Map<string, StickIntent>,
+    deltaMs: number,
   ): void {
     for (const player of players) {
       if (
@@ -494,6 +575,17 @@ export class StickInteractionSystem {
 
       const runtime = this.actionRuntimes.get(player.id)!
       const intent = intents.get(player.id) ?? { hold: false }
+      const holdMs = intent.hold
+        ? (this.catchReadyHoldMs.get(player.id) ?? 0) + deltaMs
+        : 0
+      const exitMs = intent.hold
+        ? gatherConfig.catchReadyExitDelayMs
+        : Math.max(
+            0,
+            (this.catchReadyExitMs.get(player.id) ?? 0) - deltaMs,
+          )
+      this.catchReadyHoldMs.set(player.id, holdMs)
+      this.catchReadyExitMs.set(player.id, exitMs)
 
       if (runtime.state === 'SWINGING') {
         if (runtime.elapsedMs >= stickConfig.swingDurationMs) {
@@ -511,14 +603,14 @@ export class StickInteractionSystem {
 
       if (
         runtime.state === 'FUMBLED_COOLDOWN' &&
-        this.releaseCooldownMsRemaining > 0
+        (this.fumbleRegrabCooldowns.get(player.id) ?? 0) > 0
       ) {
         continue
       }
 
       if (
         runtime.state === 'RELEASE_COOLDOWN' &&
-        this.releaseCooldownMsRemaining > 0
+        (this.releaseRegrabCooldowns.get(player.id) ?? 0) > 0
       ) {
         continue
       }
@@ -538,7 +630,10 @@ export class StickInteractionSystem {
             ? stickConfig.aiSwingCooldownMs
             : stickConfig.swingCooldownMs
         this.setActionState(player.id, 'SWINGING')
-      } else if (intent.hold) {
+      } else if (
+        holdMs >= gatherConfig.catchReadyMinHoldMs ||
+        exitMs > 0
+      ) {
         this.setActionState(player.id, 'CATCH_READY')
       } else {
         this.setActionState(player.id, 'IDLE')
@@ -595,6 +690,11 @@ export class StickInteractionSystem {
         stickStanceConfig.stanceResetEnabled &&
         idleForStance &&
         !usesKeeperShield &&
+        !(
+          gatherConfig.gatherOverridesStanceReset &&
+          gatherConfig.stanceResetDoesNotCancelGather &&
+          this.isPlayerInsideGatherRange(core, player)
+        ) &&
         idleMs >= stickStanceConfig.stanceResetDelayMs
 
       this.stanceIdleMs.set(player.id, idleMs)
@@ -926,27 +1026,13 @@ export class StickInteractionSystem {
     preferredPlayerId: string,
     deltaMs: number,
   ): void {
-    if (this.releaseCooldownMsRemaining > 0 || this.coreState !== 'FREE') {
+    if (!this.isLooseCoreState()) {
       return
     }
 
     const candidate = players
-      .filter(
-        (player) =>
-          this.getStickState(player.id) === 'CATCH_READY' &&
-          (!this.keeperShield.usesShield(player) ||
-            keeperShieldConfig.keeperShieldCanTrap),
-      )
-      .map((player) => ({
-        player,
-        socketDistance: distance(core.position, player.getCradleSocket()),
-        localPoint: player.worldToStickLocal(core.position),
-      }))
-      .filter(
-        ({ player, socketDistance, localPoint }) =>
-          localPoint.y * player.getPocketFacingSign() > 0 &&
-          socketDistance <= possessionFeelConfig.gatherAssistRadius,
-      )
+      .map((player) => this.evaluateGather(core, player))
+      .filter((evaluation) => evaluation.eligible)
       .sort((a, b) => {
         if (a.player.id === preferredPlayerId) {
           return -1
@@ -969,32 +1055,33 @@ export class StickInteractionSystem {
       y: socket.y - core.position.y,
     })
     const distanceRatio = Phaser.Math.Clamp(
-      1 - candidate.socketDistance / possessionFeelConfig.gatherAssistRadius,
+      1 - candidate.socketDistance / candidate.radius,
       0.15,
       1,
     )
     const snapBoost =
-      candidate.socketDistance <= possessionFeelConfig.gatherSnapDistance
+      candidate.snapEnabled &&
+      candidate.socketDistance <= candidate.snapRadius
         ? 1.45
         : 1
     const targetVelocity = {
       x:
         candidate.player.velocity.x +
         direction.x *
-          possessionFeelConfig.gatherAssistMaxSpeed *
+          candidate.maxSpeed *
           distanceRatio *
           snapBoost,
       y:
         candidate.player.velocity.y +
         direction.y *
-          possessionFeelConfig.gatherAssistMaxSpeed *
+          candidate.maxSpeed *
           distanceRatio *
           snapBoost,
     }
     const blend =
       1 -
       Math.exp(
-        -possessionFeelConfig.gatherAssistStrength *
+        -candidate.strength *
           10 *
           snapBoost *
           Math.max(deltaMs / 1000, 0),
@@ -1004,6 +1091,213 @@ export class StickInteractionSystem {
       x: Phaser.Math.Linear(core.velocity.x, targetVelocity.x, blend),
       y: Phaser.Math.Linear(core.velocity.y, targetVelocity.y, blend),
     })
+  }
+
+  private evaluateGather(core: Core, player: Player): GatherEvaluation {
+    const mode = this.getGatherMode(player)
+    const shieldDenied =
+      this.keeperShield.usesShield(player) &&
+      !keeperShieldConfig.keeperShieldCanTrap
+    const releaseCooldown =
+      this.releaseRegrabCooldowns.get(player.id) ?? 0
+    const fumbleCooldown =
+      this.fumbleRegrabCooldowns.get(player.id) ?? 0
+    const regrabCooldownMs = Math.max(
+      releaseCooldown,
+      fumbleCooldown,
+    )
+    const cooldownMs = Math.max(
+      regrabCooldownMs,
+      this.gatherAttemptCooldowns.get(player.id) ?? 0,
+    )
+    const active = mode === 'active'
+    const enabled = active
+      ? gatherConfig.activeGatherEnabled
+      : mode === 'passive'
+        ? gatherConfig.passiveGatherEnabled
+        : false
+    const quality = Phaser.Math.Clamp(
+      player.attributes.ballHandling * 0.5 +
+        player.attributes.control * 0.3 +
+        player.attributes.reaction * 0.2,
+      0,
+      1.1,
+    )
+    const roleBonus =
+      player.role === 'support'
+        ? 0.05
+        : player.role === 'striker' || player.role === 'keeper'
+          ? 0.025
+          : -0.025
+    const styleBonus =
+      player.playStyle === 'technical' || player.playStyle === 'creative'
+        ? 0.05
+        : player.playStyle === 'direct' ||
+            player.playStyle === 'disruptive'
+          ? -0.025
+          : 0
+    const attributeScale = Phaser.Math.Clamp(
+      Phaser.Math.Linear(0.84, 1.16, quality) +
+        roleBonus +
+        styleBonus,
+      0.72,
+      1.28,
+    )
+    const graceActive = (this.failedGatherGrace.get(player.id) ?? 0) > 0
+    const baseRadius = active
+      ? gatherConfig.activeGatherRadius
+      : gatherConfig.passiveGatherRadius
+    const baseStrength = active
+      ? gatherConfig.activeGatherStrength
+      : gatherConfig.passiveGatherStrength
+    const baseMaxSpeed = active
+      ? gatherConfig.activeGatherMaxSpeed
+      : gatherConfig.passiveGatherMaxSpeed
+    const baseFunnelAngle = active
+      ? gatherConfig.activeGatherFunnelAngle
+      : gatherConfig.passiveGatherFunnelAngle
+    const radius =
+      baseRadius * attributeScale + (graceActive ? 8 : 0)
+    const strength = baseStrength * attributeScale
+    const maxSpeed =
+      baseMaxSpeed *
+      Phaser.Math.Linear(
+        0.9,
+        1.14,
+        Phaser.Math.Clamp(player.attributes.reaction, 0, 1),
+      )
+    const funnelAngle =
+      baseFunnelAngle *
+        Phaser.Math.Linear(
+          0.9,
+          1.12,
+          Phaser.Math.Clamp(player.attributes.control, 0, 1),
+        ) +
+      (graceActive ? 0.12 : 0)
+    const socketDistance = distance(
+      core.position,
+      player.getCradleSocket(),
+    )
+    const relativeSpeed = distance(core.velocity, player.velocity)
+    const axis = this.getGatherAxis(player, mode)
+    const toCore = normalized({
+      x: core.position.x - player.position.x,
+      y: core.position.y - player.position.y,
+    })
+    const funnelAngleError = Math.abs(
+      Phaser.Math.Angle.Wrap(
+        Math.atan2(toCore.y, toCore.x) -
+          Math.atan2(axis.y, axis.x),
+      ),
+    )
+    let denyReason: GatherDenyReason = 'ready'
+
+    if (!enabled) {
+      denyReason = mode === 'none' ? 'action state' : 'disabled'
+    } else if (shieldDenied) {
+      denyReason = 'keeper shield'
+    } else if (regrabCooldownMs > 0) {
+      denyReason = 'cooldown'
+    } else if (socketDistance > radius) {
+      denyReason = 'outside radius'
+    } else if (funnelAngleError > funnelAngle) {
+      denyReason = 'outside angle'
+    } else if (relativeSpeed > maxSpeed) {
+      denyReason = 'speed too high'
+    }
+
+    const evaluation: GatherEvaluation = {
+      player,
+      mode,
+      eligible: denyReason === 'ready',
+      funnelAngleError,
+      relativeSpeed,
+      cooldownMs,
+      denyReason,
+      socketDistance,
+      radius,
+      strength,
+      maxSpeed,
+      snapRadius:
+        gatherConfig.activeGatherSnapRadius * attributeScale,
+      snapEnabled:
+        active && gatherConfig.activeGatherSnapEnabled,
+    }
+    this.gatherDebug.set(player.id, {
+      mode: evaluation.mode,
+      eligible: evaluation.eligible,
+      funnelAngleError: evaluation.funnelAngleError,
+      relativeSpeed: evaluation.relativeSpeed,
+      cooldownMs: evaluation.cooldownMs,
+      denyReason: evaluation.denyReason,
+    })
+    return evaluation
+  }
+
+  private getGatherMode(player: Player): GatherMode {
+    const state = this.getStickState(player.id)
+
+    if (state === 'CATCH_READY' && gatherConfig.activeGatherEnabled) {
+      return 'active'
+    }
+
+    if (
+      gatherConfig.passiveGatherEnabled &&
+      (state === 'IDLE' || state === 'CATCH_READY')
+    ) {
+      return 'passive'
+    }
+
+    return 'none'
+  }
+
+  private getGatherAxis(player: Player, mode: GatherMode): Point {
+    const aim = player.getReleaseAimForward()
+    const bodyAngle = player.getBodyFacingAngle()
+    const body = {
+      x: Math.cos(bodyAngle),
+      y: Math.sin(bodyAngle),
+    }
+    const speed = magnitude(player.velocity)
+    const movement =
+      speed > 0.25 ? normalized(player.velocity) : body
+    const pocketSide = player.getCradleSideDirection()
+    const active = mode === 'active'
+
+    return normalized({
+      x:
+        aim.x * (active ? 0.5 : 0.2) +
+        body.x * (active ? 0.2 : 0.5) +
+        movement.x * 0.2 +
+        pocketSide.x * 0.1,
+      y:
+        aim.y * (active ? 0.5 : 0.2) +
+        body.y * (active ? 0.2 : 0.5) +
+        movement.y * 0.2 +
+        pocketSide.y * 0.1,
+    })
+  }
+
+  private isPlayerInsideGatherRange(core: Core, player: Player): boolean {
+    const mode = this.getGatherMode(player)
+    const radius =
+      mode === 'active'
+        ? gatherConfig.activeGatherRadius
+        : gatherConfig.passiveGatherRadius
+
+    return (
+      mode !== 'none' &&
+      distance(core.position, player.getCradleSocket()) <= radius
+    )
+  }
+
+  private isLooseCoreState(): boolean {
+    return (
+      !this.carrierId &&
+      (this.coreState === 'FREE' ||
+        this.coreState === 'FUMBLED' ||
+        this.coreState === 'RELEASED_COOLDOWN')
+    )
   }
 
   private tryAcquire(
@@ -1027,23 +1321,38 @@ export class StickInteractionSystem {
       return
     }
 
-    if (this.releaseCooldownMsRemaining > 0 || this.coreState !== 'FREE') {
-      for (const player of players) {
-        if (this.getStickState(player.id) === 'CATCH_READY') {
-          this.cradleFailures.set(player.id, 'cooldown active')
-        }
-      }
+    if (!this.isLooseCoreState()) {
       return
     }
 
     const candidates = players
-      .filter(
-        (player) =>
-          this.getStickState(player.id) === 'CATCH_READY' &&
-          (!this.keeperShield.usesShield(player) ||
-            keeperShieldConfig.keeperShieldCanTrap),
-      )
       .map((player) => {
+        const gather = this.evaluateGather(core, player)
+        const attemptCooldown =
+          this.gatherAttemptCooldowns.get(player.id) ?? 0
+
+        if (!gather.eligible || attemptCooldown > 0) {
+          this.cradleFailures.set(
+            player.id,
+            gather.cooldownMs > 0 || attemptCooldown > 0
+              ? 'cooldown active'
+              : gather.denyReason === 'speed too high'
+                ? 'speed too high'
+                : gather.denyReason === 'action state'
+                  ? 'not catch-ready'
+                  : 'outside gather funnel',
+          )
+          if (attemptCooldown > 0) {
+            this.gatherDebug.set(player.id, {
+              ...gather,
+              eligible: false,
+              cooldownMs: attemptCooldown,
+              denyReason: 'cooldown',
+            })
+          }
+          return null
+        }
+
         const test = testLegalCradle(core, player)
 
         this.cradleFailures.set(
@@ -1055,12 +1364,36 @@ export class StickInteractionSystem {
               : 'ready',
         )
 
+        if (
+          !test.accepted &&
+          gather.socketDistance <= stickConfig.cradleCaptureRadius
+        ) {
+          this.gatherAttemptCooldowns.set(
+            player.id,
+            gatherConfig.gatherAttemptCooldownMs,
+          )
+          this.failedGatherGrace.set(
+            player.id,
+            gatherConfig.failedGatherGraceMs,
+          )
+          this.gatherDebug.set(player.id, {
+            ...gather,
+            eligible: false,
+            cooldownMs: gatherConfig.gatherAttemptCooldownMs,
+            denyReason: 'cradle zone',
+          })
+        }
+
         return {
           player,
           test,
+          gather,
           socketDistance: distance(core.position, player.getCradleSocket()),
         }
       })
+      .filter((candidate): candidate is NonNullable<typeof candidate> =>
+        candidate !== null
+      )
       .filter((candidate) => candidate.test.accepted)
       .sort((a, b) => {
         if (a.player.id === preferredPlayerId) {
@@ -1092,6 +1425,11 @@ export class StickInteractionSystem {
     }
     this.setActionState(selected.player.id, 'CRADLED_STABLE')
     this.cradleFailures.set(selected.player.id, 'already cradled')
+    this.gatherDebug.set(selected.player.id, {
+      ...selected.gather,
+      eligible: true,
+      denyReason: 'acquired',
+    })
     core.setSensor(true)
     core.setVelocity({ x: 0, y: 0 })
     const baseSocket = selected.player.getBaseCradleSocket()
@@ -1102,7 +1440,7 @@ export class StickInteractionSystem {
     selected.player.setCarrySocket(snappedSocket)
     core.holdAt(snappedSocket)
 
-    if (possessionFeelConfig.gatherSnapEffectEnabled) {
+    if (selected.gather.snapEnabled) {
       this.gatherRipple = {
         position: { ...snappedSocket },
         msRemaining: 220,
@@ -1317,7 +1655,14 @@ export class StickInteractionSystem {
     this.coreState = 'RELEASED_COOLDOWN'
     this.carrierId = null
     this.cradleElapsedMs = 0
-    this.releaseCooldownMsRemaining = stickConfig.releaseCooldownMs
+    this.releaseCooldownMsRemaining = Math.min(
+      120,
+      gatherConfig.releaseRegrabCooldownMs,
+    )
+    this.releaseRegrabCooldowns.set(
+      carrier.id,
+      gatherConfig.releaseRegrabCooldownMs,
+    )
     this.lastInteraction = 'release'
     this.interactionEvent = {
       result: 'release',
@@ -1383,7 +1728,16 @@ export class StickInteractionSystem {
     this.coreState = nextState
     this.carrierId = null
     this.cradleElapsedMs = 0
-    this.releaseCooldownMsRemaining = stickConfig.releaseCooldownMs
+    const regrabCooldownMs =
+      nextState === 'FUMBLED'
+        ? gatherConfig.fumbleRegrabCooldownMs
+        : gatherConfig.releaseRegrabCooldownMs
+    this.releaseCooldownMsRemaining = Math.min(120, regrabCooldownMs)
+    const cooldowns =
+      nextState === 'FUMBLED'
+        ? this.fumbleRegrabCooldowns
+        : this.releaseRegrabCooldowns
+    cooldowns.set(carrier.id, regrabCooldownMs)
     this.lastInteraction = nextState === 'FUMBLED' ? 'fumble' : 'release'
     this.interactionEvent = {
       result: this.lastInteraction,
@@ -1791,8 +2145,47 @@ export class StickInteractionSystem {
       this.debugGraphics.strokeCircle(
         socket.x,
         socket.y,
-        possessionFeelConfig.gatherAssistRadius,
+        gatherConfig.activeGatherRadius,
       )
+      this.debugGraphics.lineStyle(2, stickConfig.debug.cradleOpenColor, 0.58)
+      this.debugGraphics.strokeCircle(
+        socket.x,
+        socket.y,
+        gatherConfig.passiveGatherRadius,
+      )
+      const gatherState = this.getGatherDebugState(focus.id)
+      const gatherMode =
+        gatherState.mode === 'none' ? 'passive' : gatherState.mode
+      const gatherAxis = this.getGatherAxis(focus, gatherMode)
+      const gatherAxisAngle = Math.atan2(gatherAxis.y, gatherAxis.x)
+      const gatherAngle =
+        gatherMode === 'active'
+          ? gatherConfig.activeGatherFunnelAngle
+          : gatherConfig.passiveGatherFunnelAngle
+      const gatherRadius =
+        gatherMode === 'active'
+          ? gatherConfig.activeGatherRadius
+          : gatherConfig.passiveGatherRadius
+      this.debugGraphics.lineStyle(
+        2,
+        gatherState.eligible
+          ? stickConfig.debug.cradleOpenColor
+          : stickConfig.debug.assistRadiusColor,
+        0.8,
+      )
+      for (const sign of [-1, 1]) {
+        const edge = radialPoint(
+          focus.position,
+          gatherAxisAngle + gatherAngle * sign,
+          gatherRadius,
+        )
+        this.debugGraphics.lineBetween(
+          focus.position.x,
+          focus.position.y,
+          edge.x,
+          edge.y,
+        )
+      }
       if (this.desiredCarrySocket && focus.id === this.carrierId) {
         this.debugGraphics.lineStyle(
           3,
@@ -1929,6 +2322,30 @@ export class StickInteractionSystem {
         `AUTO ORIENT ${
           focus && this.isCatchAutoOrientActive(focus.id) ? 'ACTIVE' : 'INACTIVE'
         }\n` +
+        `GATHER ${
+          focus
+            ? `${this.getGatherDebugState(focus.id).mode.toUpperCase()} / ${
+                this.getGatherDebugState(focus.id).eligible
+                  ? 'ELIGIBLE'
+                  : this.getGatherDebugState(focus.id).denyReason
+              }`
+            : 'n/a'
+        }\n` +
+        `G ANGLE ${
+          focus
+            ? this.getGatherDebugState(focus.id).funnelAngleError.toFixed(2)
+            : 'n/a'
+        }\n` +
+        `G SPEED ${
+          focus
+            ? this.getGatherDebugState(focus.id).relativeSpeed.toFixed(2)
+            : 'n/a'
+        }\n` +
+        `G COOLDOWN ${
+          focus
+            ? Math.ceil(this.getGatherDebugState(focus.id).cooldownMs)
+            : 0
+        }ms\n` +
         `CATCH ${focus ? this.getCradleFailureReason(focus.id) : 'n/a'}\n` +
         `CONTACT ${this.lastInteraction}\n` +
         `SPEED ${Math.hypot(core.velocity.x, core.velocity.y).toFixed(2)}`,

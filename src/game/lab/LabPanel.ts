@@ -18,6 +18,8 @@ import { labEvents } from './LabEvents'
 
 type LabPanelActions = {
   onApply: (state: LabTuningState) => void
+  onSave: (state: LabTuningState) => void
+  onResetSaved: () => void
   onResetMatch: () => void
   onResetCore: () => void
 }
@@ -89,13 +91,25 @@ export class LabPanel {
     }
 
     this.applyDiagnostics = event.detail as LabApplyDiagnostics
-    this.status = this.applyDiagnostics.error
-      ? 'Apply failed; game kept running'
-      : this.applyDiagnostics.applyInProgress
-        ? 'Applying validated settings...'
-        : this.applyDiagnostics.resetTriggered
-          ? 'Applied and rebuilt once'
-          : this.status
+    const saveIsLatest =
+      this.applyDiagnostics.lastSaveStartedAt >
+      this.applyDiagnostics.lastApplyStartedAt
+    this.status = this.applyDiagnostics.labApplyError
+      ? 'Apply failed; previous settings restored'
+      : this.applyDiagnostics.labSaveError
+        ? 'Save failed; draft is still available'
+        : this.applyDiagnostics.isApplyingLabSettings
+          ? 'Applying validated settings...'
+          : this.applyDiagnostics.isSavingLabSettings
+            ? 'Saving validated draft...'
+            : saveIsLatest &&
+                this.applyDiagnostics.lastSaveStatus === 'saved'
+              ? 'Draft saved'
+              : this.applyDiagnostics.lastApplyStatus === 'applied'
+              ? this.applyDiagnostics.resetTriggered
+                ? 'Applied; one structural rebuild queued'
+                : 'Applied live without rebuilding'
+              : this.status
     this.render()
   }
 
@@ -179,21 +193,31 @@ export class LabPanel {
     const footer = document.createElement('footer')
     footer.className = 'lab-console-footer'
     const applyButton = this.button(
-      'Apply + Reset Match',
+      'Apply Draft',
       'lab-primary-button',
       () => {
         const nextState = cloneLabState(this.draft)
-        this.status = 'Apply queued for next safe frame...'
+        this.status = 'Apply queued for next frame...'
         this.render()
         this.actions.onApply(nextState)
       },
     )
-    applyButton.disabled = this.applyDiagnostics.applyInProgress
+    applyButton.disabled = this.applyDiagnostics.isApplyingLabSettings
     footer.append(
       applyButton,
+      this.button('Save Draft', 'lab-secondary-button', () => {
+        this.status = 'Saving draft...'
+        this.render()
+        this.actions.onSave(cloneLabState(this.draft))
+      }),
       this.button('Defaults', 'lab-secondary-button', () => {
         this.draft = createDefaultLabTuning()
         this.status = 'Defaults loaded into draft'
+        this.render()
+      }),
+      this.button('Reset Saved', 'lab-secondary-button', () => {
+        this.actions.onResetSaved()
+        this.status = 'Saved Lab settings cleared'
         this.render()
       }),
     )
@@ -207,25 +231,36 @@ export class LabPanel {
     content.className = 'lab-diagnostics'
     const summary = document.createElement('p')
     summary.textContent =
-      `State: ${diagnostics.applyInProgress ? 'applying' : 'idle'} | ` +
+      `Apply: ${diagnostics.lastApplyStatus} | ` +
+      `Save: ${diagnostics.lastSaveStatus} | ` +
       `Sanitized: ${diagnostics.sanitizedSettingCount} | ` +
       `Invalid: ${diagnostics.invalidSettingCount} | ` +
       `Reset: ${diagnostics.resetTriggered ? 'yes' : 'no'}`
     content.appendChild(summary)
 
-    if (diagnostics.lastApplyTimestamp > 0) {
+    if (diagnostics.lastApplyStartedAt > 0) {
       const timestamp = document.createElement('p')
       timestamp.textContent =
         `Last apply: ${new Date(
-          diagnostics.lastApplyTimestamp,
-        ).toLocaleTimeString()}`
+          diagnostics.lastApplyStartedAt,
+        ).toLocaleTimeString()} (${diagnostics.lastApplyDurationMs.toFixed(1)}ms)`
       content.appendChild(timestamp)
     }
 
-    if (diagnostics.error) {
+    if (diagnostics.lastSaveStartedAt > 0) {
+      const timestamp = document.createElement('p')
+      timestamp.textContent =
+        `Last save: ${new Date(
+          diagnostics.lastSaveStartedAt,
+        ).toLocaleTimeString()} (${diagnostics.lastSaveDurationMs.toFixed(1)}ms)`
+      content.appendChild(timestamp)
+    }
+
+    if (diagnostics.labApplyError || diagnostics.labSaveError) {
       const error = document.createElement('p')
       error.className = 'lab-error'
-      error.textContent = diagnostics.error
+      error.textContent =
+        diagnostics.labApplyError ?? diagnostics.labSaveError
       content.appendChild(error)
     }
 
@@ -1635,10 +1670,42 @@ export class LabPanel {
         },
       ),
       this.createCheckbox(
-        'Gather snap effect',
-        stick.gatherSnapEffectEnabled,
+        'Active gather enabled',
+        stick.activeGatherEnabled,
         (value) => {
-          stick.gatherSnapEffectEnabled = value
+          stick.activeGatherEnabled = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createCheckbox(
+        'Active gather snap',
+        stick.activeGatherSnapEnabled,
+        (value) => {
+          stick.activeGatherSnapEnabled = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createCheckbox(
+        'Passive gather enabled',
+        stick.passiveGatherEnabled,
+        (value) => {
+          stick.passiveGatherEnabled = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createCheckbox(
+        'Gather overrides stance reset',
+        stick.gatherOverridesStanceReset,
+        (value) => {
+          stick.gatherOverridesStanceReset = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createCheckbox(
+        'Stance reset preserves gather',
+        stick.stanceResetDoesNotCancelGather,
+        (value) => {
+          stick.stanceResetDoesNotCancelGather = value
           this.markDraftChanged()
         },
       ),
@@ -1683,7 +1750,11 @@ export class LabPanel {
           | 'stanceResetEnabled'
           | 'aimOnlyWhileActionHeld'
           | 'carryControlEnabled'
-          | 'gatherSnapEffectEnabled'
+          | 'activeGatherEnabled'
+          | 'activeGatherSnapEnabled'
+          | 'passiveGatherEnabled'
+          | 'gatherOverridesStanceReset'
+          | 'stanceResetDoesNotCancelGather'
           | 'hardChargeEnabled'
           | 'playerChargeAuraEnabled'
           | 'loadbackAffectsAim'
@@ -1708,11 +1779,21 @@ export class LabPanel {
       ['Carry pose max arc', 'carryPoseMaxArcRadians', { min: 0.2, max: 2, step: 0.02, digits: 2 }],
       ['Carry pose smoothing', 'carryPoseSmoothing', { min: 1, max: 28, step: 0.5, digits: 1 }],
       ['Carry rotation limit', 'carryPoseRotationLimit', { min: 1, max: 16, step: 0.2, digits: 1 }],
-      ['Gather assist strength', 'gatherAssistStrength', { min: 0, max: 1, step: 0.02, digits: 2 }],
-      ['Gather assist radius', 'gatherAssistRadius', { min: 20, max: 120, step: 1 }],
-      ['Gather assist max speed', 'gatherAssistMaxSpeed', { min: 0, max: 12, step: 0.2, digits: 1 }],
-      ['Gather snap distance', 'gatherSnapDistance', { min: 0, max: 50, step: 1 }],
-      ['Gather deflect suppression', 'gatherDeflectSuppression', { min: 0, max: 1, step: 0.02, digits: 2 }],
+      ['Active gather radius', 'activeGatherRadius', { min: 20, max: 140, step: 1 }],
+      ['Active gather strength', 'activeGatherStrength', { min: 0, max: 1, step: 0.02, digits: 2 }],
+      ['Active gather max speed', 'activeGatherMaxSpeed', { min: 0, max: 24, step: 0.5, digits: 1 }],
+      ['Active funnel angle', 'activeGatherFunnelAngle', { min: 0.1, max: 2.8, step: 0.05, digits: 2 }],
+      ['Active snap radius', 'activeGatherSnapRadius', { min: 0, max: 70, step: 1 }],
+      ['Passive gather radius', 'passiveGatherRadius', { min: 12, max: 100, step: 1 }],
+      ['Passive gather strength', 'passiveGatherStrength', { min: 0, max: 1, step: 0.02, digits: 2 }],
+      ['Passive gather max speed', 'passiveGatherMaxSpeed', { min: 0, max: 18, step: 0.5, digits: 1 }],
+      ['Passive funnel angle', 'passiveGatherFunnelAngle', { min: 0.1, max: 2.2, step: 0.05, digits: 2 }],
+      ['Release regrab cooldown ms', 'releaseRegrabCooldownMs', { min: 0, max: 1500, step: 10 }],
+      ['Fumble regrab cooldown ms', 'fumbleRegrabCooldownMs', { min: 0, max: 1500, step: 10 }],
+      ['Gather attempt cooldown ms', 'gatherAttemptCooldownMs', { min: 0, max: 500, step: 5 }],
+      ['Failed gather grace ms', 'failedGatherGraceMs', { min: 0, max: 600, step: 10 }],
+      ['Catch-ready min hold ms', 'catchReadyMinHoldMs', { min: 0, max: 500, step: 10 }],
+      ['Catch-ready exit delay ms', 'catchReadyExitDelayMs', { min: 0, max: 500, step: 10 }],
       ['Charge load-back distance', 'chargeLoadbackDistance', { min: 0, max: 36, step: 1 }],
       ['Hard charge hold ms', 'hardChargeHoldMs', { min: 100, max: 1400, step: 25 }],
       ['Hard charge multiplier', 'hardChargeMultiplier', { min: 1, max: 1.5, step: 0.01, digits: 2 }],

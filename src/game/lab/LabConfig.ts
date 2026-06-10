@@ -147,12 +147,26 @@ export type LabStickTuning = {
   carryPoseMaxArcRadians: number
   carryPoseSmoothing: number
   carryPoseRotationLimit: number
-  gatherAssistStrength: number
-  gatherAssistRadius: number
-  gatherAssistMaxSpeed: number
-  gatherSnapDistance: number
-  gatherSnapEffectEnabled: boolean
-  gatherDeflectSuppression: number
+  activeGatherEnabled: boolean
+  activeGatherRadius: number
+  activeGatherStrength: number
+  activeGatherMaxSpeed: number
+  activeGatherFunnelAngle: number
+  activeGatherSnapRadius: number
+  activeGatherSnapEnabled: boolean
+  passiveGatherEnabled: boolean
+  passiveGatherRadius: number
+  passiveGatherStrength: number
+  passiveGatherMaxSpeed: number
+  passiveGatherFunnelAngle: number
+  releaseRegrabCooldownMs: number
+  fumbleRegrabCooldownMs: number
+  gatherAttemptCooldownMs: number
+  failedGatherGraceMs: number
+  gatherOverridesStanceReset: boolean
+  catchReadyMinHoldMs: number
+  catchReadyExitDelayMs: number
+  stanceResetDoesNotCancelGather: boolean
   chargeLoadbackDistance: number
   hardChargeEnabled: boolean
   hardChargeHoldMs: number

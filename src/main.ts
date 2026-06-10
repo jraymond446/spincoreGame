@@ -2,7 +2,11 @@ import './style.css'
 import Phaser from 'phaser'
 import { gameConfig } from './game/config/gameConfig'
 import { LabPanel } from './game/lab/LabPanel'
-import { queueLabSettingsApply } from './game/lab/LabApplyController'
+import {
+  applyDraftSettings,
+  clearSavedLabSettings,
+  saveDraftSettings,
+} from './game/lab/LabApplyController'
 import { labEvents } from './game/lab/LabEvents'
 import {
   getLabState,
@@ -64,7 +68,13 @@ try {
 
 const labPanel = new LabPanel(labRoot, {
   onApply: (state) => {
-    queueLabSettingsApply(state)
+    applyDraftSettings(state)
+  },
+  onSave: (state) => {
+    saveDraftSettings(state)
+  },
+  onResetSaved: () => {
+    clearSavedLabSettings()
   },
   onResetMatch: () => {
     window.dispatchEvent(new CustomEvent(labEvents.resetMatch))

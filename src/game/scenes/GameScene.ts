@@ -22,11 +22,6 @@ import { GoalGate } from '../entities/GoalGate'
 import type { Player } from '../entities/Player'
 import { labEvents } from '../lab/LabEvents'
 import { getLabState, setLabMode } from '../lab/LabState'
-import {
-  completeLabSettingsApply,
-  failLabSettingsApply,
-} from '../lab/LabApplyController'
-import { applyLabSettings } from '../lab/applyLabSettings'
 import { ArenaDressing } from '../rendering/ArenaDressing'
 import { ScoreboardOverlay } from '../rendering/ScoreboardOverlay'
 import { preloadVisualAssetOverrides } from '../rendering/VisualAssetOverrides'
@@ -88,17 +83,15 @@ export class GameScene extends Phaser.Scene {
   private debugEnabled = false
   private gameMode: GameMode = gameplayConfig.defaultMode
   private currentInputIntent = 'IDLE'
-  private pendingLabApplyToken: number | null = null
-  private completedLabApplyToken: number | null = null
+  private labSceneRestartQueued = false
 
   constructor() {
     super('GameScene')
   }
 
-  init(data?: { gameMode?: GameMode; labApplyToken?: number }): void {
+  init(data?: { gameMode?: GameMode }): void {
     this.gameMode = data?.gameMode ?? getLabState().mode
-    this.completedLabApplyToken = data?.labApplyToken ?? null
-    this.pendingLabApplyToken = null
+    this.labSceneRestartQueued = false
     this.matchState = structuredClone(initialMatchState)
     this.debugEnabled = false
   }
@@ -187,14 +180,10 @@ export class GameScene extends Phaser.Scene {
       this.wallCarryPressureSystem.destroy()
     })
 
-    if (this.completedLabApplyToken !== null) {
-      completeLabSettingsApply(this.completedLabApplyToken, true)
-      this.completedLabApplyToken = null
-    }
   }
 
   update(time: number, delta: number): void {
-    if (this.pendingLabApplyToken !== null) {
+    if (this.labSceneRestartQueued) {
       this.applyPendingLabChanges()
       return
     }
@@ -623,38 +612,27 @@ export class GameScene extends Phaser.Scene {
   }
 
   private applyLabChanges = (event: Event): void => {
-    const token =
+    const requiresSceneRestart =
       event instanceof CustomEvent &&
-      typeof event.detail?.token === 'number'
-        ? event.detail.token
-        : null
+      event.detail?.requiresSceneRestart === true
 
-    if (token === null || this.pendingLabApplyToken !== null) {
+    if (!requiresSceneRestart || this.labSceneRestartQueued) {
       return
     }
 
-    this.pendingLabApplyToken = token
+    this.labSceneRestartQueued = true
   }
 
   private applyPendingLabChanges(): void {
-    const token = this.pendingLabApplyToken
-
-    if (token === null) {
+    if (!this.labSceneRestartQueued) {
       return
     }
 
-    this.pendingLabApplyToken = null
-
-    try {
-      applyLabSettings(getLabState())
-      console.info('[Lab Apply] Match reset queued', { token })
-      this.scene.restart({
-        gameMode: getLabState().mode,
-        labApplyToken: token,
-      })
-    } catch (error) {
-      failLabSettingsApply(token, error)
-    }
+    this.labSceneRestartQueued = false
+    console.info('[Lab Apply] Structural match rebuild queued')
+    this.scene.restart({
+      gameMode: getLabState().mode,
+    })
   }
 
   private resetMatch = (): void => {
@@ -819,6 +797,9 @@ export class GameScene extends Phaser.Scene {
           this.core,
           controlledPlayer,
         ),
+      gather: this.stickInteractionSystem.getGatherDebugState(
+        controlledPlayer.id,
+      ),
       cradleFailure: this.stickInteractionSystem.getCradleFailureReason(
         controlledPlayer.id,
       ),

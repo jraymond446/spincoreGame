@@ -8,6 +8,7 @@ import { coreConfig } from '../config/entityConfig'
 import { controlConfig } from '../config/controlConfig'
 import { creaseBattleConfig } from '../config/creaseBattleConfig'
 import { defenseConfig } from '../config/defenseConfig'
+import { gatherConfig } from '../config/gatherConfig'
 import {
   bottomGoalConfig,
   goalConfig,
@@ -227,6 +228,29 @@ export function applyLabSettings(state: LabTuningState): void {
       stick.runningStanceOffsetRadians,
     aimOnlyWhileActionHeld: stick.aimOnlyWhileActionHeld,
   })
+  Object.assign(gatherConfig, {
+    activeGatherEnabled: stick.activeGatherEnabled,
+    activeGatherRadius: stick.activeGatherRadius,
+    activeGatherStrength: stick.activeGatherStrength,
+    activeGatherMaxSpeed: stick.activeGatherMaxSpeed,
+    activeGatherFunnelAngle: stick.activeGatherFunnelAngle,
+    activeGatherSnapRadius: stick.activeGatherSnapRadius,
+    activeGatherSnapEnabled: stick.activeGatherSnapEnabled,
+    passiveGatherEnabled: stick.passiveGatherEnabled,
+    passiveGatherRadius: stick.passiveGatherRadius,
+    passiveGatherStrength: stick.passiveGatherStrength,
+    passiveGatherMaxSpeed: stick.passiveGatherMaxSpeed,
+    passiveGatherFunnelAngle: stick.passiveGatherFunnelAngle,
+    releaseRegrabCooldownMs: stick.releaseRegrabCooldownMs,
+    fumbleRegrabCooldownMs: stick.fumbleRegrabCooldownMs,
+    gatherAttemptCooldownMs: stick.gatherAttemptCooldownMs,
+    failedGatherGraceMs: stick.failedGatherGraceMs,
+    gatherOverridesStanceReset: stick.gatherOverridesStanceReset,
+    catchReadyMinHoldMs: stick.catchReadyMinHoldMs,
+    catchReadyExitDelayMs: stick.catchReadyExitDelayMs,
+    stanceResetDoesNotCancelGather:
+      stick.stanceResetDoesNotCancelGather,
+  })
   Object.assign(controlConfig, {
     keeperControlMode: state.keeper.keeperControlMode,
     autoSwitchOnLooseBall: state.keeper.autoSwitchOnLooseBall,
@@ -278,12 +302,6 @@ export function applyLabSettings(state: LabTuningState): void {
     carryPoseMaxArcRadians: stick.carryPoseMaxArcRadians,
     carryPoseSmoothing: stick.carryPoseSmoothing,
     carryPoseRotationLimit: stick.carryPoseRotationLimit,
-    gatherAssistStrength: stick.gatherAssistStrength,
-    gatherAssistRadius: stick.gatherAssistRadius,
-    gatherAssistMaxSpeed: stick.gatherAssistMaxSpeed,
-    gatherSnapDistance: stick.gatherSnapDistance,
-    gatherSnapEffectEnabled: stick.gatherSnapEffectEnabled,
-    gatherDeflectSuppression: stick.gatherDeflectSuppression,
     chargeLoadbackDistance: stick.chargeLoadbackDistance,
     hardChargeEnabled: stick.hardChargeEnabled,
     hardChargeHoldMs: stick.hardChargeHoldMs,

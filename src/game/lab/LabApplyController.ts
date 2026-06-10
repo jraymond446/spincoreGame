@@ -6,21 +6,33 @@ import {
 import { labEvents } from './LabEvents'
 import {
   cloneLabState,
+  getLabState,
   notifyLabStateChanged,
   replaceLabState,
 } from './LabState'
-import { saveLabSettings } from './labStorage'
+import {
+  resetSavedLabSettings,
+  saveLabSettings,
+} from './labStorage'
 import { sanitizeLabSettings } from './labValidation'
+import { applyLabSettings } from './applyLabSettings'
 
 let scheduled = false
-let activeToken = 0
-let watchdogId: number | null = null
 
-export function queueLabSettingsApply(state: LabTuningState): void {
+export function updateDraftSettings(
+  state: LabTuningState,
+): LabTuningState {
+  return cloneLabState(state)
+}
+
+export function applyDraftSettings(state: LabTuningState): void {
   labApplyRuntime.pendingApplySettings = cloneLabState(state)
+  labApplyRuntime.applyQueued = true
+  labApplyRuntime.lastApplyStatus = 'queued'
+  labApplyRuntime.labApplyError = null
   publishDiagnostics()
 
-  if (labApplyRuntime.applyInProgress || scheduled) {
+  if (labApplyRuntime.isApplyingLabSettings || scheduled) {
     return
   }
 
@@ -28,75 +40,97 @@ export function queueLabSettingsApply(state: LabTuningState): void {
   window.requestAnimationFrame(beginPendingApply)
 }
 
-export function completeLabSettingsApply(
-  token: number,
-  resetTriggered: boolean,
-): void {
-  if (token !== activeToken) {
+export const queueLabSettingsApply = applyDraftSettings
+
+export function saveDraftSettings(state: LabTuningState): void {
+  if (labApplyRuntime.isSavingLabSettings) {
     return
   }
 
-  clearWatchdog()
-  labApplyRuntime.isApplyingLabSettings = false
-  labApplyRuntime.applyInProgress = false
-  labApplyRuntime.suppressLabChangeEvents = false
-  labApplyRuntime.resetTriggered = resetTriggered
-  labApplyRuntime.error = null
-  console.info('[Lab Apply] End', {
-    token,
-    resetTriggered,
-    sanitizedSettingCount: labApplyRuntime.sanitizedSettingCount,
-  })
-  notifyLabStateChanged()
+  const startedAt = performance.now()
+  labApplyRuntime.isSavingLabSettings = true
+  labApplyRuntime.lastSaveStartedAt = Date.now()
+  labApplyRuntime.lastSaveStatus = 'saving'
+  labApplyRuntime.labSaveError = null
+  console.info('[Lab Save] Start')
   publishDiagnostics()
-  scheduleQueuedApply()
+
+  try {
+    const result = sanitizeLabSettings(state)
+
+    if (!saveLabSettings(result.state)) {
+      throw new Error('Browser storage rejected the Lab settings.')
+    }
+
+    labApplyRuntime.lastSaveStatus = 'saved'
+    console.info('[Lab Save] End', {
+      sanitizedSettingCount: result.sanitizedSettingCount,
+      invalidSettingCount: result.invalidSettingCount,
+    })
+  } catch (error) {
+    labApplyRuntime.lastSaveStatus = 'failed'
+    labApplyRuntime.labSaveError = errorMessage(error)
+    console.error('[Lab Save Error]', error)
+  } finally {
+    labApplyRuntime.isSavingLabSettings = false
+    labApplyRuntime.lastSaveDurationMs = performance.now() - startedAt
+    publishDiagnostics()
+  }
 }
 
-export function failLabSettingsApply(
-  token: number,
-  error: unknown,
-): void {
-  if (token !== activeToken) {
-    return
-  }
-
-  clearWatchdog()
-  const message = error instanceof Error ? error.message : String(error)
-  labApplyRuntime.isApplyingLabSettings = false
-  labApplyRuntime.applyInProgress = false
-  labApplyRuntime.suppressLabChangeEvents = false
-  labApplyRuntime.resetTriggered = false
-  labApplyRuntime.error = message
-  console.error('[Lab Apply Error]', error)
-  notifyLabStateChanged()
+export function clearSavedLabSettings(): void {
+  const startedAt = performance.now()
+  labApplyRuntime.isSavingLabSettings = true
+  labApplyRuntime.lastSaveStartedAt = Date.now()
+  labApplyRuntime.lastSaveStatus = 'saving'
+  labApplyRuntime.labSaveError = null
   publishDiagnostics()
-  scheduleQueuedApply()
+
+  try {
+    resetSavedLabSettings()
+    labApplyRuntime.lastSaveStatus = 'saved'
+    console.info('[Lab Save] Saved settings reset')
+  } catch (error) {
+    labApplyRuntime.lastSaveStatus = 'failed'
+    labApplyRuntime.labSaveError = errorMessage(error)
+    console.error('[Lab Save Error]', error)
+  } finally {
+    labApplyRuntime.isSavingLabSettings = false
+    labApplyRuntime.lastSaveDurationMs = performance.now() - startedAt
+    publishDiagnostics()
+  }
 }
 
 function beginPendingApply(): void {
   scheduled = false
 
-  if (labApplyRuntime.applyInProgress) {
+  if (labApplyRuntime.isApplyingLabSettings) {
     return
   }
 
   const pending = labApplyRuntime.pendingApplySettings
 
   if (!pending) {
+    labApplyRuntime.applyQueued = false
     return
   }
 
+  const previous = cloneLabState(getLabState())
+  const startedAt = performance.now()
   labApplyRuntime.pendingApplySettings = null
+  labApplyRuntime.applyQueued = false
   labApplyRuntime.isApplyingLabSettings = true
-  labApplyRuntime.applyInProgress = true
-  labApplyRuntime.suppressLabChangeEvents = true
-  labApplyRuntime.lastApplyTimestamp = Date.now()
+  labApplyRuntime.suppressLabEvents = true
+  labApplyRuntime.lastApplyStartedAt = Date.now()
+  labApplyRuntime.lastApplyStatus = 'applying'
   labApplyRuntime.resetTriggered = false
-  labApplyRuntime.error = null
-  activeToken += 1
+  labApplyRuntime.labApplyError = null
+  console.info('[Lab Apply] Start')
+  publishDiagnostics()
 
   try {
     const result = sanitizeLabSettings(pending)
+    const requiresSceneRestart = hasStructuralChanges(previous, result.state)
     labApplyRuntime.sanitizedSettingCount =
       result.sanitizedSettingCount
     labApplyRuntime.invalidSettingCount = result.invalidSettingCount
@@ -105,27 +139,43 @@ function beginPendingApply(): void {
       console.warn('[Lab Validation]', result.warnings)
     }
 
+    applyLabSettings(result.state)
     replaceLabState(result.state)
-    saveLabSettings(result.state)
-    console.info('[Lab Apply] Start', {
-      token: activeToken,
+    labApplyRuntime.resetTriggered = requiresSceneRestart
+    labApplyRuntime.lastApplyStatus = 'applied'
+
+    if (requiresSceneRestart) {
+      window.dispatchEvent(
+        new CustomEvent(labEvents.apply, {
+          detail: { requiresSceneRestart: true },
+        }),
+      )
+    }
+
+    console.info('[Lab Apply] End', {
+      requiresSceneRestart,
       sanitizedSettingCount: result.sanitizedSettingCount,
       invalidSettingCount: result.invalidSettingCount,
     })
-    publishDiagnostics()
-    window.dispatchEvent(
-      new CustomEvent(labEvents.apply, {
-        detail: { token: activeToken },
-      }),
-    )
-    watchdogId = window.setTimeout(() => {
-      failLabSettingsApply(
-        activeToken,
-        new Error('Timed out waiting for the match rebuild.'),
-      )
-    }, 5000)
   } catch (error) {
-    failLabSettingsApply(activeToken, error)
+    try {
+      applyLabSettings(previous)
+      replaceLabState(previous)
+    } catch (rollbackError) {
+      console.error('[Lab Apply Error] Rollback failed.', rollbackError)
+    }
+
+    labApplyRuntime.lastApplyStatus = 'failed'
+    labApplyRuntime.resetTriggered = false
+    labApplyRuntime.labApplyError = errorMessage(error)
+    console.error('[Lab Apply Error]', error)
+  } finally {
+    labApplyRuntime.isApplyingLabSettings = false
+    labApplyRuntime.suppressLabEvents = false
+    labApplyRuntime.lastApplyDurationMs = performance.now() - startedAt
+    notifyLabStateChanged()
+    publishDiagnostics()
+    scheduleQueuedApply()
   }
 }
 
@@ -138,6 +188,29 @@ function scheduleQueuedApply(): void {
   window.requestAnimationFrame(beginPendingApply)
 }
 
+function hasStructuralChanges(
+  previous: LabTuningState,
+  next: LabTuningState,
+): boolean {
+  return JSON.stringify({
+    mode: previous.mode,
+    formations: previous.formations,
+    strategies: previous.strategies,
+    players: previous.players,
+    field: previous.field,
+    wall: previous.wall,
+    keeperEquipmentType: previous.keeper.keeperEquipmentType,
+  }) !== JSON.stringify({
+    mode: next.mode,
+    formations: next.formations,
+    strategies: next.strategies,
+    players: next.players,
+    field: next.field,
+    wall: next.wall,
+    keeperEquipmentType: next.keeper.keeperEquipmentType,
+  })
+}
+
 function publishDiagnostics(): void {
   window.dispatchEvent(
     new CustomEvent(labEvents.applyDiagnostics, {
@@ -146,11 +219,6 @@ function publishDiagnostics(): void {
   )
 }
 
-function clearWatchdog(): void {
-  if (watchdogId === null) {
-    return
-  }
-
-  window.clearTimeout(watchdogId)
-  watchdogId = null
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }

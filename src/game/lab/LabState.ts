@@ -35,7 +35,7 @@ export function cloneLabState(state: LabTuningState): LabTuningState {
 }
 
 export function notifyLabStateChanged(): void {
-  if (labApplyRuntime.suppressLabChangeEvents) {
+  if (labApplyRuntime.suppressLabEvents) {
     return
   }
 

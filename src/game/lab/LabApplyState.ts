@@ -2,46 +2,72 @@ import type { LabTuningState } from './LabConfig'
 
 export type LabApplyDiagnostics = {
   isApplyingLabSettings: boolean
-  applyInProgress: boolean
-  hasPendingApply: boolean
-  lastApplyTimestamp: number
+  isSavingLabSettings: boolean
+  applyQueued: boolean
+  lastApplyStartedAt: number
+  lastApplyDurationMs: number
+  lastSaveStartedAt: number
+  lastSaveDurationMs: number
   sanitizedSettingCount: number
   invalidSettingCount: number
   resetTriggered: boolean
-  error: string | null
+  lastApplyStatus: 'idle' | 'queued' | 'applying' | 'applied' | 'failed'
+  lastSaveStatus: 'idle' | 'saving' | 'saved' | 'failed'
+  labApplyError: string | null
+  labSaveError: string | null
 }
 
 export const labApplyRuntime: {
   isApplyingLabSettings: boolean
-  suppressLabChangeEvents: boolean
+  isSavingLabSettings: boolean
+  suppressLabEvents: boolean
+  applyQueued: boolean
   pendingApplySettings: LabTuningState | null
-  lastApplyTimestamp: number
-  applyInProgress: boolean
+  lastApplyStartedAt: number
+  lastApplyDurationMs: number
+  lastSaveStartedAt: number
+  lastSaveDurationMs: number
   sanitizedSettingCount: number
   invalidSettingCount: number
   resetTriggered: boolean
-  error: string | null
+  lastApplyStatus: LabApplyDiagnostics['lastApplyStatus']
+  lastSaveStatus: LabApplyDiagnostics['lastSaveStatus']
+  labApplyError: string | null
+  labSaveError: string | null
 } = {
   isApplyingLabSettings: false,
-  suppressLabChangeEvents: false,
+  isSavingLabSettings: false,
+  suppressLabEvents: false,
+  applyQueued: false,
   pendingApplySettings: null,
-  lastApplyTimestamp: 0,
-  applyInProgress: false,
+  lastApplyStartedAt: 0,
+  lastApplyDurationMs: 0,
+  lastSaveStartedAt: 0,
+  lastSaveDurationMs: 0,
   sanitizedSettingCount: 0,
   invalidSettingCount: 0,
   resetTriggered: false,
-  error: null,
+  lastApplyStatus: 'idle',
+  lastSaveStatus: 'idle',
+  labApplyError: null,
+  labSaveError: null,
 }
 
 export function getLabApplyDiagnostics(): LabApplyDiagnostics {
   return {
     isApplyingLabSettings: labApplyRuntime.isApplyingLabSettings,
-    applyInProgress: labApplyRuntime.applyInProgress,
-    hasPendingApply: labApplyRuntime.pendingApplySettings !== null,
-    lastApplyTimestamp: labApplyRuntime.lastApplyTimestamp,
+    isSavingLabSettings: labApplyRuntime.isSavingLabSettings,
+    applyQueued: labApplyRuntime.applyQueued,
+    lastApplyStartedAt: labApplyRuntime.lastApplyStartedAt,
+    lastApplyDurationMs: labApplyRuntime.lastApplyDurationMs,
+    lastSaveStartedAt: labApplyRuntime.lastSaveStartedAt,
+    lastSaveDurationMs: labApplyRuntime.lastSaveDurationMs,
     sanitizedSettingCount: labApplyRuntime.sanitizedSettingCount,
     invalidSettingCount: labApplyRuntime.invalidSettingCount,
     resetTriggered: labApplyRuntime.resetTriggered,
-    error: labApplyRuntime.error,
+    lastApplyStatus: labApplyRuntime.lastApplyStatus,
+    lastSaveStatus: labApplyRuntime.lastSaveStatus,
+    labApplyError: labApplyRuntime.labApplyError,
+    labSaveError: labApplyRuntime.labSaveError,
   }
 }

@@ -14,6 +14,7 @@ import type {
 import type {
   CorePossessionState,
   CradleFailureReason,
+  GatherDebugState,
   StickInteractionResult,
 } from './StickInteractionSystem'
 import type { InputMode } from './PlayerInputController'
@@ -74,6 +75,7 @@ type DebugHudState = {
   cradleFacingOffset: number
   catchAutoOrientActive: boolean
   coreInCatchAssistRadius: boolean
+  gather: GatherDebugState
   recoveryStatus: string
   cradleFailure: CradleFailureReason
   lastInteraction: StickInteractionResult
@@ -266,6 +268,9 @@ export class DebugHudSystem {
       `FORCE    ${state.releaseForcePreview.toFixed(2)}\n` +
       `AUTO     ${state.catchAutoOrientActive ? 'ACTIVE' : 'INACTIVE'}\n` +
       `ASSIST   ${state.coreInCatchAssistRadius ? 'IN RADIUS' : 'OUTSIDE'}\n` +
+      `GATHER   ${state.gather.mode.toUpperCase()} / ${state.gather.eligible ? 'ELIGIBLE' : 'DENIED'}\n` +
+      `G ANGLE  ${state.gather.funnelAngleError.toFixed(2)} / SPEED ${state.gather.relativeSpeed.toFixed(2)}\n` +
+      `G CD     ${Math.ceil(state.gather.cooldownMs)}ms / ${state.gather.denyReason}\n` +
       `FAIL     ${state.cradleFailure}\n` +
       `CONTACT  ${state.lastInteraction}\n` +
       `DEFENSE  ${state.defenseState}\n` +
