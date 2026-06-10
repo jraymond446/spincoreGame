@@ -1,5 +1,7 @@
 import Phaser from 'phaser'
 import { aiCarrierConfig } from '../config/aiCarrierConfig'
+import { possessionFeelConfig } from '../config/possessionFeelConfig'
+import { stickConfig } from '../config/stickConfig'
 import type { Point } from '../data/geometry'
 import type { Player } from '../entities/Player'
 
@@ -48,6 +50,7 @@ type CarrierRuntimeState = {
   spinDetected: boolean
   stuckDurationMs: number
   forceReleaseReason: string | null
+  releaseDeadlineMs: number
   changeTimes: number[]
   lastChurnWarningAt: number
   lastAimTurnSign: number
@@ -69,6 +72,38 @@ export class AICarrierIntentSystem {
     if (this.state?.playerId === playerId) {
       this.state = null
     }
+  }
+
+  forceRelease(playerId: string, reason: string): void {
+    if (this.state?.playerId === playerId) {
+      this.state.forceReleaseReason = reason
+    }
+  }
+
+  getLatestReleaseStartMs(player: Player): number {
+    const handlingFumbleMultiplier = Phaser.Math.Linear(
+      0.96,
+      1.12,
+      Phaser.Math.Clamp(player.attributes.ballHandling, 0, 1),
+    )
+    const baseFumbleMs =
+      stickConfig.fumbleMs * handlingFumbleMultiplier
+    const hardChargeFumbleMs = possessionFeelConfig.hardChargeEnabled
+      ? Math.max(
+          stickConfig.chargeCradleMs,
+          baseFumbleMs /
+            Math.max(1, possessionFeelConfig.hardChargeMultiplier),
+        )
+      : baseFumbleMs
+
+    return Math.max(
+      0,
+      Math.min(
+        aiCarrierConfig.aiMaxCarryMs,
+        hardChargeFumbleMs -
+          aiCarrierConfig.aiReleaseSafetyLeadMs,
+      ),
+    )
   }
 
   select(
@@ -100,7 +135,8 @@ export class AICarrierIntentSystem {
     if (
       forced &&
       isReleaseIntent(candidate.intentType) &&
-      !isReleaseIntent(current.intentType)
+      (!isReleaseIntent(current.intentType) ||
+        current.reason !== this.state.forceReleaseReason)
     ) {
       return this.commit(player, candidate, possessionMs)
     }
@@ -145,11 +181,24 @@ export class AICarrierIntentSystem {
           : 0,
       )
     const maxCommitExpired = ageMs >= current.maxCommitMs
+    const releaseUpgrade =
+      !isReleaseIntent(current.intentType) &&
+      isReleaseIntent(candidate.intentType)
+    const carrySideFlip =
+      current.intentType === 'carryToAngle' &&
+      candidate.intentType === 'carryToAngle' &&
+      current.carrySide !== null &&
+      candidate.carrySide !== null &&
+      current.carrySide !== candidate.carrySide
+    const carrySideChangeAllowed =
+      !carrySideFlip || significantlyBetter
 
     if (
       targetChanged &&
-      (maxCommitExpired ||
-        (reevaluationReady && significantlyBetter))
+      carrySideChangeAllowed &&
+      ((reevaluationReady && significantlyBetter) ||
+        (maxCommitExpired &&
+          (releaseUpgrade || significantlyBetter)))
     ) {
       return this.commit(player, candidate, possessionMs)
     }
@@ -169,6 +218,7 @@ export class AICarrierIntentSystem {
       return null
     }
 
+    state.releaseDeadlineMs = this.getLatestReleaseStartMs(player)
     const deltaSeconds = Math.max(0.001, deltaMs / 1000)
     state.desiredAimAngle = angleTo(
       player.position,
@@ -259,7 +309,7 @@ export class AICarrierIntentSystem {
       state.forceReleaseReason = 'stuck'
     }
 
-    if (possessionMs >= aiCarrierConfig.aiMaxCarryMs) {
+    if (possessionMs >= state.releaseDeadlineMs) {
       state.forceReleaseReason = 'maxCarry'
     }
 
@@ -312,7 +362,7 @@ export class AICarrierIntentSystem {
       carryDurationMs: possessionMs,
       forcedReleaseInMs: Math.max(
         0,
-        aiCarrierConfig.aiMaxCarryMs - possessionMs,
+        state.releaseDeadlineMs - possessionMs,
       ),
       spinDetected: state.spinDetected,
     }
@@ -351,6 +401,7 @@ export class AICarrierIntentSystem {
       spinDetected: previous?.spinDetected ?? false,
       stuckDurationMs: 0,
       forceReleaseReason: previous?.forceReleaseReason ?? null,
+      releaseDeadlineMs: this.getLatestReleaseStartMs(player),
       changeTimes,
       lastChurnWarningAt: previous?.lastChurnWarningAt ?? -Infinity,
       lastAimTurnSign: previous?.lastAimTurnSign ?? 0,

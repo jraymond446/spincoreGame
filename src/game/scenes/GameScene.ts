@@ -498,7 +498,7 @@ export class GameScene extends Phaser.Scene {
           intent.aimTarget.y,
         )
 
-      player.update(move, aimAngle)
+      player.update(move, aimAngle, isCarrier ? aimAngle : undefined)
       const usesKeeperShield =
         player.role === 'keeper' &&
         keeperShieldConfig.keeperUsesShieldDefault &&

@@ -15,6 +15,7 @@ export const aiCarrierConfig = {
   aiCarryStuckSpeedThreshold: 0.4,
   aiCarryStuckTimeMs: 600,
   aiMaxCarryMs: 1800,
+  aiReleaseSafetyLeadMs: 120,
   aiForceReleaseWhenStuck: true,
   aiSpinDetectionEnabled: true,
   aiSpinAngularVelocityThreshold: 4.5,

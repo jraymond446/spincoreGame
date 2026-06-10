@@ -858,17 +858,17 @@ export class StickInteractionSystem {
         ? baseFumbleTime / possessionFeelConfig.hardChargeMultiplier
         : baseFumbleTime
 
-    if (this.cradleElapsedMs >= fumbleTime) {
-      this.fumble(core, carrier)
-      return
-    }
-
     if (
       intent.releaseTarget &&
       this.cradleElapsedMs >=
         (intent.aiReleaseDelayMs ?? aiConfig.aiReleaseDelayMs)
     ) {
       this.beginReleaseToward(carrier, intent.releaseTarget)
+      return
+    }
+
+    if (this.cradleElapsedMs >= fumbleTime) {
+      this.fumble(core, carrier)
       return
     }
 

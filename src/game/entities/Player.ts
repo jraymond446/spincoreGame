@@ -132,12 +132,22 @@ export class Player {
     }
   }
 
-  update(moveVector: Phaser.Math.Vector2, aimAngle: number): void {
+  update(
+    moveVector: Phaser.Math.Vector2,
+    aimAngle: number,
+    facingAngle?: number,
+  ): void {
     this.releaseAimAngle = aimAngle
-    if (moveVector.lengthSq() > 0.02) {
-      const movementAngle = Math.atan2(moveVector.y, moveVector.x)
+    const desiredFacingAngle =
+      facingAngle ??
+      (moveVector.lengthSq() > 0.02
+        ? Math.atan2(moveVector.y, moveVector.x)
+        : null)
+    if (desiredFacingAngle !== null) {
       const turn = Phaser.Math.Clamp(
-        Phaser.Math.Angle.Wrap(movementAngle - this.bodyFacingAngle),
+        Phaser.Math.Angle.Wrap(
+          desiredFacingAngle - this.bodyFacingAngle,
+        ),
         -0.16,
         0.16,
       )

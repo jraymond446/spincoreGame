@@ -658,11 +658,13 @@ export class AISystem {
     context: ReturnType<typeof createAIDecisionContext>,
     intent: PlayerControlIntent,
   ): PossessionDecision {
+    const latestReleaseStartMs =
+      this.carrierIntent.getLatestReleaseStartMs(context.player)
+    if (this.carrierPossessionMs >= latestReleaseStartMs) {
+      this.carrierIntent.forceRelease(context.player.id, 'maxCarry')
+    }
     const forceReleaseReason =
-      this.carrierIntent.getForceReleaseReason(context.player.id) ??
-      (this.carrierPossessionMs >= aiCarrierConfig.aiMaxCarryMs
-        ? 'maxCarry'
-        : null)
+      this.carrierIntent.getForceReleaseReason(context.player.id)
     const candidate = this.applyPossessionDecision(
       context,
       intent,
@@ -692,13 +694,22 @@ export class AISystem {
     if (selection.changed || !this.committedCarrierDecision) {
       this.committedCarrierDecision = candidate
       if (candidate.intent.releaseTarget) {
-        candidate.intent.aiReleaseDelayMs =
+        candidate.intent.aiReleaseDelayMs = Math.min(
+          latestReleaseStartMs,
           this.carrierPossessionMs +
-          selection.intent.releaseAfterChargeMs
+            selection.intent.releaseAfterChargeMs,
+        )
       }
     }
 
     const committed = this.committedCarrierDecision
+    if (committed.intent.releaseTarget) {
+      committed.intent.aiReleaseDelayMs = Math.min(
+        committed.intent.aiReleaseDelayMs ??
+          latestReleaseStartMs,
+        latestReleaseStartMs,
+      )
+    }
     this.syncPlannedOffenseAction(context.player, committed)
     return committed
   }
