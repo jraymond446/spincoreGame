@@ -4,6 +4,7 @@ import { playerRuntimeConfig } from '../config/playerConfig'
 import { wallConfig } from '../config/wallConfig'
 import type { Player } from '../entities/Player'
 import { CourtRenderer } from '../rendering/CourtRenderer'
+import { isValidVector } from '../utils/vectorSafety'
 
 export class ArenaSystem {
   private scene: Phaser.Scene
@@ -26,6 +27,10 @@ export class ArenaSystem {
 
     for (const player of players) {
       const position = player.position
+      if (!isValidVector(position) || !isValidVector(player.velocity)) {
+        player.recoverPhysicsState()
+        continue
+      }
       const clampedX = Phaser.Math.Clamp(position.x, left, right)
       const clampedY = Phaser.Math.Clamp(position.y, top, bottom)
 

@@ -16,6 +16,7 @@ import type {
   PlayerRole,
 } from '../data/matchTypes'
 import type { Player } from '../entities/Player'
+import { normalizeSafe } from '../utils/vectorSafety'
 import type { AIDecisionContext } from './AIDecisionContext'
 
 type RoleBehavior = (context: AIDecisionContext) => PlayerControlIntent
@@ -586,11 +587,7 @@ function rotate(vector: Point, angle: number): Point {
 }
 
 function normalized(vector: Point): Point {
-  const length = Math.hypot(vector.x, vector.y)
-
-  return length === 0
-    ? { x: 0, y: 0 }
-    : { x: vector.x / length, y: vector.y / length }
+  return normalizeSafe(vector, { x: 0, y: 0 })
 }
 
 function distance(a: Point, b: Point): number {

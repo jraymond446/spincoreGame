@@ -16,6 +16,10 @@ import type { Core } from '../entities/Core'
 import type { CradleZone, Player } from '../entities/Player'
 import type { HandednessSign } from '../rules/Handedness'
 import {
+  clampVectorMagnitude,
+  normalizeSafe,
+} from '../utils/vectorSafety'
+import {
   KeeperClearSafetySystem,
   type KeeperClearSafetyResult,
 } from './KeeperClearSafetySystem'
@@ -387,6 +391,27 @@ export class StickInteractionSystem {
 
   getLastInteraction(): StickInteractionResult {
     return this.lastInteraction
+  }
+
+  cancelPlayerAction(playerId: string): void {
+    if (
+      playerId === this.carrierId ||
+      playerId === this.pendingRelease?.playerId
+    ) {
+      return
+    }
+
+    const runtime = this.actionRuntimes.get(playerId)
+    if (runtime) {
+      runtime.state = 'IDLE'
+      runtime.elapsedMs = 0
+    }
+    this.previousHold.set(playerId, false)
+    this.previousSwing.set(playerId, false)
+    this.catchReadyHoldMs.set(playerId, 0)
+    this.catchReadyExitMs.set(playerId, 0)
+    this.failedGatherGrace.delete(playerId)
+    this.catchAutoOrientActive.set(playerId, false)
   }
 
   consumeInteractionEvent(): StickInteractionEvent | null {
@@ -2652,24 +2677,11 @@ function radialPoint(center: Point, angle: number, radius: number): Point {
 }
 
 function normalized(vector: Point): Point {
-  const length = Math.hypot(vector.x, vector.y)
-
-  return length === 0
-    ? { x: 0, y: 0 }
-    : { x: vector.x / length, y: vector.y / length }
+  return normalizeSafe(vector, { x: 0, y: 0 })
 }
 
 function clampVector(vector: Point, maximumLength: number): Point {
-  const length = Math.hypot(vector.x, vector.y)
-
-  if (length <= maximumLength || length === 0) {
-    return vector
-  }
-
-  return {
-    x: (vector.x / length) * maximumLength,
-    y: (vector.y / length) * maximumLength,
-  }
+  return clampVectorMagnitude(vector, maximumLength)
 }
 
 function rotate(vector: Point, angle: number): Point {

@@ -4,6 +4,7 @@ import { goalConfigs } from '../config/goalConfig'
 import type { Point } from '../data/geometry'
 import type { TeamSide } from '../data/matchTypes'
 import { getKeeperHomeDirection } from '../rules/KeeperGeometry'
+import { normalizeSafe } from '../utils/vectorSafety'
 
 export type ClearSafetyReason =
   | 'safe'
@@ -200,11 +201,7 @@ function getOwnGoal(side: TeamSide) {
 }
 
 function normalized(vector: Point, fallback: Point): Point {
-  const length = Math.hypot(vector.x, vector.y)
-
-  return length === 0
-    ? { ...fallback }
-    : { x: vector.x / length, y: vector.y / length }
+  return normalizeSafe(vector, fallback)
 }
 
 function dot(a: Point, b: Point): number {

@@ -5,6 +5,7 @@ import type { Point } from '../data/geometry'
 import type { TeamSide } from '../data/matchTypes'
 import type { Player } from '../entities/Player'
 import { getKeeperHomeDirection } from './KeeperGeometry'
+import { normalizeSafe } from '../utils/vectorSafety'
 
 export type PlayerZoneAccessState =
   | 'legal'
@@ -148,10 +149,7 @@ function subtract(a: Point, b: Point): Point {
 }
 
 function normalized(vector: Point, fallback: Point): Point {
-  const length = magnitude(vector)
-  return length === 0
-    ? { ...fallback }
-    : { x: vector.x / length, y: vector.y / length }
+  return normalizeSafe(vector, fallback)
 }
 
 function magnitude(vector: Point): number {

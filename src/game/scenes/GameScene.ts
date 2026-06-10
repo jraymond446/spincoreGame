@@ -43,8 +43,13 @@ import { MatchStatsTracker } from '../systems/MatchStatsTracker'
 import { PlayerInputController } from '../systems/PlayerInputController'
 import type { PlayerInputState } from '../systems/PlayerInputController'
 import { PlayerControlSystem } from '../systems/PlayerControlSystem'
+import {
+  getPlayerActionLock,
+  type PlayerActionLock,
+} from '../systems/PlayerActionStateSystem'
 import { KeeperControlAssistSystem } from '../systems/KeeperControlAssistSystem'
 import { KeeperSaveSystem } from '../systems/KeeperSaveSystem'
+import { SpinGuardSystem } from '../systems/SpinGuardSystem'
 import {
   StickInteractionSystem,
   type StickIntent,
@@ -53,6 +58,10 @@ import { TeamSystem } from '../systems/TeamSystem'
 import { TacticalGuideRenderer } from '../systems/TacticalGuideRenderer'
 import { WallBounceSystem } from '../systems/WallBounceSystem'
 import { WallCarryPressureSystem } from '../systems/WallCarryPressureSystem'
+import {
+  normalizeSafe,
+  sanitizeVector,
+} from '../utils/vectorSafety'
 
 export class GameScene extends Phaser.Scene {
   private core!: Core
@@ -75,6 +84,7 @@ export class GameScene extends Phaser.Scene {
   private fumbleSystem!: FumbleSystem
   private wallBounceSystem!: WallBounceSystem
   private wallCarryPressureSystem!: WallCarryPressureSystem
+  private spinGuardSystem!: SpinGuardSystem
   private matchFlowSystem!: MatchFlowSystem
   private matchStatsTracker!: MatchStatsTracker
   private debugHudSystem!: DebugHudSystem
@@ -138,6 +148,7 @@ export class GameScene extends Phaser.Scene {
     this.defenseSystem = new DefenseSystem(this)
     this.fumbleSystem = new FumbleSystem()
     this.wallCarryPressureSystem = new WallCarryPressureSystem(this)
+    this.spinGuardSystem = new SpinGuardSystem()
     this.coreRecoverySystem = new CoreRecoverySystem()
     this.creaseBattleSystem = new CreaseBattleSystem(this)
     this.matchFlowSystem = new MatchFlowSystem(
@@ -196,6 +207,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     const players = this.teamSystem.players
+    this.spinGuardSystem.prepareFrame(delta)
     const controlledPlayer = this.playerControlSystem.update(
       this.teamSystem.getPlayersForSide('A'),
       this.stickInteractionSystem.getCarrierId(),
@@ -352,6 +364,7 @@ export class GameScene extends Phaser.Scene {
     )
     this.arenaSystem.containPlayers(players)
     this.keeperAreaSystem.update(players, delta)
+    this.applySpinGuard(players, delta)
 
     this.wallBounceSystem.update(
       this.stickInteractionSystem.getCarrierId() !== null,
@@ -397,6 +410,8 @@ export class GameScene extends Phaser.Scene {
   ): void {
     const isCarrier =
       this.stickInteractionSystem.getCarrierId() === player.id
+    const actionLock = this.getActionLock(player)
+    const recovering = this.spinGuardSystem.isRecovering(player.id)
     const keeperPossessionLatch =
       this.playerControlSystem.shouldLatchKeeperPossession()
     this.playerControlSystem.acknowledgeKeeperPossessionInput(
@@ -416,10 +431,23 @@ export class GameScene extends Phaser.Scene {
           )
         : input.movement
 
-    player.update(movement, input.aimAngle)
+    player.update(
+      recovering ? new Phaser.Math.Vector2() : movement,
+      input.aimAngle,
+    )
+    const stickActionAllowed =
+      !recovering &&
+      (actionLock === 'none' ||
+        actionLock === 'gather' ||
+        actionLock === 'carrier')
+    const defenseActionAllowed =
+      !recovering && actionLock === 'none'
     stickIntents.set(player.id, {
-      hold: primaryStickAction,
+      hold: isCarrier
+        ? primaryStickAction
+        : stickActionAllowed && primaryStickAction,
       swing:
+        defenseActionAllowed &&
         usesKeeperShield &&
         (input.primaryStickActionStarted ||
           input.explicitSlashAction),
@@ -427,8 +455,12 @@ export class GameScene extends Phaser.Scene {
       chargeIntensity: input.primaryIntensity,
     })
     defenseIntents.set(player.id, {
-      truck: !isCarrier && input.truckAction,
+      truck:
+        defenseActionAllowed &&
+        !isCarrier &&
+        input.truckAction,
       slash:
+        defenseActionAllowed &&
         !isCarrier &&
         !usesKeeperShield &&
         (input.primaryStickActionStarted ||
@@ -468,6 +500,7 @@ export class GameScene extends Phaser.Scene {
       }
 
       const intent = intents.get(player.id)
+      const recovering = this.spinGuardSystem.isRecovering(player.id)
 
       if (!intent) {
         player.update(new Phaser.Math.Vector2(), player.getAimAngle())
@@ -486,16 +519,63 @@ export class GameScene extends Phaser.Scene {
             intent.moveVector.x,
             intent.moveVector.y,
           )
-        : movementToward(player.position, intent.moveTarget)
-      const move = baseMove.scale(intent.moveSpeedMultiplier ?? 1)
+        : movementToward(
+            player.position,
+            intent.moveTarget,
+            player.id,
+          )
+      const speedMultiplier = Number.isFinite(
+        intent.moveSpeedMultiplier,
+      )
+        ? Phaser.Math.Clamp(intent.moveSpeedMultiplier ?? 1, 0, 2)
+        : 1
+      const move = recovering
+        ? new Phaser.Math.Vector2()
+        : baseMove.scale(speedMultiplier)
       const isCarrier = player.id === carrierId
+      const actionLock = this.getActionLock(player)
+      const stickActionAllowed =
+        !recovering &&
+        (actionLock === 'none' ||
+          actionLock === 'gather' ||
+          actionLock === 'carrier')
+      const defenseActionAllowed =
+        !recovering && actionLock === 'none'
+      const fallbackAim = {
+        x:
+          player.position.x +
+          Math.cos(player.getReleaseAimAngle()) * 100,
+        y:
+          player.position.y +
+          Math.sin(player.getReleaseAimAngle()) * 100,
+      }
+      const safeAimTarget = sanitizeVector(
+        intent.aimTarget,
+        fallbackAim,
+        {
+          label: '[Invalid Aim Vector]',
+          playerId: player.id,
+          system: 'GameScene.updateAIPlayers',
+        },
+      )
+      const safeReleaseTarget = intent.releaseTarget
+        ? sanitizeVector(
+            intent.releaseTarget,
+            safeAimTarget,
+            {
+              label: '[Invalid Aim Vector]',
+              playerId: player.id,
+              system: 'GameScene.releaseTarget',
+            },
+          )
+        : undefined
       const aimAngle =
         intent.aimAngle ??
         Phaser.Math.Angle.Between(
           player.position.x,
           player.position.y,
-          intent.aimTarget.x,
-          intent.aimTarget.y,
+          safeAimTarget.x,
+          safeAimTarget.y,
         )
 
       player.update(move, aimAngle, isCarrier ? aimAngle : undefined)
@@ -504,22 +584,29 @@ export class GameScene extends Phaser.Scene {
         keeperShieldConfig.keeperUsesShieldDefault &&
         keeperShieldConfig.keeperEquipmentType === 'shield'
       stickIntents.set(player.id, {
-        hold: isCarrier ? true : intent.hold,
+        hold: isCarrier
+          ? true
+          : stickActionAllowed && intent.hold,
         swing:
+          defenseActionAllowed &&
           !isCarrier && usesKeeperShield ? intent.swing : false,
         suppressEmptyReleaseSwing: true,
-        releaseTarget: intent.releaseTarget,
+        releaseTarget: safeReleaseTarget,
         aiReleaseDelayMs: intent.aiReleaseDelayMs,
       })
       defenseIntents.set(player.id, {
-        truck: isCarrier ? false : intent.truck ?? false,
+        truck:
+          defenseActionAllowed &&
+          !isCarrier &&
+          (intent.truck ?? false),
         slash:
+          defenseActionAllowed &&
           !isCarrier &&
           !usesKeeperShield &&
           ((intent.slash ?? false) || (intent.swing ?? false)),
         aimDirection: normalizedDirection(
           player.position,
-          intent.aimTarget,
+          safeAimTarget,
           player.getReleaseAimForward(),
         ),
       })
@@ -593,6 +680,7 @@ export class GameScene extends Phaser.Scene {
     this.keeperControlAssistSystem.reset()
     this.keeperSaveSystem.reset()
     this.aiSystem.reset()
+    this.spinGuardSystem.reset()
     this.tacticalGuideRenderer.clear()
     this.stickInteractionSystem.clearForReset(this.core)
     this.defenseSystem.clear()
@@ -658,6 +746,7 @@ export class GameScene extends Phaser.Scene {
     this.keeperControlAssistSystem.reset()
     this.keeperSaveSystem.reset()
     this.aiSystem.reset()
+    this.spinGuardSystem.reset()
     this.tacticalGuideRenderer.clear()
     this.stickInteractionSystem.clearForReset(this.core)
     this.defenseSystem.clear()
@@ -704,6 +793,7 @@ export class GameScene extends Phaser.Scene {
     this.wallCarryPressureSystem.reset()
     this.coreRecoverySystem.reset()
     this.creaseBattleSystem.reset()
+    this.spinGuardSystem.reset()
     this.freezeEntities(this.teamSystem.players)
   }
 
@@ -719,12 +809,59 @@ export class GameScene extends Phaser.Scene {
 
   private freezeEntities(players: Player[]): void {
     for (const player of players) {
-      this.matter.body.setVelocity(player.body, { x: 0, y: 0 })
-      this.matter.body.setAngularVelocity(player.body, 0)
-      player.updateVisuals()
+      player.stopMovement()
     }
 
     this.core.setVelocity({ x: 0, y: 0 })
+  }
+
+  private getActionLock(player: Player): PlayerActionLock {
+    return getPlayerActionLock(
+      player.id,
+      this.stickInteractionSystem.getCarrierId(),
+      this.stickInteractionSystem.getState(),
+      this.stickInteractionSystem.getStickState(player.id),
+      this.defenseSystem.getState(player.id),
+    )
+  }
+
+  private applySpinGuard(players: Player[], deltaMs: number): void {
+    const carrierId = this.stickInteractionSystem.getCarrierId()
+    const triggers = this.spinGuardSystem.update(
+      players,
+      deltaMs,
+      (player) => {
+        const decision = this.aiSystem.getDecisionDebug(player.id)
+        return {
+          hasCore: player.id === carrierId,
+          currentAction: this.getActionLock(player),
+          tacticalJob:
+            this.aiSystem.getTacticalAssignment(player.id)?.job ?? null,
+          carrierIntent:
+            decision?.carrierIntent?.intentType ?? null,
+        }
+      },
+    )
+
+    for (const trigger of triggers) {
+      this.defenseSystem.cancelAction(trigger.playerId)
+      this.stickInteractionSystem.cancelPlayerAction(
+        trigger.playerId,
+      )
+
+      if (trigger.hasCore) {
+        const player = players.find(
+          (candidate) => candidate.id === trigger.playerId,
+        )
+        if (player?.controllerType === 'ai') {
+          this.aiSystem.forceCarrierRelease(
+            trigger.playerId,
+            `spinGuard:${trigger.reason}`,
+          )
+        }
+        continue
+      }
+    }
   }
 
   private updateDebugHud(controlledPlayer: Player): void {
@@ -936,14 +1073,31 @@ export class GameScene extends Phaser.Scene {
 
 }
 
-function movementToward(position: Point, target: Point): Phaser.Math.Vector2 {
-  const vector = new Phaser.Math.Vector2(target.x - position.x, target.y - position.y)
+function movementToward(
+  position: Point,
+  target: Point,
+  playerId: string,
+): Phaser.Math.Vector2 {
+  const safeTarget = sanitizeVector(
+    target,
+    position,
+    {
+      label: '[Invalid Tactical Target]',
+      playerId,
+      system: 'GameScene.movementToward',
+    },
+  )
+  const vector = new Phaser.Math.Vector2(
+    safeTarget.x - position.x,
+    safeTarget.y - position.y,
+  )
 
   if (vector.lengthSq() < 24 * 24) {
     return vector.set(0, 0)
   }
 
-  return vector.normalize()
+  const direction = normalizeSafe(vector, { x: 0, y: 0 })
+  return vector.set(direction.x, direction.y)
 }
 
 function normalizedDirection(
@@ -951,13 +1105,13 @@ function normalizedDirection(
   to: Point,
   fallback: Point,
 ): Point {
-  const x = to.x - from.x
-  const y = to.y - from.y
-  const length = Math.hypot(x, y)
-
-  return length === 0
-    ? { ...fallback }
-    : { x: x / length, y: y / length }
+  return normalizeSafe(
+    {
+      x: to.x - from.x,
+      y: to.y - from.y,
+    },
+    fallback,
+  )
 }
 
 function getCssPixelValue(propertyName: string): number {

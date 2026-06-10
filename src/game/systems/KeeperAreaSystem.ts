@@ -15,6 +15,7 @@ import {
   getOuterPlayerBoundaryRadius,
   type PlayerZoneAccessState,
 } from '../rules/KeeperZoneAccess'
+import { normalizeSafe } from '../utils/vectorSafety'
 
 export type KeeperLegalState =
   | 'legal'
@@ -444,16 +445,7 @@ function subtract(a: Point, b: Point): Point {
 }
 
 function normalized(vector: Point, fallback: Point): Point {
-  const length = magnitude(vector)
-
-  if (length === 0) {
-    return fallback
-  }
-
-  return {
-    x: vector.x / length,
-    y: vector.y / length,
-  }
+  return normalizeSafe(vector, fallback)
 }
 
 function magnitude(vector: Point): number {

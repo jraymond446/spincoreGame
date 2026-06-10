@@ -237,6 +237,11 @@ export class AISystem {
     return state ? { ...state } : null
   }
 
+  forceCarrierRelease(playerId: string, reason: string): void {
+    this.carrierIntent.forceRelease(playerId, reason)
+    this.decisionTimerMs = 0
+  }
+
   getOffenseMetrics(): AIOffenseMetrics {
     return {
       A: { ...this.offenseMetrics.A },

@@ -23,6 +23,11 @@ import type {
   DefenseScheme,
   TeamStrategy,
 } from '../tactics/TeamStrategy'
+import {
+  clampVectorMagnitude,
+  normalizeSafe,
+  sanitizeVector,
+} from '../utils/vectorSafety'
 
 type PresserState = {
   playerId: string | null
@@ -1020,7 +1025,16 @@ export class TeamShapeSystem {
     teammates: Player[],
     job: TacticalJob,
   ): Point {
-    let adjusted = { ...target }
+    const safeTarget = sanitizeVector(
+      target,
+      player.position,
+      {
+        label: '[Invalid Tactical Target]',
+        playerId: player.id,
+        system: `TeamShapeSystem.${job}`,
+      },
+    )
+    let adjusted = { ...safeTarget }
 
     for (const teammate of teammates) {
       if (teammate.id === player.id) {
@@ -1045,6 +1059,16 @@ export class TeamShapeSystem {
         x: adjusted.x + away.x * strength,
         y: adjusted.y + away.y * strength,
       }
+    }
+
+    const avoidanceOffset = clampVectorMagnitude(
+      subtract(adjusted, safeTarget),
+      spacingConfig.avoidClusterRadius *
+        spacingConfig.avoidanceMaxInfluence,
+    )
+    adjusted = {
+      x: safeTarget.x + avoidanceOffset.x,
+      y: safeTarget.y + avoidanceOffset.y,
     }
 
     const allowOwnOuterZone =
@@ -1320,11 +1344,7 @@ function subtract(a: Point, b: Point): Point {
 }
 
 function normalized(vector: Point, fallback: Point): Point {
-  const length = Math.hypot(vector.x, vector.y)
-
-  return length === 0
-    ? { ...fallback }
-    : { x: vector.x / length, y: vector.y / length }
+  return normalizeSafe(vector, fallback)
 }
 
 function distance(a: Point, b: Point): number {

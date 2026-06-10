@@ -6,6 +6,7 @@ export const spacingConfig = {
   supportPreferredSpacing: 210,
   avoidClusterRadius: 130,
   teammateRepulsionStrength: 0.45,
+  avoidanceMaxInfluence: 0.45,
   openLaneWeight: 0.65,
   behindGoalLaneWeight: 0.55,
   defensiveCoverWeight: 0.5,

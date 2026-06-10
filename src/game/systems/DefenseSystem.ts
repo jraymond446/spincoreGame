@@ -18,6 +18,10 @@ import {
   sanitizeClearDirection,
   type ClearSafetyResult,
 } from './ClearSafetySystem'
+import {
+  normalizeSafe,
+  sanitizeVector,
+} from '../utils/vectorSafety'
 
 export type DefenseIntent = {
   truck: boolean
@@ -105,9 +109,16 @@ export class DefenseSystem {
       this.updateCooldowns(runtime, deltaMs)
       this.advanceState(runtime, player, deltaMs)
 
+      if (player.id === stickSystem.getCarrierId()) {
+        if (runtime.state !== 'IDLE') {
+          this.cancelAction(player.id)
+        }
+        player.setDefenseVisualState('IDLE')
+        continue
+      }
+
       if (
-        runtime.state === 'IDLE' &&
-        player.id !== stickSystem.getCarrierId()
+        runtime.state === 'IDLE'
       ) {
         if (
           defenseConfig.truckEnabled &&
@@ -150,12 +161,21 @@ export class DefenseSystem {
         runtime.state === 'TRUCK_RECOVERY' &&
         !runtime.connected
       ) {
+        const safeVelocity = sanitizeVector(
+          player.velocity,
+          { x: 0, y: 0 },
+          {
+            label: '[Invalid Movement Vector]',
+            playerId: player.id,
+            system: 'DefenseSystem.truckRecovery',
+          },
+        )
         this.scene.matter.body.setVelocity(player.body, {
           x:
-            player.velocity.x *
+            safeVelocity.x *
             recoveryMovementMultiplier(player),
           y:
-            player.velocity.y *
+            safeVelocity.y *
             recoveryMovementMultiplier(player),
         })
       }
@@ -209,6 +229,16 @@ export class DefenseSystem {
 
   getActionLabel(playerId: string): string {
     return this.getState(playerId).replaceAll('_', ' ')
+  }
+
+  cancelAction(playerId: string): void {
+    const runtime = this.runtimes.get(playerId)
+    if (runtime) {
+      runtime.state = 'IDLE'
+      runtime.elapsedMs = 0
+      runtime.connected = false
+    }
+    this.shoves.delete(playerId)
   }
 
   getTargetDebug(): DefenseTargetDebug | null {
@@ -304,7 +334,18 @@ export class DefenseSystem {
                 clearAssistBonus,
             },
           ).direction
-        : normalized(direction)
+        : normalizeSafe(
+            sanitizeVector(
+              direction,
+              player.getReleaseAimForward(),
+              {
+                label: '[Invalid Aim Vector]',
+                playerId: player.id,
+                system: 'DefenseSystem.startSlash',
+              },
+            ),
+            player.getReleaseAimForward(),
+          )
     runtime.slashCooldownMs = defenseConfig.slashCooldownMs
   }
 
@@ -590,9 +631,18 @@ export class DefenseSystem {
       }
 
       const strength = Phaser.Math.Clamp(shove.remainingMs / 250, 0, 1)
+      const safeVelocity = sanitizeVector(
+        player.velocity,
+        { x: 0, y: 0 },
+        {
+          label: '[Invalid Movement Vector]',
+          playerId,
+          system: 'DefenseSystem.applyShoves',
+        },
+      )
       this.scene.matter.body.setVelocity(player.body, {
-        x: player.velocity.x + shove.velocity.x * strength,
-        y: player.velocity.y + shove.velocity.y * strength,
+        x: safeVelocity.x + shove.velocity.x * strength,
+        y: safeVelocity.y + shove.velocity.y * strength,
       })
       shove.remainingMs -= deltaMs
 
@@ -896,22 +946,17 @@ function pointInSector(
 function actionDirection(player: Player, preferMovement: boolean): Point {
   const speed = Math.hypot(player.velocity.x, player.velocity.y)
 
-  if (preferMovement && speed > 1.2) {
-    return {
-      x: player.velocity.x / speed,
-      y: player.velocity.y / speed,
-    }
+  if (preferMovement && Number.isFinite(speed) && speed > 1.2) {
+    return normalizeSafe(
+      player.velocity,
+      player.getReleaseAimForward(),
+    )
   }
 
-  return player.getReleaseAimForward()
-}
-
-function normalized(vector: Point): Point {
-  const length = Math.hypot(vector.x, vector.y)
-
-  return length === 0
-    ? { x: 1, y: 0 }
-    : { x: vector.x / length, y: vector.y / length }
+  return normalizeSafe(
+    player.getReleaseAimForward(),
+    { x: 1, y: 0 },
+  )
 }
 
 function distance(a: Point, b: Point): number {

@@ -25,6 +25,12 @@ import {
   getHandednessFrame,
   type HandednessSign,
 } from '../rules/Handedness'
+import {
+  clampVectorMagnitude,
+  isValidVector,
+  sanitizeAngleWithWarning,
+  sanitizeVector,
+} from '../utils/vectorSafety'
 
 export type StickCurve = {
   root: Point
@@ -137,12 +143,42 @@ export class Player {
     aimAngle: number,
     facingAngle?: number,
   ): void {
-    this.releaseAimAngle = aimAngle
+    const safeMove = clampVectorMagnitude(
+      sanitizeVector(
+        moveVector,
+        { x: 0, y: 0 },
+        {
+          label: '[Invalid Movement Vector]',
+          playerId: this.id,
+          system: 'Player.update',
+        },
+      ),
+      2,
+    )
+    const safeAimAngle = sanitizeAngleWithWarning(
+      aimAngle,
+      this.releaseAimAngle,
+      {
+        label: '[Invalid Aim Vector]',
+        playerId: this.id,
+        system: 'Player.update',
+      },
+    )
+    this.releaseAimAngle = Phaser.Math.Angle.Wrap(safeAimAngle)
     const desiredFacingAngle =
-      facingAngle ??
-      (moveVector.lengthSq() > 0.02
-        ? Math.atan2(moveVector.y, moveVector.x)
-        : null)
+      facingAngle !== undefined
+        ? sanitizeAngleWithWarning(
+            facingAngle,
+            this.bodyFacingAngle,
+            {
+              label: '[Invalid Facing Angle]',
+              playerId: this.id,
+              system: 'Player.update',
+            },
+          )
+        : safeMove.x * safeMove.x + safeMove.y * safeMove.y > 0.02
+          ? Math.atan2(safeMove.y, safeMove.x)
+          : null
     if (desiredFacingAngle !== null) {
       const turn = Phaser.Math.Clamp(
         Phaser.Math.Angle.Wrap(
@@ -159,9 +195,10 @@ export class Player {
     const maxSpeed = playerRuntimeConfig.baseMaxSpeed * this.attributes.speed
 
     this.scene.matter.body.setVelocity(this.body, {
-      x: moveVector.x * maxSpeed,
-      y: moveVector.y * maxSpeed,
+      x: safeMove.x * maxSpeed,
+      y: safeMove.y * maxSpeed,
     })
+    this.lockPhysicsRotation()
     this.syncVisuals()
   }
 
@@ -250,7 +287,57 @@ export class Player {
   }
 
   setStickVisualRotation(rotation: number): void {
-    this.stickVisualRotation = Phaser.Math.Angle.Wrap(rotation)
+    this.stickVisualRotation = Phaser.Math.Angle.Wrap(
+      sanitizeAngleWithWarning(
+        rotation,
+        this.stickVisualRotation,
+        {
+          label: '[Invalid Facing Angle]',
+          playerId: this.id,
+          system: 'Player.setStickVisualRotation',
+        },
+      ),
+    )
+    this.syncVisuals()
+  }
+
+  lockPhysicsRotation(): void {
+    if (
+      !Number.isFinite(this.body.angularVelocity) ||
+      this.body.angularVelocity !== 0
+    ) {
+      this.scene.matter.body.setAngularVelocity(this.body, 0)
+    }
+    this.scene.matter.body.setInertia(this.body, Infinity)
+  }
+
+  stopMovement(): void {
+    this.scene.matter.body.setVelocity(this.body, { x: 0, y: 0 })
+    this.lockPhysicsRotation()
+    this.syncVisuals()
+  }
+
+  recoverPhysicsState(): void {
+    if (!isValidVector(this.position)) {
+      this.scene.matter.body.setPosition(this.body, this.spawn)
+    }
+    if (!isValidVector(this.velocity)) {
+      this.scene.matter.body.setVelocity(this.body, { x: 0, y: 0 })
+    }
+    this.lockPhysicsRotation()
+    this.syncVisuals()
+  }
+
+  restoreFacing(aimAngle: number, facingAngle: number): void {
+    this.releaseAimAngle = Phaser.Math.Angle.Wrap(
+      Number.isFinite(aimAngle) ? aimAngle : 0,
+    )
+    this.bodyFacingAngle = Phaser.Math.Angle.Wrap(
+      Number.isFinite(facingAngle)
+        ? facingAngle
+        : this.releaseAimAngle,
+    )
+    this.stickVisualRotation = this.releaseAimAngle
     this.syncVisuals()
   }
 

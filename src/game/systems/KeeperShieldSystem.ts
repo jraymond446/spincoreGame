@@ -11,6 +11,7 @@ import type { TeamSide } from '../data/matchTypes'
 import type { Core } from '../entities/Core'
 import type { Player } from '../entities/Player'
 import { getKeeperHomeDirection } from '../rules/KeeperGeometry'
+import { normalizeSafe } from '../utils/vectorSafety'
 import { KeeperClearSafetySystem } from './KeeperClearSafetySystem'
 
 export type KeeperShieldDebugState = {
@@ -222,11 +223,7 @@ function dot(a: Point, b: Point): number {
 }
 
 function normalized(vector: Point): Point {
-  const length = Math.hypot(vector.x, vector.y)
-
-  return length === 0
-    ? { x: 0, y: 0 }
-    : { x: vector.x / length, y: vector.y / length }
+  return normalizeSafe(vector, { x: 0, y: 0 })
 }
 
 function getClearAssistBonus(player: Player): number {

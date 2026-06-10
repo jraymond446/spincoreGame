@@ -28,6 +28,7 @@ import {
   getKeeperLegalRadii,
   getKeeperStyleRadius,
 } from '../rules/KeeperGeometry'
+import { normalizeSafe } from '../utils/vectorSafety'
 import { KeeperClearSafetySystem } from './KeeperClearSafetySystem'
 
 export type KeeperAIDebugState = {
@@ -468,11 +469,7 @@ function subtract(a: Point, b: Point): Point {
 }
 
 function normalized(vector: Point, fallback: Point): Point {
-  const length = Math.hypot(vector.x, vector.y)
-
-  return length === 0
-    ? fallback
-    : { x: vector.x / length, y: vector.y / length }
+  return normalizeSafe(vector, fallback)
 }
 
 function distance(a: Point, b: Point): number {
