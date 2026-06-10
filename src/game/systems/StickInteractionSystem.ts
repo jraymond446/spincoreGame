@@ -1,4 +1,8 @@
 import Phaser from 'phaser'
+import {
+  getAiClearSafetyBonus,
+  getConfiguredAiAssistContext,
+} from '../ai/AIAssist'
 import { aiConfig } from '../config/aiConfig'
 import { clearSafetyConfig } from '../config/clearSafetyConfig'
 import { keeperShieldConfig } from '../config/keeperShieldConfig'
@@ -1443,6 +1447,11 @@ export class StickInteractionSystem {
     const forceShape =
       stickConfig.releaseForwardForceMultiplier +
       stickConfig.releaseTangentialForceMultiplier * 0.25
+    const powerMultiplier = Phaser.Math.Linear(
+      0.9,
+      1.14,
+      Phaser.Math.Clamp(carrier.attributes.power, 0, 1.2),
+    )
     const instabilityForce =
       instabilityWave *
       stickConfig.overchargeInstability *
@@ -1452,11 +1461,12 @@ export class StickInteractionSystem {
       baseForce
     const maximumForce =
       stickConfig.releaseForceMax *
+      powerMultiplier *
       (possessionFeelConfig.hardChargeEnabled && hardCharge
         ? possessionFeelConfig.hardChargeMultiplier
         : 1)
     const finalForce = Phaser.Math.Clamp(
-      baseForce * forceShape +
+      baseForce * forceShape * powerMultiplier +
         playerForwardSpeed *
           stickConfig.playerVelocityReleaseInfluence +
         instabilityForce,
@@ -1496,6 +1506,7 @@ export class StickInteractionSystem {
         isNearOwnGoal(core.position, player.teamSide))
 
     if (defensiveSafetyActive) {
+      const clearAssistBonus = getClearAssistBonus(player)
       direction = this.keeperClearSafety.sanitize(
         direction,
         player.teamSide,
@@ -1503,11 +1514,12 @@ export class StickInteractionSystem {
         {
           awayBias:
             player.role === 'keeper'
-              ? clearSafetyConfig.keeperShieldAwayBias
+              ? clearSafetyConfig.keeperShieldAwayBias +
+                clearAssistBonus
               : Math.max(
                   clearSafetyConfig.defenderStickAwayBias,
                   clearSafetyConfig.defensiveDeflectionAwayBias,
-                ),
+                ) + clearAssistBonus,
           reason: 'nearGoalDeflection',
         },
       ).direction
@@ -1525,6 +1537,7 @@ export class StickInteractionSystem {
     }
 
     if (defensiveSafetyActive) {
+      const clearAssistBonus = getClearAssistBonus(player)
       const speed = magnitude(nextVelocity)
       const safe = this.keeperClearSafety.sanitize(
         nextVelocity,
@@ -1533,11 +1546,12 @@ export class StickInteractionSystem {
         {
           awayBias:
             player.role === 'keeper'
-              ? clearSafetyConfig.keeperShieldAwayBias
+              ? clearSafetyConfig.keeperShieldAwayBias +
+                clearAssistBonus
               : Math.max(
                   clearSafetyConfig.defenderStickAwayBias,
                   clearSafetyConfig.defensiveDeflectionAwayBias,
-                ),
+                ) + clearAssistBonus,
           reason: 'nearGoalDeflection',
         },
       )
@@ -2261,6 +2275,13 @@ function smoothStep(value: number): number {
 
 function magnitude(vector: Point): number {
   return Math.hypot(vector.x, vector.y)
+}
+
+function getClearAssistBonus(player: Player): number {
+  return getAiClearSafetyBonus(
+    player,
+    getConfiguredAiAssistContext(player, 1),
+  )
 }
 
 function distance(a: Point, b: Point): number {

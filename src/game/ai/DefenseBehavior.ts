@@ -17,6 +17,16 @@ export function decideDefenseActions(
     1.12,
     player.attributes.reaction,
   )
+  const defensiveRead = Phaser.Math.Clamp(
+    Phaser.Math.Linear(0.88, 1.12, player.attributes.defense) *
+      Phaser.Math.Linear(
+        0.9,
+        1.1,
+        context.tacticalQuality.defenseSchemeQuality,
+      ),
+    0.75,
+    1.3,
+  )
 
   if (opponentCarrier) {
     const carrierDistance = distance(
@@ -27,6 +37,7 @@ export function decideDefenseActions(
       carrierDistance <=
       defenseConfig.truckRange *
         reactionRange *
+        defensiveRead *
         Phaser.Math.Linear(
           0.82,
           1.15,
@@ -36,6 +47,7 @@ export function decideDefenseActions(
       carrierDistance <=
       defenseConfig.slashRange *
         reactionRange *
+        defensiveRead *
         Phaser.Math.Linear(
           0.84,
           1.12,
@@ -69,6 +81,9 @@ export function decideDefenseActions(
     context.carrier === null &&
     context.distanceToCore <=
       defenseConfig.slashRange * reactionRange &&
+    player.attributes.defense *
+      context.tacticalQuality.defenseSchemeQuality >=
+      0.34 &&
     tendencies.slashAggression >= 0.72 &&
     player.attributes.control < 0.72
   const strikerPositioningTruck =

@@ -10,6 +10,7 @@ import type {
   ResolvedPlayerRosterEntry,
   Team,
   TeamSide,
+  TeamTacticalQuality,
 } from '../data/matchTypes'
 import type { TeamStrategy } from '../tactics/TeamStrategy'
 import { Player } from '../entities/Player'
@@ -126,6 +127,13 @@ export class TeamSystem {
     return {
       A: structuredClone(this.getTeam('A').strategy),
       B: structuredClone(this.getTeam('B').strategy),
+    }
+  }
+
+  getTacticalQualities(): Record<TeamSide, TeamTacticalQuality> {
+    return {
+      A: { ...this.getTeam('A').tacticalQuality },
+      B: { ...this.getTeam('B').tacticalQuality },
     }
   }
 }

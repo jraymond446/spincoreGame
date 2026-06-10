@@ -1,4 +1,8 @@
-import type { FormationAIBias } from '../data/matchTypes'
+import { aiOffenseConfig } from '../config/aiOffenseConfig'
+import type {
+  FormationAIBias,
+  TeamTacticalQuality,
+} from '../data/matchTypes'
 import type { Core } from '../entities/Core'
 import type { Player } from '../entities/Player'
 import type { Point } from '../data/geometry'
@@ -20,6 +24,9 @@ export type AIDecisionContext = {
   opponentCarrier: Player | null
   formationBias: FormationAIBias
   style: PlayStyleModifiers
+  tacticalQuality: TeamTacticalQuality
+  scoringAggression: number
+  pressure: number
 }
 
 export function createAIDecisionContext(
@@ -30,6 +37,7 @@ export function createAIDecisionContext(
   ownGoal: Point,
   attackGoal: Point,
   formationBias: FormationAIBias,
+  tacticalQuality: TeamTacticalQuality,
 ): AIDecisionContext {
   return {
     player,
@@ -46,9 +54,31 @@ export function createAIDecisionContext(
       carrier && carrier.teamSide !== player.teamSide ? carrier : null,
     formationBias,
     style: getPlayStyleModifiers(player.role, player.playStyle),
+    tacticalQuality,
+    scoringAggression:
+      player.teamSide === 'B'
+        ? aiOffenseConfig.opponentAiScoringAggression
+        : 0.55,
+    pressure: getOpponentPressure(player, players),
   }
 }
 
 function distance(a: Point, b: Point): number {
   return Math.hypot(a.x - b.x, a.y - b.y)
+}
+
+function getOpponentPressure(player: Player, players: Player[]): number {
+  const opponents = players.filter(
+    (candidate) => candidate.teamSide !== player.teamSide,
+  )
+  const nearest =
+    opponents.length === 0
+      ? Infinity
+      : Math.min(
+          ...opponents.map((opponent) =>
+            distance(opponent.position, player.position),
+          ),
+        )
+
+  return 1 - Math.min(1, Math.max(0, nearest / 220))
 }

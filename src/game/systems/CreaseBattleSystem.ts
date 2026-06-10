@@ -1,4 +1,8 @@
 import Phaser from 'phaser'
+import {
+  getAiClearSafetyBonus,
+  getConfiguredAiAssistContext,
+} from '../ai/AIAssist'
 import { creaseBattleConfig } from '../config/creaseBattleConfig'
 import { keeperAreaConfig } from '../config/keeperAreaConfig'
 import type { Point } from '../data/geometry'
@@ -120,11 +124,41 @@ export class CreaseBattleSystem {
       ? this.timerMs + deltaMs
       : Math.max(0, this.timerMs - deltaMs * 1.6)
 
+    const battlePlayer = players
+      .filter(
+        (player) =>
+          player.teamSide === activeSide &&
+          player.role !== 'keeper',
+      )
+      .sort(
+        (a, b) =>
+          b.attributes.toughness +
+          b.attributes.defense -
+          (a.attributes.toughness + a.attributes.defense),
+      )[0]
+    const scrumSkill = battlePlayer
+      ? Phaser.Math.Clamp(
+          battlePlayer.attributes.toughness * 0.58 +
+            battlePlayer.attributes.defense * 0.3 +
+            battlePlayer.attributes.power * 0.12,
+          0,
+          1.2,
+        )
+      : 0.5
+    const effectiveBattleTime =
+      creaseBattleConfig.creaseBattleTimeMs *
+      Phaser.Math.Linear(1.12, 0.78, Math.min(1, scrumSkill))
+    const effectiveContactThreshold = Math.max(
+      2,
+      Math.round(
+        creaseBattleConfig.creaseBattleContactThreshold *
+          Phaser.Math.Linear(1.12, 0.78, Math.min(1, scrumSkill)),
+      ),
+    )
     const shouldBreak =
       this.cooldownMs === 0 &&
-      this.timerMs >= creaseBattleConfig.creaseBattleTimeMs &&
-      this.contactCount >=
-        creaseBattleConfig.creaseBattleContactThreshold
+      this.timerMs >= effectiveBattleTime &&
+      this.contactCount >= effectiveContactThreshold
 
     if (!shouldBreak) {
       this.drawDebug()
@@ -145,19 +179,43 @@ export class CreaseBattleSystem {
       x: sideSign * creaseBattleConfig.creaseBattleSideBias,
       y: away.y,
     })
+    const clearSafetyBonus =
+      battlePlayer
+        ? getAiClearSafetyBonus(
+            battlePlayer,
+            getConfiguredAiAssistContext(battlePlayer, 1),
+          )
+        : 0
     const safe = sanitizeClearDirection(
       desired,
       activeSide,
       core.position,
+      {
+        awayBias: 0.55 + clearSafetyBonus,
+      },
     )
+    const clearPowerMultiplier = battlePlayer
+      ? Phaser.Math.Clamp(
+          Phaser.Math.Linear(
+            0.88,
+            1.18,
+            battlePlayer.attributes.power * 0.6 +
+              battlePlayer.attributes.toughness * 0.4,
+          ),
+          0.8,
+          1.25,
+        )
+      : 1
 
     core.setVelocity({
       x:
         safe.direction.x *
-        creaseBattleConfig.creaseBattleClearImpulse,
+        creaseBattleConfig.creaseBattleClearImpulse *
+        clearPowerMultiplier,
       y:
         safe.direction.y *
-        creaseBattleConfig.creaseBattleClearImpulse,
+        creaseBattleConfig.creaseBattleClearImpulse *
+        clearPowerMultiplier,
     })
     this.clearDirection = { ...safe.direction }
     this.triggerDisplayMs = 650

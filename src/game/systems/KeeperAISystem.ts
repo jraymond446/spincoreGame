@@ -1,4 +1,8 @@
 import Phaser from 'phaser'
+import {
+  getAiClearSafetyBonus,
+  getAiDecisionSpeed,
+} from '../ai/AIAssist'
 import type { AIDecisionContext } from '../ai/AIDecisionContext'
 import { aiConfig } from '../config/aiConfig'
 import { controlConfig } from '../config/controlConfig'
@@ -69,6 +73,10 @@ export class KeeperAISystem {
       rawClearDirection,
       player.teamSide,
       core.position,
+      {
+        awayBias:
+          0.55 + getAiClearSafetyBonus(player, context),
+      },
     )
     const clearTarget = {
       x: player.position.x + clearResult.direction.x * 360,
@@ -80,7 +88,8 @@ export class KeeperAISystem {
       keeperAreaConfig.keeperZoneRadius * 3.6
     const reactionSpeed =
       player.attributes.reaction *
-      keeperConfig.keeperReactionMultiplier
+      keeperConfig.keeperReactionMultiplier *
+      getAiDecisionSpeed(player, context)
     const speedLimit =
       keeperConfig.keeperMaxLateralSpeed /
       Math.max(
@@ -121,7 +130,11 @@ export class KeeperAISystem {
         releaseTarget,
         aiReleaseDelayMs:
           aiConfig.aiReleaseDelayMs /
-          Math.max(0.25, keeperConfig.keeperClearAggression),
+          Math.max(
+            0.25,
+            keeperConfig.keeperClearAggression *
+              getAiDecisionSpeed(player, context),
+          ),
         aiState: 'CLEAR',
       }
     }
@@ -164,7 +177,9 @@ export class KeeperAISystem {
     if (swing) {
       this.nextSwingAt.set(
         player.id,
-        this.scene.time.now + stickConfig.aiSwingCooldownMs,
+        this.scene.time.now +
+          stickConfig.aiSwingCooldownMs /
+            getAiDecisionSpeed(player, context),
       )
     }
 

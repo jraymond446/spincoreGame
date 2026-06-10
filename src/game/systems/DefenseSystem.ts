@@ -1,4 +1,8 @@
 import Phaser from 'phaser'
+import {
+  getAiClearSafetyBonus,
+  getConfiguredAiAssistContext,
+} from '../ai/AIAssist'
 import { clearSafetyConfig } from '../config/clearSafetyConfig'
 import { defenseConfig } from '../config/defenseConfig'
 import { goalConfigs } from '../config/goalConfig'
@@ -284,11 +288,21 @@ export class DefenseSystem {
     runtime.state = 'SLASH_STARTUP'
     runtime.elapsedMs = 0
     runtime.connected = false
+    const clearAssistBonus = getAiClearSafetyBonus(
+      player,
+      getConfiguredAiAssistContext(player, 1),
+    )
     runtime.actionDirection =
       player.role === 'keeper'
         ? sanitizeClearDirection(
             direction,
             player.teamSide,
+            undefined,
+            {
+              awayBias:
+                clearSafetyConfig.keeperShieldAwayBias +
+                clearAssistBonus,
+            },
           ).direction
         : normalized(direction)
     runtime.slashCooldownMs = defenseConfig.slashCooldownMs
@@ -502,6 +516,10 @@ export class DefenseSystem {
         (clearSafetyConfig.defensiveDeflectionSafetyEnabled &&
           isNearOwnGoal(core.position, attacker.teamSide))
       ) {
+        const clearAssistBonus = getAiClearSafetyBonus(
+          attacker,
+          getConfiguredAiAssistContext(attacker, 1),
+        )
         const speed = Math.hypot(nextVelocity.x, nextVelocity.y)
         const safe = sanitizeClearDirection(
           nextVelocity,
@@ -510,11 +528,12 @@ export class DefenseSystem {
           {
             awayBias:
               attacker.role === 'keeper'
-                ? clearSafetyConfig.keeperShieldAwayBias
+                ? clearSafetyConfig.keeperShieldAwayBias +
+                  clearAssistBonus
                 : Math.max(
                     clearSafetyConfig.defenderStickAwayBias,
                     clearSafetyConfig.defensiveDeflectionAwayBias,
-                  ),
+                  ) + clearAssistBonus,
             reason: 'nearGoalDeflection',
           },
         )

@@ -13,6 +13,12 @@ export const teams: Team[] = [
     attackedGoalId: 'top-goal',
     formation: 'balanced',
     strategy: structuredClone(defaultTeamStrategies.A),
+    tacticalQuality: {
+      teamTacticalRating: 0.64,
+      offenseSchemeQuality: 0.66,
+      defenseSchemeQuality: 0.68,
+      transitionQuality: 0.62,
+    },
     roster: [
       {
         id: 'a-keeper',
@@ -59,6 +65,12 @@ export const teams: Team[] = [
     attackedGoalId: 'bottom-goal',
     formation: 'brutePress',
     strategy: structuredClone(defaultTeamStrategies.B),
+    tacticalQuality: {
+      teamTacticalRating: 0.8,
+      offenseSchemeQuality: 0.82,
+      defenseSchemeQuality: 0.78,
+      transitionQuality: 0.84,
+    },
     roster: [
       {
         id: 'b-keeper',

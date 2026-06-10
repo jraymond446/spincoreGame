@@ -125,7 +125,15 @@ export type Team = {
   attackedGoalId: string
   formation: FormationId
   strategy: TeamStrategy
+  tacticalQuality: TeamTacticalQuality
   roster: PlayerRosterEntry[]
+}
+
+export type TeamTacticalQuality = {
+  teamTacticalRating: number
+  offenseSchemeQuality: number
+  defenseSchemeQuality: number
+  transitionQuality: number
 }
 
 export type MatchState = {

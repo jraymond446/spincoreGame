@@ -1,4 +1,10 @@
 import Phaser from 'phaser'
+import {
+  getAiClearSafetyBonus,
+  getAiDecisionSpeed,
+  getAiPassError,
+  getAiShotError,
+} from './AIAssist'
 import { aiConfig } from '../config/aiConfig'
 import { keeperAreaConfig } from '../config/keeperAreaConfig'
 import { playerRuntimeConfig } from '../config/playerConfig'
@@ -32,10 +38,10 @@ function decideKeeper(context: AIDecisionContext): PlayerControlIntent {
 
   if (context.isCarrier) {
     const clearTarget = executionTarget(
-      player,
+      context,
       attackGoal,
-      player.attributes.power,
       aiConfig.shotSpread * 1.25 * style.shotSpreadMultiplier,
+      'clear',
       'clear',
     )
 
@@ -218,10 +224,10 @@ function decideBrute(context: AIDecisionContext): PlayerControlIntent {
 
   if (context.isCarrier) {
     const clearTarget = executionTarget(
-      player,
+      context,
       attackGoal,
-      player.attributes.power,
       aiConfig.shotSpread * 1.55 * style.shotSpreadMultiplier,
+      'clear',
       'clear',
     )
 
@@ -259,10 +265,10 @@ function shotIntent(
   target: Point,
 ): PlayerControlIntent {
   const shotTarget = executionTarget(
-    context.player,
+    context,
     applyHandednessAim(context.player, target),
-    context.player.attributes.shooting,
     aiConfig.shotSpread * context.style.shotSpreadMultiplier,
+    'shot',
     'shot',
   )
 
@@ -284,13 +290,13 @@ function passIntent(
   const leadDistance =
     aiConfig.passLeadDistance * context.style.passLeadMultiplier
   const passTarget = executionTarget(
-    context.player,
+    context,
     applyHandednessAim(
       context.player,
       leadPoint(teammate, context.attackGoal, leadDistance),
     ),
-    context.player.attributes.passing,
     aiConfig.passSpread * context.style.passSpreadMultiplier,
+    'pass',
     'pass',
   )
 
@@ -385,23 +391,31 @@ function releaseDelay(
     context.style.releaseDelayMultiplier *
     attributeMultiplier *
     handlingMultiplier *
-    context.formationBias.releaseDelayMultiplier
+    context.formationBias.releaseDelayMultiplier /
+    getAiDecisionSpeed(context.player, context)
   )
 }
 
 function executionTarget(
-  player: Player,
+  context: AIDecisionContext,
   target: Point,
-  executionAttribute: number,
   maxSpread: number,
   salt: string,
+  kind: 'shot' | 'pass' | 'clear',
 ): Point {
-  const skill = Phaser.Math.Clamp(
-    executionAttribute * 0.58 + player.attributes.accuracy * 0.42,
-    0,
-    1,
-  )
-  const roughness = 1 - skill
+  const player = context.player
+  const roughness =
+    kind === 'shot'
+      ? getAiShotError(player, context)
+      : kind === 'pass'
+        ? getAiPassError(player, context)
+        : Phaser.Math.Clamp(
+            0.24 -
+              getAiClearSafetyBonus(player, context) * 0.5 -
+              player.attributes.power * 0.05,
+            0.025,
+            0.3,
+          )
   const hash = hashString(`${player.id}:${salt}`)
 
   return {

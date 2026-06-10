@@ -1,4 +1,8 @@
 import Phaser from 'phaser'
+import {
+  getAiClearSafetyBonus,
+  getConfiguredAiAssistContext,
+} from '../ai/AIAssist'
 import { coreConfig } from '../config/entityConfig'
 import { clearSafetyConfig } from '../config/clearSafetyConfig'
 import { keeperShieldConfig } from '../config/keeperShieldConfig'
@@ -64,6 +68,7 @@ export class KeeperShieldSystem {
           (1 - keeperShieldConfig.keeperShieldOwnGoalSafetyBias) +
         away.y * keeperShieldConfig.keeperShieldOwnGoalSafetyBias,
     })
+    const clearAssistBonus = getClearAssistBonus(player)
     const clearResult = this.clearSafety.sanitize(
       clampDirectionToAway(
         desired,
@@ -73,13 +78,22 @@ export class KeeperShieldSystem {
       player.teamSide,
       core.position,
       {
-        awayBias: clearSafetyConfig.keeperShieldAwayBias,
+        awayBias:
+          clearSafetyConfig.keeperShieldAwayBias +
+          clearAssistBonus,
         reason: 'nearGoalDeflection',
       },
     )
-    const force = active
-      ? keeperShieldConfig.keeperShieldClearForce
-      : keeperShieldConfig.keeperShieldDeflectForce
+    const powerMultiplier = Phaser.Math.Linear(
+      0.92,
+      1.12,
+      Phaser.Math.Clamp(player.attributes.power, 0, 1.2),
+    )
+    const force =
+      (active
+        ? keeperShieldConfig.keeperShieldClearForce
+        : keeperShieldConfig.keeperShieldDeflectForce) *
+      powerMultiplier
     const damped = {
       x:
         core.velocity.x *
@@ -97,7 +111,9 @@ export class KeeperShieldSystem {
       player.teamSide,
       core.position,
       {
-        awayBias: clearSafetyConfig.keeperShieldAwayBias,
+        awayBias:
+          clearSafetyConfig.keeperShieldAwayBias +
+          clearAssistBonus,
         reason: 'nearGoalDeflection',
       },
     )
@@ -211,4 +227,11 @@ function normalized(vector: Point): Point {
   return length === 0
     ? { x: 0, y: 0 }
     : { x: vector.x / length, y: vector.y / length }
+}
+
+function getClearAssistBonus(player: Player): number {
+  return getAiClearSafetyBonus(
+    player,
+    getConfiguredAiAssistContext(player, 1),
+  )
 }

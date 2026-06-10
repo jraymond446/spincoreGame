@@ -137,6 +137,7 @@ export class GameScene extends Phaser.Scene {
       this,
       this.teamSystem.getFormationBiases(),
       this.teamSystem.getStrategies(),
+      this.teamSystem.getTacticalQualities(),
     )
     this.tacticalGuideRenderer = new TacticalGuideRenderer(this)
     this.inputController = new PlayerInputController(this, hudRoot)
