@@ -27,7 +27,10 @@ import type { ControlSwitchReason } from './ControlOwnershipSystem'
 import type { CreaseBattleDebugState } from './CreaseBattleSystem'
 import type { WallBounceDebugState } from './WallBounceSystem'
 import type { WallCarryDebugState } from './WallCarryPressureSystem'
-import type { AIDecisionDebugState } from './AISystem'
+import type {
+  AIDecisionDebugState,
+  AIOffenseMetrics,
+} from './AISystem'
 import type { ClearSafetyResult } from './ClearSafetySystem'
 import type {
   TacticalJob,
@@ -79,6 +82,7 @@ type DebugHudState = {
   tacticalPhases: Record<TeamSide, TeamPhase>
   controlledTacticalJob: TacticalJob | null
   aiDecision: AIDecisionDebugState | null
+  aiOffenseMetrics: AIOffenseMetrics
   cleanupPlayers: Record<TeamSide, string[]>
   creaseBattle: CreaseBattleDebugState
   defenseState: DefensiveActionState
@@ -229,8 +233,11 @@ export class DebugHudSystem {
       `PLAYER   ${state.controlledPlayerId} / ${state.controlledPlayerRole}\n` +
       `JOB      ${state.controlledTacticalJob ?? '-'}\n` +
       `AI WHY   ${state.aiDecision?.shotReason ?? state.aiDecision?.decision ?? '-'}\n` +
-      `AI SHOT  D ${(state.aiDecision?.directShotScore ?? 0).toFixed(2)} / BANK ${state.aiDecision?.bankShotSelected ? 'YES' : 'NO'}\n` +
+      `AI SHOT  D ${(state.aiDecision?.directShotScore ?? 0).toFixed(2)} / B ${(state.aiDecision?.bankShotScore ?? 0).toFixed(2)} / P ${(state.aiDecision?.passShotScore ?? 0).toFixed(2)}\n` +
+      `AI ACT   ${state.aiDecision?.chosenAction ?? '-'} / BANK ${state.aiDecision?.bankShotSelected ? 'YES' : 'NO'}\n` +
       `AI PASS  ${state.aiDecision?.passTargetId ?? '-'} ${(state.aiDecision?.passLaneScore ?? 0).toFixed(2)}\n` +
+      `AI A     ${formatOffenseMetrics(state.aiOffenseMetrics.A)}\n` +
+      `AI B     ${formatOffenseMetrics(state.aiOffenseMetrics.B)}\n` +
       `CLEANUP  A ${state.cleanupPlayers.A.join(', ') || '-'} / B ${state.cleanupPlayers.B.join(', ') || '-'}\n` +
       `CREASE   ${state.creaseBattle.side ?? '-'} ${Math.round(state.creaseBattle.timerMs)}ms / ${state.creaseBattle.contactCount} contacts\n` +
       `BREAKER  ${state.creaseBattle.triggered ? 'TRIGGERED' : 'IDLE'} / CD ${Math.round(state.creaseBattle.cooldownMs)}ms\n` +
@@ -368,6 +375,17 @@ function formatVector(vector: Point): string {
 
 function formatOptionalVector(vector: Point | null): string {
   return vector ? formatVector(vector) : '-'
+}
+
+function formatOffenseMetrics(
+  metrics: AIOffenseMetrics[TeamSide],
+): string {
+  return (
+    `S ${metrics.shotsAttempted} D ${metrics.directShots} ` +
+    `B ${metrics.bankShots} P2S ${metrics.passesToShot} ` +
+    `G ${metrics.goals} OG ${metrics.ownGoals} ` +
+    `BLK ${metrics.shotsBlockedSaved}`
+  )
 }
 
 function signed(value: number): string {

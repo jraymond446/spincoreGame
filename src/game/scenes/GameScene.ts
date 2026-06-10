@@ -22,6 +22,11 @@ import { GoalGate } from '../entities/GoalGate'
 import type { Player } from '../entities/Player'
 import { labEvents } from '../lab/LabEvents'
 import { getLabState, setLabMode } from '../lab/LabState'
+import {
+  completeLabSettingsApply,
+  failLabSettingsApply,
+} from '../lab/LabApplyController'
+import { applyLabSettings } from '../lab/applyLabSettings'
 import { ArenaDressing } from '../rendering/ArenaDressing'
 import { ScoreboardOverlay } from '../rendering/ScoreboardOverlay'
 import { preloadVisualAssetOverrides } from '../rendering/VisualAssetOverrides'
@@ -83,13 +88,17 @@ export class GameScene extends Phaser.Scene {
   private debugEnabled = false
   private gameMode: GameMode = gameplayConfig.defaultMode
   private currentInputIntent = 'IDLE'
+  private pendingLabApplyToken: number | null = null
+  private completedLabApplyToken: number | null = null
 
   constructor() {
     super('GameScene')
   }
 
-  init(data?: { gameMode?: GameMode }): void {
+  init(data?: { gameMode?: GameMode; labApplyToken?: number }): void {
     this.gameMode = data?.gameMode ?? getLabState().mode
+    this.completedLabApplyToken = data?.labApplyToken ?? null
+    this.pendingLabApplyToken = null
     this.matchState = structuredClone(initialMatchState)
     this.debugEnabled = false
   }
@@ -176,9 +185,19 @@ export class GameScene extends Phaser.Scene {
       this.wallBounceSystem.destroy()
       this.wallCarryPressureSystem.destroy()
     })
+
+    if (this.completedLabApplyToken !== null) {
+      completeLabSettingsApply(this.completedLabApplyToken, true)
+      this.completedLabApplyToken = null
+    }
   }
 
   update(time: number, delta: number): void {
+    if (this.pendingLabApplyToken !== null) {
+      this.applyPendingLabChanges()
+      return
+    }
+
     this.arenaDressing.update(time)
 
     if (this.inputController.consumeModeToggle()) {
@@ -277,6 +296,16 @@ export class GameScene extends Phaser.Scene {
     )
     const interactionEvent =
       this.stickInteractionSystem.consumeInteractionEvent()
+
+    if (interactionEvent?.result === 'release') {
+      const releasingPlayer = players.find(
+        (player) => player.id === interactionEvent.playerId,
+      )
+      if (releasingPlayer) {
+        this.aiSystem.recordRelease(releasingPlayer)
+      }
+    }
+
     const savedSide = this.keeperSaveSystem.update(
       this.core,
       players,
@@ -304,6 +333,7 @@ export class GameScene extends Phaser.Scene {
 
     if (savedSide) {
       this.matchStatsTracker.recordSave(savedSide)
+      this.aiSystem.recordSave(savedSide)
       statsChanged = true
     }
 
@@ -540,6 +570,7 @@ export class GameScene extends Phaser.Scene {
     const newScore = this.matchState.score[scoringSide] + 1
 
     this.matchStatsTracker.recordGoal(scoringSide)
+    this.aiSystem.recordGoal(scoringSide)
     this.matchState.score[scoringSide] = newScore
     this.matchState.lastScorer = scoringSide
 
@@ -590,13 +621,45 @@ export class GameScene extends Phaser.Scene {
     this.scene.restart({ gameMode: mode })
   }
 
-  private applyLabChanges = (): void => {
-    this.scene.restart({ gameMode: getLabState().mode })
+  private applyLabChanges = (event: Event): void => {
+    const token =
+      event instanceof CustomEvent &&
+      typeof event.detail?.token === 'number'
+        ? event.detail.token
+        : null
+
+    if (token === null || this.pendingLabApplyToken !== null) {
+      return
+    }
+
+    this.pendingLabApplyToken = token
+  }
+
+  private applyPendingLabChanges(): void {
+    const token = this.pendingLabApplyToken
+
+    if (token === null) {
+      return
+    }
+
+    this.pendingLabApplyToken = null
+
+    try {
+      applyLabSettings(getLabState())
+      console.info('[Lab Apply] Match reset queued', { token })
+      this.scene.restart({
+        gameMode: getLabState().mode,
+        labApplyToken: token,
+      })
+    } catch (error) {
+      failLabSettingsApply(token, error)
+    }
   }
 
   private resetMatch = (): void => {
     this.matchState = structuredClone(initialMatchState)
     this.matchStatsTracker.reset()
+    this.aiSystem.resetMetrics()
     this.resetPositions()
     this.updateHud()
   }
@@ -774,6 +837,7 @@ export class GameScene extends Phaser.Scene {
         null,
       aiDecision:
         this.aiSystem.getDecisionDebug(controlledPlayer.id),
+      aiOffenseMetrics: this.aiSystem.getOffenseMetrics(),
       cleanupPlayers: {
         A: this.aiSystem.getCleanupPlayerIds('A'),
         B: this.aiSystem.getCleanupPlayerIds('B'),

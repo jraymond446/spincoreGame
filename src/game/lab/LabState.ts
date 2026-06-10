@@ -1,6 +1,7 @@
 import { createDefaultLabTuning } from '../config/tuningDefaults'
 import type { GameMode } from '../config/gameplayConfig'
 import type { LabTuningState } from './LabConfig'
+import { labApplyRuntime } from './LabApplyState'
 import { labEvents } from './LabEvents'
 
 let activeState = createDefaultLabTuning()
@@ -33,6 +34,10 @@ export function cloneLabState(state: LabTuningState): LabTuningState {
   return structuredClone(state)
 }
 
-function notifyLabStateChanged(): void {
+export function notifyLabStateChanged(): void {
+  if (labApplyRuntime.suppressLabChangeEvents) {
+    return
+  }
+
   window.dispatchEvent(new CustomEvent(labEvents.stateChanged))
 }

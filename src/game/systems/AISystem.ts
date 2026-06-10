@@ -26,10 +26,10 @@ import {
 import type { TacticalAssignment, TacticalJob } from '../tactics/TacticalJobs'
 import type { TeamStrategy } from '../tactics/TeamStrategy'
 import {
-  AIBankShotSystem,
   type AIBankShotCandidate,
   type AIShotEvaluation,
 } from './AIBankShotSystem'
+import { AIScoringSystem } from './AIScoringSystem'
 import {
   KeeperAISystem,
   type KeeperAIDebugState,
@@ -46,10 +46,31 @@ export type AIDecisionDebugState = {
   passDeniedReason: string
   shotReason: string
   directShotScore: number
+  bankShotScore: number
+  passShotScore: number
+  chosenAction: string
   directShotTarget: Point | null
   bankShotSelected: boolean
   selectedBankReflection: Point | null
   bankCandidates: AIBankShotCandidate[]
+}
+
+export type AIOffenseMetricLine = {
+  shotsAttempted: number
+  directShots: number
+  bankShots: number
+  passesToShot: number
+  goals: number
+  ownGoals: number
+  shotsBlockedSaved: number
+}
+
+export type AIOffenseMetrics = Record<TeamSide, AIOffenseMetricLine>
+
+type PlannedOffenseAction = {
+  teamSide: TeamSide
+  kind: 'directShot' | 'bankShot' | 'pass'
+  passToShot: boolean
 }
 
 export class AISystem {
@@ -58,7 +79,7 @@ export class AISystem {
   private readonly formationBiases: Record<TeamSide, FormationAIBias>
   private readonly keeperAI: KeeperAISystem
   private readonly teamShape: TeamShapeSystem
-  private readonly bankShots = new AIBankShotSystem()
+  private readonly scoring = new AIScoringSystem()
   private debugEnabled = false
   private decisionTimerMs = 0
   private intents = new Map<string, PlayerControlIntent>()
@@ -67,6 +88,11 @@ export class AISystem {
   private overrideCooldowns = new Map<string, number>()
   private carrierPossessionId: string | null = null
   private carrierPossessionMs = 0
+  private shotCooldowns = new Map<string, number>()
+  private plannedOffenseActions = new Map<string, PlannedOffenseAction>()
+  private offenseMetrics = createEmptyOffenseMetrics()
+  private lastAIShotSide: TeamSide | null = null
+  private lastAIShotWindowMs = 0
 
   constructor(
     scene: Phaser.Scene,
@@ -89,6 +115,11 @@ export class AISystem {
   ): Map<string, PlayerControlIntent> {
     this.updateCarrierPossessionClock(carrierId, deltaMs)
     this.updateOverrideCooldowns(deltaMs)
+    this.updateShotCooldowns(deltaMs)
+    this.lastAIShotWindowMs = Math.max(
+      0,
+      this.lastAIShotWindowMs - deltaMs,
+    )
     this.teamShape.update(
       players,
       core,
@@ -106,7 +137,10 @@ export class AISystem {
     this.decisionTimerMs -= deltaMs
     if (this.decisionTimerMs <= 0) {
       this.rethink(players, core, carrierId, controlledPlayerId)
-      this.decisionTimerMs = stickConfig.aiDecisionIntervalMs
+      this.decisionTimerMs = Math.min(
+        stickConfig.aiDecisionIntervalMs,
+        aiOffenseConfig.opponentAiDecisionIntervalMs,
+      )
     }
 
     this.drawDebug(players)
@@ -157,6 +191,80 @@ export class AISystem {
     return state ? { ...state } : null
   }
 
+  getOffenseMetrics(): AIOffenseMetrics {
+    return {
+      A: { ...this.offenseMetrics.A },
+      B: { ...this.offenseMetrics.B },
+    }
+  }
+
+  recordRelease(player: Player): void {
+    const action = this.plannedOffenseActions.get(player.id)
+
+    if (!action) {
+      return
+    }
+
+    const metrics = this.offenseMetrics[action.teamSide]
+
+    if (action.kind === 'pass') {
+      if (action.passToShot) {
+        metrics.passesToShot += 1
+      }
+    } else {
+      metrics.shotsAttempted += 1
+      if (action.kind === 'bankShot') {
+        metrics.bankShots += 1
+      } else {
+        metrics.directShots += 1
+      }
+      this.lastAIShotSide = action.teamSide
+      this.lastAIShotWindowMs = 4000
+      this.shotCooldowns.set(
+        player.id,
+        aiOffenseConfig.aiShotCooldownMs,
+      )
+    }
+
+    this.plannedOffenseActions.delete(player.id)
+  }
+
+  recordSave(defendingSide: TeamSide): void {
+    if (
+      this.lastAIShotWindowMs <= 0 ||
+      this.lastAIShotSide === null ||
+      this.lastAIShotSide === defendingSide
+    ) {
+      return
+    }
+
+    this.offenseMetrics[this.lastAIShotSide].shotsBlockedSaved += 1
+    this.lastAIShotWindowMs = 0
+  }
+
+  recordGoal(scoringSide: TeamSide): void {
+    if (
+      this.lastAIShotWindowMs <= 0 ||
+      this.lastAIShotSide === null
+    ) {
+      return
+    }
+
+    if (this.lastAIShotSide === scoringSide) {
+      this.offenseMetrics[scoringSide].goals += 1
+    } else {
+      this.offenseMetrics[this.lastAIShotSide].ownGoals += 1
+    }
+
+    this.lastAIShotWindowMs = 0
+  }
+
+  resetMetrics(): void {
+    this.offenseMetrics = createEmptyOffenseMetrics()
+    this.lastAIShotSide = null
+    this.lastAIShotWindowMs = 0
+  }
+
   reset(): void {
     this.decisionTimerMs = 0
     this.intents.clear()
@@ -165,6 +273,10 @@ export class AISystem {
     this.overrideCooldowns.clear()
     this.carrierPossessionId = null
     this.carrierPossessionMs = 0
+    this.shotCooldowns.clear()
+    this.plannedOffenseActions.clear()
+    this.lastAIShotSide = null
+    this.lastAIShotWindowMs = 0
     this.teamShape.reset()
   }
 
@@ -314,11 +426,16 @@ export class AISystem {
           gatherDecision?.reason ?? (context.isCarrier ? 'hasPossession' : '-'),
         passTargetId: possessionDecision?.passTargetId ?? null,
         passLaneScore: possessionDecision?.passLaneScore ?? 0,
+        passShotScore: possessionDecision?.passShotScore ?? 0,
         passDeniedReason:
           possessionDecision?.passDeniedReason ?? '-',
         shotReason: possessionDecision?.shotReason ?? '-',
         directShotScore:
           possessionDecision?.shotEvaluation.directScore ?? 0,
+        bankShotScore:
+          possessionDecision?.shotEvaluation.bestBank?.score ?? 0,
+        chosenAction:
+          possessionDecision?.decision ?? shapedIntent.aiState,
         directShotTarget:
           possessionDecision?.shotEvaluation.directTarget ?? null,
         bankShotSelected:
@@ -471,18 +588,28 @@ export class AISystem {
     decision: string
     passTargetId: string | null
     passLaneScore: number
+    passShotScore: number
     passDeniedReason: string
     shotReason: string
     bankShotSelected: boolean
     selectedBankReflection: Point | null
     shotEvaluation: AIShotEvaluation
   } {
+    this.plannedOffenseActions.delete(context.player.id)
     const strategy = this.teamShape.getStrategy(context.player.teamSide)
-    const shotEvaluation = this.bankShots.evaluate(
+    const passOption = findBestPassOption(
+      context.player,
+      context.players,
+      this.teamShape,
+    )
+    const scoringChance = this.scoring.evaluate(
       context.player,
       context.players,
       strategy,
+      passOption?.shotScore ?? 0,
+      passOption?.player.position ?? null,
     )
+    const shotEvaluation = scoringChance.shotEvaluation
 
     if (!tacticsConfig.possessionOverridesJob) {
       return {
@@ -490,6 +617,7 @@ export class AISystem {
         decision: intent.aiState,
         passTargetId: null,
         passLaneScore: 0,
+        passShotScore: 0,
         passDeniedReason: 'possessionOverrideDisabled',
         shotReason: 'possessionOverrideDisabled',
         bankShotSelected: false,
@@ -498,26 +626,23 @@ export class AISystem {
       }
     }
 
-    const passOption = findBestPassOption(
-      context.player,
-      context.players,
-      this.teamShape,
-    )
-
     const pressure = opponentPressure(context.player, context.players)
-    const behindGoal =
-      isBehindAttackGoal(
-        context.player.position,
-        context.attackGoal,
-        context.player.teamSide,
-      )
+    const behindGoal = isBehindAttackGoal(
+      context.player.position,
+      context.attackGoal,
+      context.player.teamSide,
+    )
     const targetJob = passOption?.job ?? null
-    let threshold = tacticsConfig.passLaneMinScore
+    const isOpponent = context.player.teamSide === 'B'
+    const aggression = isOpponent
+      ? aiOffenseConfig.opponentAiScoringAggression
+      : 0.55
+    let passThreshold = tacticsConfig.passLaneMinScore
 
     if (context.player.role === 'support') {
-      threshold -= tacticsConfig.supportPassBias
+      passThreshold -= tacticsConfig.supportPassBias * 0.55
     } else if (context.player.role === 'brute') {
-      threshold += 0.1
+      passThreshold += 0.1
     }
 
     if (
@@ -525,7 +650,7 @@ export class AISystem {
       targetJob === 'frontSlot' &&
       aiOffenseConfig.passBackToFrontEnabled
     ) {
-      threshold -= tacticsConfig.behindNetPassBackBias
+      passThreshold -= tacticsConfig.behindNetPassBackBias
     }
 
     const distanceToGoal = distance(
@@ -536,46 +661,98 @@ export class AISystem {
       context.player.teamSide === 'A'
         ? context.player.position.y <= arenaConfig.center.y
         : context.player.position.y >= arenaConfig.center.y
-    const directOpen =
-      inAttackingHalf &&
-      distanceToGoal <= 560 &&
-      shotEvaluation.directScore >=
-        aiOffenseConfig.aiShotBlockedThreshold
+    const roleShotPenalty = context.player.role === 'brute' ? 0.12 : 0
+    const directThreshold = Phaser.Math.Clamp(
+      aiOffenseConfig.aiGoodDirectShotThreshold -
+        aggression * 0.12 +
+        roleShotPenalty,
+      0.25,
+      0.9,
+    )
+    const bankThreshold = Phaser.Math.Clamp(
+      aiOffenseConfig.aiGoodBankShotThreshold -
+        aggression * 0.1 +
+        roleShotPenalty * 0.6,
+      0.2,
+      0.85,
+    )
+    const shotFrequency = isOpponent
+      ? aiOffenseConfig.opponentAiShotFrequency
+      : 0.62
+    const bankFrequency = isOpponent
+      ? aiOffenseConfig.opponentAiBankShotFrequency
+      : 0.32
+    const decisionBucket = Math.floor(
+      this.carrierPossessionMs /
+        Math.max(80, aiOffenseConfig.opponentAiDecisionIntervalMs),
+    )
+    const shotRoll =
+      stableDecisionRoll(context.player.id, decisionBucket, 11) <=
+      shotFrequency
     const bestBank = shotEvaluation.bestBank
+    const bankChance =
+      shotEvaluation.directScore < directThreshold
+        ? aiOffenseConfig.aiBankShotAttemptChanceWhenBlocked
+        : aiOffenseConfig.aiBankShotAttemptChanceWhenOpen
+    const bankRoll =
+      stableDecisionRoll(context.player.id, decisionBucket, 29) <=
+      Phaser.Math.Clamp(bankChance * (0.65 + bankFrequency * 0.7), 0, 1)
+    const shotReady =
+      (this.shotCooldowns.get(context.player.id) ?? 0) <= 0
+    const directGood =
+      shotReady &&
+      inAttackingHalf &&
+      distanceToGoal <= 650 &&
+      shotEvaluation.directScore >= directThreshold
     const bankGood =
+      shotReady &&
       inAttackingHalf &&
       bestBank !== null &&
-      bestBank.score >= aiOffenseConfig.aiBankShotMinScore &&
-      (shotEvaluation.directScore <
-        aiOffenseConfig.aiShotBlockedThreshold ||
-        bestBank.score >
-          shotEvaluation.directScore +
-            0.08 -
-            aiOffenseConfig.aiBankShotPreference * 0.1)
+      bestBank.score >= bankThreshold
+    const passShotScore = passOption?.shotScore ?? 0
+    const currentBestShot = Math.max(
+      shotEvaluation.directScore,
+      bestBank?.score ?? 0,
+    )
+    const passMargin =
+      aiOffenseConfig.aiPassBetterShotMargin *
+      (1 - aiOffenseConfig.opponentAiPassToShotBias * 0.45)
+    const teammateBetter =
+      passOption !== null &&
+      passShotScore >= currentBestShot + passMargin
+    const forcedAfterMs = isOpponent
+      ? aiOffenseConfig.opponentAiForceShotAfterMs
+      : aiOffenseConfig.aiMaxCarryBeforeShotMs
     const forcedShot =
-      this.carrierPossessionMs >=
-      aiOffenseConfig.aiForceShotAfterMs
-    const wideOpenShot =
-      pressure < 0.35 &&
-      directOpen &&
-      shotEvaluation.directScore >= 0.68
+      shotReady &&
+      inAttackingHalf &&
+      this.carrierPossessionMs >= forcedAfterMs
 
-    if (wideOpenShot) {
+    if (
+      directGood &&
+      shotRoll &&
+      (!teammateBetter || shotEvaluation.directScore >= 0.78)
+    ) {
       return this.createShotDecision(
         context,
         intent,
         shotEvaluation.directTarget,
-        'openDirect',
+        'directOpen',
         shotEvaluation,
       )
     }
 
-    if (bankGood && bestBank) {
+    if (
+      bankGood &&
+      bestBank &&
+      bankRoll &&
+      (!teammateBetter || bestBank.score > passShotScore)
+    ) {
       return this.createShotDecision(
         context,
         intent,
         bestBank.reflectionPoint,
-        'selectedBank',
+        'bankBetter',
         shotEvaluation,
         bestBank,
       )
@@ -592,48 +769,51 @@ export class AISystem {
     const frontSlotPass =
       passEnabled &&
       targetJob === 'frontSlot' &&
-      aiOffenseConfig.aiFrontSlotPassEnabled
+      aiOffenseConfig.aiFrontSlotPassEnabled &&
+      passShotScore >= directThreshold - 0.08
     const behindGoalPass =
       passEnabled &&
       targetJob === 'behindNet' &&
-      aiOffenseConfig.aiBehindGoalPassEnabled
+      aiOffenseConfig.aiBehindGoalPassEnabled &&
+      stableDecisionRoll(context.player.id, decisionBucket, 43) <=
+        aiOffenseConfig.aiBehindGoalPlayPreference
+    const pressurePass =
+      pressure >= tacticsConfig.passUnderPressureThreshold &&
+      passShotScore >= currentBestShot - 0.08
     const shouldPass =
       passEnabled &&
-      passOption.score >= threshold &&
-      (intent.aiState === 'PASS' ||
-        pressure >= tacticsConfig.passUnderPressureThreshold ||
+      passOption.score >= passThreshold &&
+      (teammateBetter ||
+        pressurePass ||
         passBack ||
         frontSlotPass ||
         behindGoalPass ||
-        context.player.role === 'support' ||
-        (context.player.role === 'striker' &&
-          shotEvaluation.directScore <
-            aiOffenseConfig.aiShotBlockedThreshold +
-              tacticsConfig.frontSlotShotBias * 0.18) ||
-        (context.player.role === 'brute' && !wideOpenShot))
+        (context.player.role === 'brute' && !directGood && !bankGood))
 
-    if (shouldPass && passOption) {
+    if (shouldPass && passOption && !forcedShot) {
       return this.createPassDecision(
         context,
         intent,
         passOption,
-        passBack
-          ? 'passFrontSlot'
-          : behindGoalPass
-            ? 'passBehindGoal'
-            : targetJob === 'weakSideLane'
-              ? 'passWeakSide'
-              : pressure >= tacticsConfig.passUnderPressureThreshold
-                ? 'underPressureOutlet'
-                : frontSlotPass
-                  ? 'passFrontSlot'
-                  : 'passWeakSide',
+        teammateBetter
+          ? 'teammateBetter'
+          : passBack
+            ? 'behindGoalPass'
+            : pressurePass
+              ? 'pressurePass'
+              : behindGoalPass
+                ? 'behindGoalPass'
+                : 'frontSlotPass',
         shotEvaluation,
       )
     }
 
     if (forcedShot) {
-      if (bestBank && bestBank.score > shotEvaluation.directScore) {
+      if (
+        scoringChance.bestAction === 'bankShot' &&
+        bestBank &&
+        bestBank.score >= bankThreshold * 0.72
+      ) {
         return this.createShotDecision(
           context,
           intent,
@@ -656,17 +836,18 @@ export class AISystem {
     const patienceExpired =
       this.carrierPossessionMs >= aiOffenseConfig.aiShotPatienceMs
 
-    if (patienceExpired && inAttackingHalf) {
+    if (patienceExpired && inAttackingHalf && shotReady && shotRoll) {
       if (
         bestBank &&
-        bestBank.score >= aiOffenseConfig.aiBankShotMinScore * 0.8 &&
+        bankRoll &&
+        bestBank.score >= bankThreshold * 0.78 &&
         bestBank.score > shotEvaluation.directScore
       ) {
         return this.createShotDecision(
           context,
           intent,
           bestBank.reflectionPoint,
-          'selectedBank',
+          'bankBetter',
           shotEvaluation,
           bestBank,
         )
@@ -676,16 +857,16 @@ export class AISystem {
         context,
         intent,
         shotEvaluation.directTarget,
-        directOpen ? 'openDirect' : 'bestAvailable',
+        directGood ? 'directOpen' : 'bestAvailable',
         shotEvaluation,
       )
     }
 
     if (
       aiOffenseConfig.aiSeekBetterShotAngleEnabled &&
+      aiOffenseConfig.aiLateralRepositionEnabled &&
       inAttackingHalf &&
-      shotEvaluation.directScore <
-        aiOffenseConfig.aiShotBlockedThreshold
+      shotEvaluation.directScore < directThreshold
     ) {
       const moveTarget = getLateralAttackTarget(
         context.player,
@@ -706,8 +887,10 @@ export class AISystem {
         decision: 'SEEK_SHOT_ANGLE',
         passTargetId: passOption?.player.id ?? null,
         passLaneScore: passOption?.score ?? 0,
+        passShotScore: passOption?.shotScore ?? 0,
         passDeniedReason:
-          this.carrierPossessionMs < aiOffenseConfig.aiShotPatienceMs
+          this.carrierPossessionMs <
+          aiOffenseConfig.aiLateralRepositionTimeMs
             ? 'buildingAngle'
             : 'bestLaneUnavailable',
         shotReason: 'seekBetterAngle',
@@ -717,23 +900,14 @@ export class AISystem {
       }
     }
 
-    if (directOpen) {
-      return this.createShotDecision(
-        context,
-        intent,
-        shotEvaluation.directTarget,
-        'openDirect',
-        shotEvaluation,
-      )
-    }
-
     return {
       intent,
       decision: intent.aiState,
       passTargetId: passOption?.player.id ?? null,
       passLaneScore: passOption?.score ?? 0,
+      passShotScore: passOption?.shotScore ?? 0,
       passDeniedReason: passOption ? 'laneScoreLow' : 'noTarget',
-      shotReason: 'baseRoleDecision',
+      shotReason: 'noShotFound',
       bankShotSelected: false,
       selectedBankReflection: null,
       shotEvaluation,
@@ -748,19 +922,39 @@ export class AISystem {
     shotEvaluation: AIShotEvaluation,
     bank?: AIBankShotCandidate,
   ) {
+    const targetWithError = applyAIShotError(
+      context.player,
+      target,
+      this.carrierPossessionMs,
+      Boolean(bank),
+    )
+    const aggression =
+      context.player.teamSide === 'B'
+        ? aiOffenseConfig.opponentAiScoringAggression
+        : 0.55
+    this.plannedOffenseActions.set(context.player.id, {
+      teamSide: context.player.teamSide,
+      kind: bank ? 'bankShot' : 'directShot',
+      passToShot: false,
+    })
+
     return {
       intent: {
         ...intent,
         moveTarget: context.player.position,
-        aimTarget: target,
+        aimTarget: targetWithError,
         hold: true,
         swing: false,
-        releaseTarget: target,
+        releaseTarget: targetWithError,
+        aiReleaseDelayMs:
+          aiConfig.aiReleaseDelayMs *
+          Phaser.Math.Linear(0.92, 0.62, aggression),
         aiState: 'SHOOT' as const,
       },
       decision: bank ? 'BANK_SHOT' : 'SHOOT',
       passTargetId: null,
       passLaneScore: 0,
+      passShotScore: 0,
       passDeniedReason: '-',
       shotReason: reason,
       bankShotSelected: Boolean(bank),
@@ -782,6 +976,13 @@ export class AISystem {
       x: passOption.player.position.x + passOption.player.velocity.x * 8,
       y: passOption.player.position.y + passOption.player.velocity.y * 8,
     }
+    this.plannedOffenseActions.set(context.player.id, {
+      teamSide: context.player.teamSide,
+      kind: 'pass',
+      passToShot:
+        passOption.shotScore >=
+        aiOffenseConfig.aiGoodDirectShotThreshold - 0.08,
+    })
 
     return {
       intent: {
@@ -803,6 +1004,7 @@ export class AISystem {
       decision: 'PASS',
       passTargetId: passOption.player.id,
       passLaneScore: passOption.score,
+      passShotScore: passOption.shotScore,
       passDeniedReason: '-',
       shotReason: reason,
       bankShotSelected: false,
@@ -852,6 +1054,17 @@ export class AISystem {
     }
   }
 
+  private updateShotCooldowns(deltaMs: number): void {
+    for (const [playerId, remaining] of this.shotCooldowns) {
+      const next = Math.max(0, remaining - deltaMs)
+      if (next === 0) {
+        this.shotCooldowns.delete(playerId)
+      } else {
+        this.shotCooldowns.set(playerId, next)
+      }
+    }
+  }
+
   private drawDebug(players: Player[]): void {
     if (!this.debugEnabled) {
       return
@@ -897,7 +1110,7 @@ export class AISystem {
             `${decision.job ?? '-'} | ${decision.decision}\n` +
               `GATHER ${decision.gatherAllowed ? 'YES' : 'NO'}: ${decision.gatherDeniedReason}\n` +
               `PASS ${decision.passTargetId ?? '-'} ${decision.passLaneScore.toFixed(2)} ${decision.passDeniedReason}\n` +
-              `SHOT ${decision.shotReason} D ${decision.directShotScore.toFixed(2)} B ${decision.bankShotSelected ? 'YES' : 'NO'}`,
+              `SHOT ${decision.chosenAction}/${decision.shotReason} D ${decision.directShotScore.toFixed(2)} B ${decision.bankShotScore.toFixed(2)} P ${decision.passShotScore.toFixed(2)}`,
           )
           .setVisible(true)
       }
@@ -1040,6 +1253,7 @@ function createGatherIntent(corePosition: Point): PlayerControlIntent {
 type PassOption = {
   player: Player
   score: number
+  shotScore: number
   job: TacticalJob | null
 }
 
@@ -1064,6 +1278,9 @@ function findBestPassOption(
 
   const opponentKeeper = opponents.find(
     (candidate) => candidate.role === 'keeper',
+  )
+  const fieldDefenders = opponents.filter(
+    (candidate) => candidate.role !== 'keeper',
   )
   const attackGoal = goalPoint(
     player.teamSide === 'A' ? 'B' : 'A',
@@ -1099,10 +1316,41 @@ function findBestPassOption(
             : assignment?.job === 'supportOutlet'
               ? 0.14
               : 0.06
+      const shotLane = laneScore(
+        candidate.position,
+        attackGoal,
+        fieldDefenders,
+      )
+      const keeperPenalty = opponentKeeper
+        ? (1 -
+            Phaser.Math.Clamp(
+              distanceToSegment(
+                opponentKeeper.position,
+                candidate.position,
+                attackGoal,
+              ) / 120,
+              0,
+              1,
+            )) *
+          0.32
+        : 0
+      const shotDistance = distance(candidate.position, attackGoal)
+      const closeBonus =
+        shotDistance <= aiOffenseConfig.aiMinShotDistance
+          ? aiOffenseConfig.aiCloseRangeShotBonus
+          : 0
+      const shotScore = Phaser.Math.Clamp(
+        shotLane - keeperPenalty + closeBonus + jobBonus * 0.3,
+        0,
+        1,
+      )
       const score = Phaser.Math.Clamp(
         laneScore(player.position, candidate.position, opponents) * 0.62 +
           progress * 0.2 +
           jobBonus +
+          shotScore *
+            aiOffenseConfig.opponentAiPassToShotBias *
+            0.24 +
           (assignment?.job === 'frontSlot'
             ? keeperPulledBonus
             : 0),
@@ -1113,6 +1361,7 @@ function findBestPassOption(
       return {
         player: candidate,
         score,
+        shotScore,
         job: assignment?.job ?? null,
       }
     })
@@ -1136,9 +1385,19 @@ function getLateralAttackTarget(
     : player.position.x <= attackGoal.x
       ? -1
       : 1
+  const repositionDistance =
+    player.teamSide === 'B'
+      ? aiOffenseConfig.opponentAiAttackSpacing
+      : aiOffenseConfig.aiLateralRepositionDistance
   const desiredX =
     attackGoal.x +
-    sideSign * aiOffenseConfig.aiLateralShotAngleTargetDistance
+    sideSign *
+      repositionDistance *
+      Phaser.Math.Linear(
+        0.8,
+        1.15,
+        aiOffenseConfig.aiWeakSideLanePreference,
+      )
   const approachY = Phaser.Math.Linear(
     player.position.y,
     attackGoal.y,
@@ -1257,6 +1516,87 @@ function distanceToSegment(
     x: start.x + segment.x * progress,
     y: start.y + segment.y * progress,
   })
+}
+
+function applyAIShotError(
+  player: Player,
+  target: Point,
+  possessionMs: number,
+  bankShot: boolean,
+): Point {
+  const opponent = player.teamSide === 'B'
+  const aimAssist = opponent
+    ? aiOffenseConfig.opponentAiAimAssist
+    : 0.45
+  const baseError = opponent
+    ? aiOffenseConfig.opponentAiShotError
+    : 0.22
+  const accuracy = Phaser.Math.Clamp(player.attributes.accuracy, 0, 1.2)
+  const effectiveError =
+    baseError *
+    (1 - aimAssist * 0.72) *
+    Phaser.Math.Linear(1.15, 0.55, Math.min(1, accuracy))
+  const bucket = Math.floor(possessionMs / 450)
+  const horizontalNoise =
+    stableDecisionRoll(player.id, bucket, bankShot ? 71 : 59) * 2 - 1
+  const verticalNoise =
+    stableDecisionRoll(player.id, bucket, bankShot ? 83 : 67) * 2 - 1
+
+  if (bankShot) {
+    const bankError =
+      aiOffenseConfig.aiBankShotMaxError *
+      (1 - aiOffenseConfig.aiBankShotAimAssist * 0.75)
+    const halfHeight = arenaConfig.height / 2
+    return {
+      x: target.x,
+      y: Phaser.Math.Clamp(
+        target.y + verticalNoise * 150 * bankError,
+        arenaConfig.center.y -
+          halfHeight +
+          aiOffenseConfig.aiBankShotWallTargetPadding,
+        arenaConfig.center.y +
+          halfHeight -
+          aiOffenseConfig.aiBankShotWallTargetPadding,
+      ),
+    }
+  }
+
+  return {
+    x: target.x + horizontalNoise * 95 * effectiveError,
+    y: target.y + verticalNoise * 24 * effectiveError,
+  }
+}
+
+function stableDecisionRoll(
+  playerId: string,
+  bucket: number,
+  salt: number,
+): number {
+  let hash = salt + bucket * 101
+
+  for (let index = 0; index < playerId.length; index += 1) {
+    hash = (hash * 31 + playerId.charCodeAt(index)) | 0
+  }
+
+  const value = Math.sin(hash * 12.9898) * 43758.5453
+  return value - Math.floor(value)
+}
+
+function createEmptyOffenseMetrics(): AIOffenseMetrics {
+  const createLine = (): AIOffenseMetricLine => ({
+    shotsAttempted: 0,
+    directShots: 0,
+    bankShots: 0,
+    passesToShot: 0,
+    goals: 0,
+    ownGoals: 0,
+    shotsBlockedSaved: 0,
+  })
+
+  return {
+    A: createLine(),
+    B: createLine(),
+  }
 }
 
 function distance(a: Point, b: Point): number {

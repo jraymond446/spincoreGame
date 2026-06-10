@@ -2,11 +2,13 @@ import './style.css'
 import Phaser from 'phaser'
 import { gameConfig } from './game/config/gameConfig'
 import { LabPanel } from './game/lab/LabPanel'
+import { queueLabSettingsApply } from './game/lab/LabApplyController'
 import { labEvents } from './game/lab/LabEvents'
 import {
   getLabState,
   replaceLabState,
 } from './game/lab/LabState'
+import { loadLabSettings } from './game/lab/labStorage'
 import { applyLabSettings } from './game/lab/applyLabSettings'
 
 const app = document.querySelector<HTMLDivElement>('#app')
@@ -48,13 +50,21 @@ const syncVisibleViewport = (): void => {
   }
 }
 
-applyLabSettings(getLabState())
+const savedLabSettings = loadLabSettings()
+
+if (savedLabSettings) {
+  replaceLabState(savedLabSettings)
+}
+
+try {
+  applyLabSettings(getLabState())
+} catch (error) {
+  console.error('[Lab Apply Error] Unable to apply startup settings.', error)
+}
+
 const labPanel = new LabPanel(labRoot, {
   onApply: (state) => {
-    replaceLabState(state)
-    applyLabSettings(getLabState())
-    window.dispatchEvent(new CustomEvent(labEvents.apply))
-    window.requestAnimationFrame(syncVisibleViewport)
+    queueLabSettingsApply(state)
   },
   onResetMatch: () => {
     window.dispatchEvent(new CustomEvent(labEvents.resetMatch))

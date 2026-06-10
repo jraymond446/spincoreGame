@@ -1315,6 +1315,10 @@ export class StickInteractionSystem {
     this.cradleElapsedMs = 0
     this.releaseCooldownMsRemaining = stickConfig.releaseCooldownMs
     this.lastInteraction = 'release'
+    this.interactionEvent = {
+      result: 'release',
+      playerId: carrier.id,
+    }
     this.releaseForcePreview = magnitude(velocity)
     this.releaseVector = {
       start: { ...releasePoint },
@@ -1377,6 +1381,10 @@ export class StickInteractionSystem {
     this.cradleElapsedMs = 0
     this.releaseCooldownMsRemaining = stickConfig.releaseCooldownMs
     this.lastInteraction = nextState === 'FUMBLED' ? 'fumble' : 'release'
+    this.interactionEvent = {
+      result: this.lastInteraction,
+      playerId: carrier.id,
+    }
     this.clearCarryControl()
     this.setActionState(
       carrier.id,

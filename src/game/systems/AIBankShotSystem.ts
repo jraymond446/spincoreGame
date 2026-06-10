@@ -36,11 +36,14 @@ export class AIBankShotSystem {
     )
     const keeper =
       opponents.find((player) => player.role === 'keeper') ?? null
+    const fieldDefenders = opponents.filter(
+      (player) => player.role !== 'keeper',
+    )
     const directTarget = getOpenGoalTarget(goal, keeper)
     const directLane = laneScore(
       shooter.position,
       directTarget,
-      opponents,
+      fieldDefenders,
       shooter.id,
     )
     const directGoaliePenalty = keeper
@@ -50,15 +53,25 @@ export class AIBankShotSystem {
           directTarget,
         ) * aiOffenseConfig.aiBankShotGoaliePenalty
       : 0
+    const distanceToGoal = Math.hypot(
+      shooter.position.x - goal.x,
+      shooter.position.y - goal.y,
+    )
+    const closeRangeBonus =
+      distanceToGoal <= aiOffenseConfig.aiMinShotDistance
+        ? aiOffenseConfig.aiCloseRangeShotBonus
+        : 0
     const directScore = Phaser.Math.Clamp(
-      directLane - directGoaliePenalty,
+      directLane - directGoaliePenalty + closeRangeBonus,
       0,
       1,
     )
 
     if (
       !aiOffenseConfig.aiBankShotsEnabled ||
-      shooter.role === 'keeper'
+      shooter.role === 'keeper' ||
+      distanceToGoal <
+        aiOffenseConfig.aiBankShotMinCarrierDistanceFromGoal
     ) {
       return {
         directTarget,
@@ -72,7 +85,7 @@ export class AIBankShotSystem {
       this.evaluateWall(
         wall,
         shooter,
-        opponents,
+        fieldDefenders,
         keeper,
         directTarget,
         strategy,
@@ -119,11 +132,11 @@ export class AIBankShotSystem {
     const top =
       arenaConfig.center.y -
       halfHeight +
-      aiOffenseConfig.aiBankShotWallPadding
+      aiOffenseConfig.aiBankShotWallTargetPadding
     const bottom =
       arenaConfig.center.y +
       halfHeight -
-      aiOffenseConfig.aiBankShotWallPadding
+      aiOffenseConfig.aiBankShotWallTargetPadding
     const valid =
       progress > 0 &&
       progress < 1 &&

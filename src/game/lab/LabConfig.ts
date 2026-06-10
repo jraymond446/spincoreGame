@@ -238,12 +238,40 @@ export type LabAITacticsTuning = {
 }
 
 export type LabAIOffenseTuning = {
+  opponentAiScoringAggression: number
+  opponentAiShotFrequency: number
+  opponentAiBankShotFrequency: number
+  opponentAiPassToShotBias: number
+  opponentAiForceShotAfterMs: number
+  opponentAiAimAssist: number
+  opponentAiShotError: number
+  opponentAiDecisionIntervalMs: number
+  opponentAiAttackSpacing: number
+  aiGoodDirectShotThreshold: number
+  aiGoodBankShotThreshold: number
+  aiPassBetterShotMargin: number
+  aiMaxCarryBeforeShotMs: number
+  aiShotCooldownMs: number
+  aiMinShotDistance: number
+  aiCloseRangeShotBonus: number
   aiBankShotsEnabled: boolean
   aiBankShotPreference: number
   aiBankShotMinScore: number
+  aiBankShotAttemptChanceWhenBlocked: number
+  aiBankShotAttemptChanceWhenOpen: number
+  aiBankShotAimAssist: number
+  aiBankShotMaxError: number
+  aiBankShotMinCarrierDistanceFromGoal: number
+  aiBankShotWallTargetPadding: number
   aiSeekBetterShotAngleEnabled: boolean
   aiShotBlockedThreshold: number
   aiLateralAttackMoveStrength: number
+  aiLateralRepositionEnabled: boolean
+  aiLateralRepositionDistance: number
+  aiLateralRepositionTimeMs: number
+  aiWeakSideLanePreference: number
+  aiBehindGoalPlayPreference: number
+  aiFrontSlotFinishPreference: number
   aiBehindGoalPassEnabled: boolean
   aiFrontSlotPassEnabled: boolean
   aiShotPatienceMs: number

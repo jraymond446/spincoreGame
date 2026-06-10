@@ -10,6 +10,10 @@ import {
   type LabPlayerTuning,
   type LabTuningState,
 } from './LabConfig'
+import {
+  getLabApplyDiagnostics,
+  type LabApplyDiagnostics,
+} from './LabApplyState'
 import { labEvents } from './LabEvents'
 
 type LabPanelActions = {
@@ -38,6 +42,7 @@ export class LabPanel {
   private open = false
   private desktop = false
   private status = 'Runtime draft'
+  private applyDiagnostics = getLabApplyDiagnostics()
 
   constructor(root: HTMLDivElement, actions: LabPanelActions) {
     this.root = root
@@ -47,11 +52,19 @@ export class LabPanel {
     this.render()
     window.addEventListener('resize', this.handleResize)
     window.addEventListener(labEvents.stateChanged, this.handleStateChanged)
+    window.addEventListener(
+      labEvents.applyDiagnostics,
+      this.handleApplyDiagnostics,
+    )
   }
 
   destroy(): void {
     window.removeEventListener('resize', this.handleResize)
     window.removeEventListener(labEvents.stateChanged, this.handleStateChanged)
+    window.removeEventListener(
+      labEvents.applyDiagnostics,
+      this.handleApplyDiagnostics,
+    )
     this.toggle?.remove()
   }
 
@@ -67,6 +80,22 @@ export class LabPanel {
   private handleStateChanged = (): void => {
     this.draft = cloneLabState(getLabState())
     this.status = 'Synced to live match'
+    this.render()
+  }
+
+  private handleApplyDiagnostics = (event: Event): void => {
+    if (!(event instanceof CustomEvent)) {
+      return
+    }
+
+    this.applyDiagnostics = event.detail as LabApplyDiagnostics
+    this.status = this.applyDiagnostics.error
+      ? 'Apply failed; game kept running'
+      : this.applyDiagnostics.applyInProgress
+        ? 'Applying validated settings...'
+        : this.applyDiagnostics.resetTriggered
+          ? 'Applied and rebuilt once'
+          : this.status
     this.render()
   }
 
@@ -124,6 +153,7 @@ export class LabPanel {
     const body = document.createElement('div')
     body.className = 'lab-console-body'
     body.append(
+      this.createApplyDiagnosticsSection(),
       this.createMatchSection(),
       this.createControlledSection(),
       this.createTeamSection('A'),
@@ -134,7 +164,9 @@ export class LabPanel {
       this.createKeeperZoneRulesSection(),
       this.createSpacingSection(),
       this.createAITacticsSection(),
-      this.createAIOffenseSection(),
+      this.createOpponentAIOffenseSection(),
+      this.createAIShotSelectionSection(),
+      this.createBankShotSection(),
       this.createClearSafetySection(),
       this.createTacticalGuidesSection(),
       this.createCreaseBattleSection(),
@@ -146,11 +178,19 @@ export class LabPanel {
 
     const footer = document.createElement('footer')
     footer.className = 'lab-console-footer'
+    const applyButton = this.button(
+      'Apply + Reset Match',
+      'lab-primary-button',
+      () => {
+        const nextState = cloneLabState(this.draft)
+        this.status = 'Apply queued for next safe frame...'
+        this.render()
+        this.actions.onApply(nextState)
+      },
+    )
+    applyButton.disabled = this.applyDiagnostics.applyInProgress
     footer.append(
-      this.button('Apply + Reset Match', 'lab-primary-button', () => {
-        this.status = 'Applying structural settings...'
-        this.actions.onApply(cloneLabState(this.draft))
-      }),
+      applyButton,
       this.button('Defaults', 'lab-secondary-button', () => {
         this.draft = createDefaultLabTuning()
         this.status = 'Defaults loaded into draft'
@@ -159,6 +199,37 @@ export class LabPanel {
     )
     panel.appendChild(footer)
     this.root.appendChild(panel)
+  }
+
+  private createApplyDiagnosticsSection(): HTMLElement {
+    const diagnostics = this.applyDiagnostics
+    const content = document.createElement('div')
+    content.className = 'lab-diagnostics'
+    const summary = document.createElement('p')
+    summary.textContent =
+      `State: ${diagnostics.applyInProgress ? 'applying' : 'idle'} | ` +
+      `Sanitized: ${diagnostics.sanitizedSettingCount} | ` +
+      `Invalid: ${diagnostics.invalidSettingCount} | ` +
+      `Reset: ${diagnostics.resetTriggered ? 'yes' : 'no'}`
+    content.appendChild(summary)
+
+    if (diagnostics.lastApplyTimestamp > 0) {
+      const timestamp = document.createElement('p')
+      timestamp.textContent =
+        `Last apply: ${new Date(
+          diagnostics.lastApplyTimestamp,
+        ).toLocaleTimeString()}`
+      content.appendChild(timestamp)
+    }
+
+    if (diagnostics.error) {
+      const error = document.createElement('p')
+      error.className = 'lab-error'
+      error.textContent = diagnostics.error
+      content.appendChild(error)
+    }
+
+    return this.createSection('Lab Apply Diagnostics', content, true)
   }
 
   private createMatchSection(): HTMLElement {
@@ -1039,24 +1110,117 @@ export class LabPanel {
     return this.createSection('AI / Tactical Overrides', content)
   }
 
-  private createAIOffenseSection(): HTMLElement {
+  private createOpponentAIOffenseSection(): HTMLElement {
+    const offense = this.draft.aiOffense
+    const content = document.createElement('div')
+    content.className = 'lab-range-list'
+    content.append(
+      this.createRange(
+        'Opponent scoring aggression',
+        offense.opponentAiScoringAggression,
+        { min: 0, max: 1, step: 0.05, digits: 2 },
+        (value) => {
+          offense.opponentAiScoringAggression = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Opponent shot frequency',
+        offense.opponentAiShotFrequency,
+        { min: 0, max: 1, step: 0.05, digits: 2 },
+        (value) => {
+          offense.opponentAiShotFrequency = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Opponent bank-shot frequency',
+        offense.opponentAiBankShotFrequency,
+        { min: 0, max: 1, step: 0.05, digits: 2 },
+        (value) => {
+          offense.opponentAiBankShotFrequency = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Opponent pass-to-shot bias',
+        offense.opponentAiPassToShotBias,
+        { min: 0, max: 1, step: 0.05, digits: 2 },
+        (value) => {
+          offense.opponentAiPassToShotBias = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Opponent shot error',
+        offense.opponentAiShotError,
+        { min: 0, max: 0.6, step: 0.02, digits: 2 },
+        (value) => {
+          offense.opponentAiShotError = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Opponent aim assist',
+        offense.opponentAiAimAssist,
+        { min: 0, max: 1, step: 0.05, digits: 2 },
+        (value) => {
+          offense.opponentAiAimAssist = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Opponent force shot after ms',
+        offense.opponentAiForceShotAfterMs,
+        { min: 300, max: 5000, step: 50 },
+        (value) => {
+          offense.opponentAiForceShotAfterMs = value
+          offense.aiForceShotAfterMs = value
+          offense.aiMaxCarryBeforeShotMs = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Opponent decision interval ms',
+        offense.opponentAiDecisionIntervalMs,
+        { min: 80, max: 800, step: 20 },
+        (value) => {
+          offense.opponentAiDecisionIntervalMs = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Opponent attack spacing',
+        offense.opponentAiAttackSpacing,
+        { min: 40, max: 320, step: 10 },
+        (value) => {
+          offense.opponentAiAttackSpacing = value
+          this.markDraftChanged()
+        },
+      ),
+    )
+
+    return this.createSection('Opponent AI Offense', content)
+  }
+
+  private createAIShotSelectionSection(): HTMLElement {
     const offense = this.draft.aiOffense
     const content = document.createElement('div')
     content.className = 'lab-range-list'
     content.append(
       this.createCheckbox(
-        'AI bank shots enabled',
-        offense.aiBankShotsEnabled,
-        (value) => {
-          offense.aiBankShotsEnabled = value
-          this.markDraftChanged()
-        },
-      ),
-      this.createCheckbox(
         'Seek better shot angles',
         offense.aiSeekBetterShotAngleEnabled,
         (value) => {
           offense.aiSeekBetterShotAngleEnabled = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createCheckbox(
+        'Lateral reposition enabled',
+        offense.aiLateralRepositionEnabled,
+        (value) => {
+          offense.aiLateralRepositionEnabled = value
           this.markDraftChanged()
         },
       ),
@@ -1077,38 +1241,31 @@ export class LabPanel {
         },
       ),
       this.createRange(
-        'Bank-shot preference',
-        offense.aiBankShotPreference,
-        { min: 0, max: 1, step: 0.05, digits: 2 },
+        'Good direct-shot threshold',
+        offense.aiGoodDirectShotThreshold,
+        { min: 0.1, max: 1, step: 0.05, digits: 2 },
         (value) => {
-          offense.aiBankShotPreference = value
-          this.markDraftChanged()
-        },
-      ),
-      this.createRange(
-        'Bank-shot minimum score',
-        offense.aiBankShotMinScore,
-        { min: 0, max: 1, step: 0.05, digits: 2 },
-        (value) => {
-          offense.aiBankShotMinScore = value
-          this.markDraftChanged()
-        },
-      ),
-      this.createRange(
-        'Shot blocked threshold',
-        offense.aiShotBlockedThreshold,
-        { min: 0.15, max: 0.9, step: 0.05, digits: 2 },
-        (value) => {
+          offense.aiGoodDirectShotThreshold = value
           offense.aiShotBlockedThreshold = value
           this.markDraftChanged()
         },
       ),
       this.createRange(
-        'Lateral attack strength',
-        offense.aiLateralAttackMoveStrength,
-        { min: 0, max: 1, step: 0.05, digits: 2 },
+        'Good bank-shot threshold',
+        offense.aiGoodBankShotThreshold,
+        { min: 0.1, max: 1, step: 0.05, digits: 2 },
         (value) => {
-          offense.aiLateralAttackMoveStrength = value
+          offense.aiGoodBankShotThreshold = value
+          offense.aiBankShotMinScore = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Pass better-shot margin',
+        offense.aiPassBetterShotMargin,
+        { min: 0, max: 0.6, step: 0.02, digits: 2 },
+        (value) => {
+          offense.aiPassBetterShotMargin = value
           this.markDraftChanged()
         },
       ),
@@ -1122,17 +1279,116 @@ export class LabPanel {
         },
       ),
       this.createRange(
-        'Force shot after ms',
-        offense.aiForceShotAfterMs,
-        { min: 500, max: 3500, step: 50 },
+        'Lateral reposition distance',
+        offense.aiLateralRepositionDistance,
+        { min: 40, max: 300, step: 10 },
         (value) => {
-          offense.aiForceShotAfterMs = value
+          offense.aiLateralRepositionDistance = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Lateral reposition time ms',
+        offense.aiLateralRepositionTimeMs,
+        { min: 100, max: 2000, step: 50 },
+        (value) => {
+          offense.aiLateralRepositionTimeMs = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Front-slot finish preference',
+        offense.aiFrontSlotFinishPreference,
+        { min: 0, max: 1, step: 0.05, digits: 2 },
+        (value) => {
+          offense.aiFrontSlotFinishPreference = value
           this.markDraftChanged()
         },
       ),
     )
 
-    return this.createSection('AI Offense', content)
+    return this.createSection('AI Shot Selection', content)
+  }
+
+  private createBankShotSection(): HTMLElement {
+    const offense = this.draft.aiOffense
+    const content = document.createElement('div')
+    content.className = 'lab-range-list'
+    content.append(
+      this.createCheckbox(
+        'AI bank shots enabled',
+        offense.aiBankShotsEnabled,
+        (value) => {
+          offense.aiBankShotsEnabled = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Bank-shot preference',
+        offense.aiBankShotPreference,
+        { min: 0, max: 1, step: 0.05, digits: 2 },
+        (value) => {
+          offense.aiBankShotPreference = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Attempt chance when blocked',
+        offense.aiBankShotAttemptChanceWhenBlocked,
+        { min: 0, max: 1, step: 0.05, digits: 2 },
+        (value) => {
+          offense.aiBankShotAttemptChanceWhenBlocked = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Attempt chance when open',
+        offense.aiBankShotAttemptChanceWhenOpen,
+        { min: 0, max: 1, step: 0.05, digits: 2 },
+        (value) => {
+          offense.aiBankShotAttemptChanceWhenOpen = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Bank-shot aim assist',
+        offense.aiBankShotAimAssist,
+        { min: 0, max: 1, step: 0.05, digits: 2 },
+        (value) => {
+          offense.aiBankShotAimAssist = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Bank-shot max error',
+        offense.aiBankShotMaxError,
+        { min: 0, max: 0.6, step: 0.02, digits: 2 },
+        (value) => {
+          offense.aiBankShotMaxError = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Minimum carrier distance',
+        offense.aiBankShotMinCarrierDistanceFromGoal,
+        { min: 0, max: 600, step: 10 },
+        (value) => {
+          offense.aiBankShotMinCarrierDistanceFromGoal = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Wall target padding',
+        offense.aiBankShotWallTargetPadding,
+        { min: 10, max: 160, step: 5 },
+        (value) => {
+          offense.aiBankShotWallTargetPadding = value
+          this.markDraftChanged()
+        },
+      ),
+    )
+
+    return this.createSection('Bank Shots', content)
   }
 
   private createClearSafetySection(): HTMLElement {
@@ -1240,7 +1496,7 @@ export class LabPanel {
       ),
     )
 
-    return this.createSection('Clear Safety', content)
+    return this.createSection('Own-Goal Safety', content)
   }
 
   private createTacticalGuidesSection(): HTMLElement {

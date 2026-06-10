@@ -14,7 +14,11 @@ export type ClearSafetyReason =
 export type ClearSafetyResult = {
   direction: Point
   rawDirection: Point
+  safeClearDirection: Point
+  originalClearDirection: Point
   corrected: boolean
+  clearSanitized: boolean
+  ownGoalDangerDetected: boolean
   awayDot: number
   pathIntersectsOwnGoal: boolean
   reason: ClearSafetyReason
@@ -50,6 +54,8 @@ export class ClearSafetySystem {
           ...result,
           direction: { ...result.direction },
           rawDirection: { ...result.rawDirection },
+          safeClearDirection: { ...result.safeClearDirection },
+          originalClearDirection: { ...result.originalClearDirection },
         }
       : null
   }
@@ -92,7 +98,11 @@ export function sanitizeClearDirection(
     return {
       direction: candidate,
       rawDirection: candidate,
+      safeClearDirection: candidate,
+      originalClearDirection: candidate,
       corrected: false,
+      clearSanitized: false,
+      ownGoalDangerDetected: inDangerCone || pathIntersectsOwnGoal,
       awayDot,
       pathIntersectsOwnGoal,
       reason: 'safe',
@@ -127,7 +137,11 @@ export function sanitizeClearDirection(
   return {
     direction: safeDirection,
     rawDirection: candidate,
+    safeClearDirection: safeDirection,
+    originalClearDirection: candidate,
     corrected: true,
+    clearSanitized: true,
+    ownGoalDangerDetected: true,
     awayDot,
     pathIntersectsOwnGoal,
     reason:
