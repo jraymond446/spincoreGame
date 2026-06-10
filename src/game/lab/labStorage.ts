@@ -1,3 +1,4 @@
+import { createDefaultLabTuning } from '../config/tuningDefaults'
 import type { LabTuningState } from './LabConfig'
 import { sanitizeLabSettings } from './labValidation'
 
@@ -23,7 +24,12 @@ export function loadLabSettings(): LabTuningState | null {
     const candidate = current
       ? readVersionedSettings(parsed)
       : parsed
-    const result = sanitizeLabSettings(candidate)
+    const result = sanitizeLabSettings(
+      fillMissingSettings(
+        candidate,
+        createDefaultLabTuning(),
+      ),
+    )
 
     if (result.invalidSettingCount > 0) {
       console.warn(
@@ -94,4 +100,29 @@ function discardStoredSettings(): void {
   } catch {
     // Storage may be unavailable or blocked.
   }
+}
+
+function fillMissingSettings(
+  candidate: unknown,
+  defaults: unknown,
+): unknown {
+  if (
+    !defaults ||
+    typeof defaults !== 'object' ||
+    Array.isArray(defaults)
+  ) {
+    return candidate === undefined ? defaults : candidate
+  }
+
+  const source =
+    candidate && typeof candidate === 'object' && !Array.isArray(candidate)
+      ? candidate as Record<string, unknown>
+      : {}
+  const result: Record<string, unknown> = {}
+
+  for (const [key, fallback] of Object.entries(defaults)) {
+    result[key] = fillMissingSettings(source[key], fallback)
+  }
+
+  return result
 }

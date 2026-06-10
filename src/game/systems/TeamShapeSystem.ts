@@ -1,4 +1,5 @@
 import Phaser from 'phaser'
+import { aiCarrierConfig } from '../config/aiCarrierConfig'
 import { arenaConfig } from '../config/arenaConfig'
 import { keeperAreaConfig } from '../config/keeperAreaConfig'
 import { keeperZoneRulesConfig } from '../config/keeperZoneRulesConfig'
@@ -304,6 +305,14 @@ export class TeamShapeSystem {
         continue
       }
 
+      if (
+        aiCarrierConfig.freezeCarrierTacticalJob &&
+        player.id === teamCarrier?.id
+      ) {
+        this.setAssignment(player, 'carrier', player.position)
+        continue
+      }
+
       if (cleanupIds.has(player.id)) {
         const cleanupIndex = cleanupPlayers.findIndex(
           (candidate) => candidate.id === player.id,
@@ -532,7 +541,15 @@ export class TeamShapeSystem {
     core: Core,
   ): TacticalJob {
     if (carrier?.id === player.id) {
-      return 'strongSideLane'
+      return 'carrier'
+    }
+
+    if (
+      carrier &&
+      player.role === 'support' &&
+      strategy.offenseScheme === 'giveAndGo'
+    ) {
+      return 'playmaker'
     }
 
     switch (strategy.offenseScheme) {
@@ -716,6 +733,9 @@ export class TeamShapeSystem {
       anchor.x < arenaConfig.center.x ? 1 : -1
 
     switch (job) {
+      case 'carrier':
+        return { target: { ...player.position } }
+      case 'playmaker':
       case 'supportOutlet':
         return {
           target: {
@@ -1240,12 +1260,15 @@ export class TeamShapeSystem {
 
 function jobColor(job: TacticalJob): number {
   switch (job) {
-    case 'primaryPresser':
-      return spacingConfig.debug.presserColor
+    case 'carrier':
+      return 0xffd36a
+    case 'playmaker':
     case 'supportOutlet':
     case 'weakSideLane':
     case 'strongSideLane':
       return spacingConfig.debug.outletColor
+    case 'primaryPresser':
+      return spacingConfig.debug.presserColor
     case 'defensiveCover':
     case 'zoneGuard':
     case 'manMark':

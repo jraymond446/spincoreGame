@@ -12,6 +12,7 @@ import { createAIDecisionContext } from '../ai/AIDecisionContext'
 import { decideDefenseActions } from '../ai/DefenseBehavior'
 import { getPlayStyleModifiers } from '../ai/PlayStyleModifiers'
 import { decideRoleIntent } from '../ai/RoleBehaviors'
+import { aiCarrierConfig } from '../config/aiCarrierConfig'
 import { aiConfig } from '../config/aiConfig'
 import { aiOffenseConfig } from '../config/aiOffenseConfig'
 import { arenaConfig } from '../config/arenaConfig'
@@ -41,6 +42,12 @@ import {
 } from './AIBankShotSystem'
 import { AIScoringSystem } from './AIScoringSystem'
 import {
+  AICarrierIntentSystem,
+  type AICarrierIntentDebugState,
+  type CarrierIntent,
+  type CarrierIntentType,
+} from './AICarrierIntentSystem'
+import {
   KeeperAISystem,
   type KeeperAIDebugState,
 } from './KeeperAISystem'
@@ -63,6 +70,7 @@ export type AIDecisionDebugState = {
   bankShotSelected: boolean
   selectedBankReflection: Point | null
   bankCandidates: AIBankShotCandidate[]
+  carrierIntent: AICarrierIntentDebugState | null
 }
 
 export type AIOffenseMetricLine = {
@@ -83,6 +91,19 @@ type PlannedOffenseAction = {
   passToShot: boolean
 }
 
+type PossessionDecision = {
+  intent: PlayerControlIntent
+  decision: string
+  passTargetId: string | null
+  passLaneScore: number
+  passShotScore: number
+  passDeniedReason: string
+  shotReason: string
+  bankShotSelected: boolean
+  selectedBankReflection: Point | null
+  shotEvaluation: AIShotEvaluation
+}
+
 export class AISystem {
   private readonly debugGraphics: Phaser.GameObjects.Graphics
   private readonly debugLabels = new Map<string, Phaser.GameObjects.Text>()
@@ -94,6 +115,7 @@ export class AISystem {
   private readonly keeperAI: KeeperAISystem
   private readonly teamShape: TeamShapeSystem
   private readonly scoring = new AIScoringSystem()
+  private readonly carrierIntent = new AICarrierIntentSystem()
   private debugEnabled = false
   private decisionTimerMs = 0
   private intents = new Map<string, PlayerControlIntent>()
@@ -102,6 +124,7 @@ export class AISystem {
   private overrideCooldowns = new Map<string, number>()
   private carrierPossessionId: string | null = null
   private carrierPossessionMs = 0
+  private committedCarrierDecision: PossessionDecision | null = null
   private shotCooldowns = new Map<string, number>()
   private plannedOffenseActions = new Map<string, PlannedOffenseAction>()
   private offenseMetrics = createEmptyOffenseMetrics()
@@ -129,7 +152,13 @@ export class AISystem {
     deltaMs: number,
     humanKeeperBias: Point,
   ): Map<string, PlayerControlIntent> {
-    this.updateCarrierPossessionClock(carrierId, deltaMs)
+    const carrierChanged = this.updateCarrierPossessionClock(
+      carrierId,
+      deltaMs,
+    )
+    if (carrierChanged) {
+      this.decisionTimerMs = 0
+    }
     this.updateOverrideCooldowns(deltaMs)
     this.updateShotCooldowns(deltaMs)
     this.lastAIShotWindowMs = Math.max(
@@ -159,6 +188,7 @@ export class AISystem {
       )
     }
 
+    this.updateCarrierRuntime(players, carrierId, deltaMs)
     this.drawDebug(players)
     this.keeperAI.drawDebug()
     return this.intents
@@ -216,6 +246,10 @@ export class AISystem {
 
   recordRelease(player: Player): void {
     const action = this.plannedOffenseActions.get(player.id)
+    this.carrierIntent.clearPlayer(player.id)
+    if (this.carrierPossessionId === player.id) {
+      this.committedCarrierDecision = null
+    }
 
     if (!action) {
       return
@@ -289,6 +323,8 @@ export class AISystem {
     this.overrideCooldowns.clear()
     this.carrierPossessionId = null
     this.carrierPossessionMs = 0
+    this.committedCarrierDecision = null
+    this.carrierIntent.reset()
     this.shotCooldowns.clear()
     this.plannedOffenseActions.clear()
     this.lastAIShotSide = null
@@ -363,7 +399,7 @@ export class AISystem {
       const schemeIntent = baseIntent
       const assignment = this.teamShape.getAssignment(player.id)
       const possessionDecision = context.isCarrier
-          ? this.applyPossessionDecision(
+        ? this.resolveCommittedPossessionDecision(
             context,
             schemeIntent,
           )
@@ -405,9 +441,11 @@ export class AISystem {
             }
           : schemeIntent
       const activelyGathering = gatherDecision?.allowed ?? false
-      const baseDefense = followsShape && !activelyGathering
+      const baseDefense = context.isCarrier
         ? { truck: false, slash: false }
-        : decideDefenseActions(context)
+        : followsShape && !activelyGathering
+          ? { truck: false, slash: false }
+          : decideDefenseActions(context)
       const defense = highPressing
         ? boostHighPressDefense(context, baseDefense)
         : baseDefense
@@ -429,7 +467,11 @@ export class AISystem {
       })
       player.setAIState(shapedIntent.aiState)
       this.decisions.set(player.id, {
-        job: assignment?.job ?? null,
+        job:
+          context.isCarrier &&
+          aiCarrierConfig.freezeCarrierTacticalJob
+            ? 'carrier'
+            : assignment?.job ?? null,
         decision:
           possessionDecision?.decision ??
           (activelyGathering
@@ -462,6 +504,11 @@ export class AISystem {
           possessionDecision?.selectedBankReflection ?? null,
         bankCandidates:
           possessionDecision?.shotEvaluation.bankCandidates ?? [],
+        carrierIntent: context.isCarrier
+          ? this.carrierIntent.getDebugState(
+              this.carrierPossessionMs,
+            )
+          : null,
       })
     }
   }
@@ -607,22 +654,171 @@ export class AISystem {
     }
   }
 
+  private resolveCommittedPossessionDecision(
+    context: ReturnType<typeof createAIDecisionContext>,
+    intent: PlayerControlIntent,
+  ): PossessionDecision {
+    const forceReleaseReason =
+      this.carrierIntent.getForceReleaseReason(context.player.id) ??
+      (this.carrierPossessionMs >= aiCarrierConfig.aiMaxCarryMs
+        ? 'maxCarry'
+        : null)
+    const candidate = this.applyPossessionDecision(
+      context,
+      intent,
+      forceReleaseReason,
+    )
+    const candidateIntent = this.describeCarrierIntent(
+      context.player,
+      candidate,
+      forceReleaseReason,
+    )
+    const currentIntent = this.carrierIntent.getIntent(
+      context.player.id,
+    )
+    const targetValid = this.isCarrierTargetValid(
+      currentIntent,
+      context.players,
+      context.player.teamSide,
+    )
+    const selection = this.carrierIntent.select(
+      context.player,
+      candidateIntent,
+      this.carrierPossessionMs,
+      context.pressure,
+      targetValid,
+    )
+
+    if (selection.changed || !this.committedCarrierDecision) {
+      this.committedCarrierDecision = candidate
+      if (candidate.intent.releaseTarget) {
+        candidate.intent.aiReleaseDelayMs =
+          this.carrierPossessionMs +
+          selection.intent.releaseAfterChargeMs
+      }
+    }
+
+    const committed = this.committedCarrierDecision
+    this.syncPlannedOffenseAction(context.player, committed)
+    return committed
+  }
+
+  private describeCarrierIntent(
+    player: Player,
+    decision: PossessionDecision,
+    forceReleaseReason: string | null,
+  ): CarrierIntent {
+    const intentType = carrierIntentType(decision)
+    const targetPoint = {
+      ...(decision.intent.releaseTarget ??
+        (intentType === 'carryToAngle'
+          ? decision.intent.aimTarget
+          : decision.intent.aimTarget)),
+    }
+    const carrySide =
+      intentType === 'carryToAngle'
+        ? decision.intent.moveTarget.x < player.position.x
+          ? 'left'
+          : 'right'
+        : null
+    const releaseAfterChargeMs = forceReleaseReason
+      ? 80
+      : decision.intent.releaseTarget
+        ? Math.max(
+            160,
+            Math.min(
+              aiConfig.aiReleaseDelayMs,
+              decision.intent.aiReleaseDelayMs ??
+                aiConfig.aiReleaseDelayMs,
+            ),
+          )
+        : 0
+    const minCommitMs =
+      intentType === 'carryToAngle'
+        ? Math.max(
+            aiCarrierConfig.aiCarrierMinCommitMs,
+            aiCarrierConfig.aiCarrySideCommitMs,
+          )
+        : aiCarrierConfig.aiCarrierMinCommitMs
+
+    return {
+      intentType,
+      targetPoint,
+      targetPlayerId: decision.passTargetId,
+      chosenAtTime: this.carrierPossessionMs,
+      minCommitMs,
+      maxCommitMs: aiCarrierConfig.aiCarrierMaxCommitMs,
+      releaseAfterChargeMs,
+      reason: forceReleaseReason ?? decision.shotReason,
+      qualityScore: carrierDecisionQuality(decision),
+      carrySide,
+    }
+  }
+
+  private isCarrierTargetValid(
+    intent: CarrierIntent | null,
+    players: Player[],
+    teamSide: TeamSide,
+  ): boolean {
+    if (!intent) {
+      return false
+    }
+
+    if (
+      intent.intentType !== 'passToTeammate' ||
+      !intent.targetPlayerId
+    ) {
+      return true
+    }
+
+    return players.some(
+      (player) =>
+        player.id === intent.targetPlayerId &&
+        player.teamSide === teamSide,
+    )
+  }
+
+  private syncPlannedOffenseAction(
+    player: Player,
+    decision: PossessionDecision,
+  ): void {
+    if (decision.decision === 'PASS') {
+      this.plannedOffenseActions.set(player.id, {
+        teamSide: player.teamSide,
+        kind: 'pass',
+        passToShot:
+          decision.passShotScore >=
+          aiOffenseConfig.aiGoodDirectShotThreshold - 0.08,
+      })
+      return
+    }
+
+    if (decision.decision === 'SHOOT') {
+      this.plannedOffenseActions.set(player.id, {
+        teamSide: player.teamSide,
+        kind: 'directShot',
+        passToShot: false,
+      })
+      return
+    }
+
+    if (decision.decision === 'BANK_SHOT') {
+      this.plannedOffenseActions.set(player.id, {
+        teamSide: player.teamSide,
+        kind: 'bankShot',
+        passToShot: false,
+      })
+      return
+    }
+
+    this.plannedOffenseActions.delete(player.id)
+  }
+
   private applyPossessionDecision(
     context: ReturnType<typeof createAIDecisionContext>,
     intent: PlayerControlIntent,
-  ): {
-    intent: PlayerControlIntent
-    decision: string
-    passTargetId: string | null
-    passLaneScore: number
-    passShotScore: number
-    passDeniedReason: string
-    shotReason: string
-    bankShotSelected: boolean
-    selectedBankReflection: Point | null
-    shotEvaluation: AIShotEvaluation
-  } {
-    this.plannedOffenseActions.delete(context.player.id)
+    forceReleaseReason: string | null = null,
+  ): PossessionDecision {
     const strategy = this.teamShape.getStrategy(context.player.teamSide)
     const passOption = findBestPassOption(
       context.player,
@@ -775,6 +971,54 @@ export class AISystem {
       shotReady &&
       inAttackingHalf &&
       this.carrierPossessionMs >= forcedAfterMs
+
+    if (forceReleaseReason) {
+      if (
+        passOption &&
+        passOption.score >= 0.35 &&
+        (!inAttackingHalf || pressure >= 0.72)
+      ) {
+        return this.createPassDecision(
+          context,
+          intent,
+          passOption,
+          forceReleaseReason,
+          shotEvaluation,
+        )
+      }
+
+      if (
+        inAttackingHalf &&
+        bestBank &&
+        bestBank.score > shotEvaluation.directScore
+      ) {
+        return this.createShotDecision(
+          context,
+          intent,
+          bestBank.reflectionPoint,
+          forceReleaseReason,
+          shotEvaluation,
+          bestBank,
+        )
+      }
+
+      if (!inAttackingHalf) {
+        return this.createClearDecision(
+          context,
+          intent,
+          forceReleaseReason,
+          shotEvaluation,
+        )
+      }
+
+      return this.createShotDecision(
+        context,
+        intent,
+        shotEvaluation.directTarget,
+        forceReleaseReason,
+        shotEvaluation,
+      )
+    }
 
     if (
       directGood &&
@@ -983,11 +1227,6 @@ export class AISystem {
       Boolean(bank),
     )
     const decisionSpeed = getAiDecisionSpeed(context.player, context)
-    this.plannedOffenseActions.set(context.player.id, {
-      teamSide: context.player.teamSide,
-      kind: bank ? 'bankShot' : 'directShot',
-      passToShot: false,
-    })
 
     return {
       intent: {
@@ -1041,13 +1280,6 @@ export class AISystem {
       97,
     )
     const decisionSpeed = getAiDecisionSpeed(context.player, context)
-    this.plannedOffenseActions.set(context.player.id, {
-      teamSide: context.player.teamSide,
-      kind: 'pass',
-      passToShot:
-        passOption.shotScore >=
-        aiOffenseConfig.aiGoodDirectShotThreshold - 0.08,
-    })
 
     return {
       intent: {
@@ -1079,23 +1311,125 @@ export class AISystem {
     }
   }
 
+  private createClearDecision(
+    context: ReturnType<typeof createAIDecisionContext>,
+    intent: PlayerControlIntent,
+    reason: string,
+    shotEvaluation: AIShotEvaluation,
+  ): PossessionDecision {
+    const target = applyAIExecutionError(
+      context.player,
+      context.attackGoal,
+      this.carrierPossessionMs,
+      getAiShotError(context.player, context) * 0.65,
+      false,
+      131,
+    )
+
+    return {
+      intent: {
+        ...intent,
+        moveTarget: context.player.position,
+        aimTarget: target,
+        hold: true,
+        swing: false,
+        releaseTarget: target,
+        aiReleaseDelayMs: 80,
+        aiState: 'CLEAR',
+      },
+      decision: 'CLEAR',
+      passTargetId: null,
+      passLaneScore: 0,
+      passShotScore: 0,
+      passDeniedReason: '-',
+      shotReason: reason,
+      bankShotSelected: false,
+      selectedBankReflection: null,
+      shotEvaluation,
+    }
+  }
+
   private updateCarrierPossessionClock(
     carrierId: string | null,
     deltaMs: number,
-  ): void {
+  ): boolean {
     if (!carrierId) {
+      const changed = this.carrierPossessionId !== null
       this.carrierPossessionId = null
       this.carrierPossessionMs = 0
-      return
+      this.committedCarrierDecision = null
+      this.carrierIntent.reset()
+      return changed
     }
 
     if (this.carrierPossessionId !== carrierId) {
       this.carrierPossessionId = carrierId
       this.carrierPossessionMs = 0
-      return
+      this.committedCarrierDecision = null
+      this.carrierIntent.reset()
+      return true
     }
 
     this.carrierPossessionMs += deltaMs
+    return false
+  }
+
+  private updateCarrierRuntime(
+    players: Player[],
+    carrierId: string | null,
+    deltaMs: number,
+  ): void {
+    if (!carrierId) {
+      return
+    }
+
+    const carrier = players.find(
+      (player) => player.id === carrierId,
+    )
+    const intent = this.intents.get(carrierId)
+
+    if (
+      !carrier ||
+      carrier.controllerType !== 'ai' ||
+      carrier.role === 'keeper' ||
+      !intent
+    ) {
+      return
+    }
+
+    const previousForceReason =
+      this.carrierIntent.getForceReleaseReason(carrier.id)
+    const debug = this.carrierIntent.update(
+      carrier,
+      this.carrierPossessionMs,
+      deltaMs,
+      intent.moveTarget,
+    )
+    const aimAngle = this.carrierIntent.getAimAngle(carrier.id)
+
+    if (aimAngle !== null) {
+      this.intents.set(carrier.id, {
+        ...intent,
+        aimAngle,
+        truck: false,
+        slash: false,
+        swing: false,
+      })
+    }
+
+    const forceReason =
+      this.carrierIntent.getForceReleaseReason(carrier.id)
+    if (forceReason && forceReason !== previousForceReason) {
+      this.decisionTimerMs = 0
+    }
+
+    const decision = this.decisions.get(carrier.id)
+    if (decision && debug) {
+      this.decisions.set(carrier.id, {
+        ...decision,
+        carrierIntent: debug,
+      })
+    }
   }
 
   private finishOverride(playerId: string): void {
@@ -1214,7 +1548,8 @@ export class AISystem {
             `${decision.job ?? '-'} | ${decision.decision}\n` +
               `GATHER ${decision.gatherAllowed ? 'YES' : 'NO'}: ${decision.gatherDeniedReason}\n` +
               `PASS ${decision.passTargetId ?? '-'} ${decision.passLaneScore.toFixed(2)} ${decision.passDeniedReason}\n` +
-              `SHOT ${decision.chosenAction}/${decision.shotReason} D ${decision.directShotScore.toFixed(2)} B ${decision.bankShotScore.toFixed(2)} P ${decision.passShotScore.toFixed(2)}`,
+              `SHOT ${decision.chosenAction}/${decision.shotReason} D ${decision.directShotScore.toFixed(2)} B ${decision.bankShotScore.toFixed(2)} P ${decision.passShotScore.toFixed(2)}\n` +
+              formatCarrierIntentDebug(decision.carrierIntent),
           )
           .setVisible(true)
       }
@@ -1295,6 +1630,72 @@ export class AISystem {
     this.debugLabels.set(playerId, label)
     return label
   }
+}
+
+function carrierIntentType(
+  decision: PossessionDecision,
+): CarrierIntentType {
+  if (decision.decision === 'BANK_SHOT') {
+    return 'shootBank'
+  }
+  if (decision.decision === 'SHOOT') {
+    return 'shootDirect'
+  }
+  if (decision.decision === 'PASS') {
+    return 'passToTeammate'
+  }
+  if (decision.decision === 'SEEK_SHOT_ANGLE') {
+    return 'carryToAngle'
+  }
+  if (decision.decision === 'CLEAR') {
+    return 'clearSafe'
+  }
+  return 'holdBriefly'
+}
+
+function carrierDecisionQuality(
+  decision: PossessionDecision,
+): number {
+  switch (carrierIntentType(decision)) {
+    case 'shootBank':
+      return decision.shotEvaluation.bestBank?.score ?? 0
+    case 'shootDirect':
+      return decision.shotEvaluation.directScore
+    case 'passToTeammate':
+      return Math.max(
+        decision.passLaneScore,
+        decision.passShotScore,
+      )
+    case 'carryToAngle':
+      return (
+        Math.max(
+          decision.shotEvaluation.directScore,
+          decision.shotEvaluation.bestBank?.score ?? 0,
+          decision.passShotScore,
+        ) * 0.82
+      )
+    case 'clearSafe':
+      return 0.58
+    default:
+      return 0.2
+  }
+}
+
+function formatCarrierIntentDebug(
+  state: AICarrierIntentDebugState | null,
+): string {
+  if (!state) {
+    return 'CARRIER -'
+  }
+
+  return (
+    `CARRIER ${state.intentType} ${Math.round(state.intentAgeMs)}ms ` +
+    `TARGET ${Math.round(state.targetPoint.x)},${Math.round(state.targetPoint.y)} ` +
+    `${state.targetPlayerId ?? '-'}\n` +
+    `AIM ${state.aimAngle.toFixed(2)}>${state.desiredAimAngle.toFixed(2)} ` +
+    `D ${state.angleDelta.toFixed(2)} FORCE ${Math.round(state.forcedReleaseInMs)}ms ` +
+    `SPIN ${state.spinDetected ? 'YES' : 'NO'} ${state.reason}`
+  )
 }
 
 function isDefensiveJob(job: TacticalJob): boolean {
@@ -1499,9 +1900,10 @@ function getLateralAttackTarget(
       ? -1
       : 1
   const repositionDistance =
-    player.teamSide === 'B'
+    (player.teamSide === 'B'
       ? aiOffenseConfig.opponentAiAttackSpacing
-      : aiOffenseConfig.aiLateralRepositionDistance
+      : aiOffenseConfig.aiLateralRepositionDistance) *
+    (aiCarrierConfig.aiCarryToAngleDistance / 110)
   const angleCreationSkill = Phaser.Math.Clamp(
     player.attributes.control * 0.48 +
       player.attributes.ballHandling * 0.4 +

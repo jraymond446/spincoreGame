@@ -252,6 +252,16 @@ export type LabAITacticsTuning = {
 }
 
 export type LabAIOffenseTuning = {
+  aiCarrierMinCommitMs: number
+  aiCarrierMaxCommitMs: number
+  aiCarrierReevaluateAfterMs: number
+  aiAimTurnRateRadiansPerSec: number
+  aiMaxCarryMs: number
+  aiSpinDetectionEnabled: boolean
+  aiSpinAngularVelocityThreshold: number
+  aiSpinDurationMs: number
+  aiCarrySideCommitMs: number
+  freezeCarrierTacticalJob: boolean
   opponentAiScoringAggression: number
   opponentAiShotFrequency: number
   opponentAiBankShotFrequency: number

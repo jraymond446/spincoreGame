@@ -178,6 +178,7 @@ export class LabPanel {
       this.createKeeperZoneRulesSection(),
       this.createSpacingSection(),
       this.createAITacticsSection(),
+      this.createAICarrierSection(),
       this.createOpponentAIOffenseSection(),
       this.createAIShotSelectionSection(),
       this.createBankShotSection(),
@@ -1236,6 +1237,104 @@ export class LabPanel {
     )
 
     return this.createSection('Opponent AI Offense', content)
+  }
+
+  private createAICarrierSection(): HTMLElement {
+    const offense = this.draft.aiOffense
+    const content = document.createElement('div')
+    content.className = 'lab-range-list'
+    content.append(
+      this.createCheckbox(
+        'Spin detection enabled',
+        offense.aiSpinDetectionEnabled,
+        (value) => {
+          offense.aiSpinDetectionEnabled = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createCheckbox(
+        'Freeze carrier tactical job',
+        offense.freezeCarrierTacticalJob,
+        (value) => {
+          offense.freezeCarrierTacticalJob = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Carrier minimum commit ms',
+        offense.aiCarrierMinCommitMs,
+        { min: 100, max: 1200, step: 25 },
+        (value) => {
+          offense.aiCarrierMinCommitMs = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Carrier maximum commit ms',
+        offense.aiCarrierMaxCommitMs,
+        { min: 400, max: 3000, step: 50 },
+        (value) => {
+          offense.aiCarrierMaxCommitMs = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Carrier reevaluate after ms',
+        offense.aiCarrierReevaluateAfterMs,
+        { min: 150, max: 1800, step: 25 },
+        (value) => {
+          offense.aiCarrierReevaluateAfterMs = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Carrier aim turn rate',
+        offense.aiAimTurnRateRadiansPerSec,
+        { min: 1, max: 14, step: 0.25, digits: 2 },
+        (value) => {
+          offense.aiAimTurnRateRadiansPerSec = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Maximum AI carry ms',
+        offense.aiMaxCarryMs,
+        { min: 600, max: 4000, step: 50 },
+        (value) => {
+          offense.aiMaxCarryMs = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Spin angular threshold',
+        offense.aiSpinAngularVelocityThreshold,
+        { min: 1, max: 12, step: 0.25, digits: 2 },
+        (value) => {
+          offense.aiSpinAngularVelocityThreshold = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Spin duration ms',
+        offense.aiSpinDurationMs,
+        { min: 100, max: 1500, step: 25 },
+        (value) => {
+          offense.aiSpinDurationMs = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Carry-side commit ms',
+        offense.aiCarrySideCommitMs,
+        { min: 200, max: 2200, step: 50 },
+        (value) => {
+          offense.aiCarrySideCommitMs = value
+          this.markDraftChanged()
+        },
+      ),
+    )
+
+    return this.createSection('AI Carrier', content)
   }
 
   private createAIShotSelectionSection(): HTMLElement {

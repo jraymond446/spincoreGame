@@ -1,6 +1,8 @@
 import type { Point } from '../data/geometry'
 
 export type TacticalJob =
+  | 'carrier'
+  | 'playmaker'
   | 'primaryPresser'
   | 'supportOutlet'
   | 'frontSlot'

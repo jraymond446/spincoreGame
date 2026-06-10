@@ -238,6 +238,9 @@ export class DebugHudSystem {
       `AI SHOT  D ${(state.aiDecision?.directShotScore ?? 0).toFixed(2)} / B ${(state.aiDecision?.bankShotScore ?? 0).toFixed(2)} / P ${(state.aiDecision?.passShotScore ?? 0).toFixed(2)}\n` +
       `AI ACT   ${state.aiDecision?.chosenAction ?? '-'} / BANK ${state.aiDecision?.bankShotSelected ? 'YES' : 'NO'}\n` +
       `AI PASS  ${state.aiDecision?.passTargetId ?? '-'} ${(state.aiDecision?.passLaneScore ?? 0).toFixed(2)}\n` +
+      `AI CARRY ${state.aiDecision?.carrierIntent?.intentType ?? '-'} ${Math.round(state.aiDecision?.carrierIntent?.intentAgeMs ?? 0)}ms / ${state.aiDecision?.carrierIntent?.reason ?? '-'}\n` +
+      `AI AIM   ${(state.aiDecision?.carrierIntent?.aimAngle ?? 0).toFixed(2)} > ${(state.aiDecision?.carrierIntent?.desiredAimAngle ?? 0).toFixed(2)} / D ${(state.aiDecision?.carrierIntent?.angleDelta ?? 0).toFixed(2)}\n` +
+      `AI FORCE ${Math.round(state.aiDecision?.carrierIntent?.forcedReleaseInMs ?? 0)}ms / SPIN ${state.aiDecision?.carrierIntent?.spinDetected ? 'YES' : 'NO'}\n` +
       `AI A     ${formatOffenseMetrics(state.aiOffenseMetrics.A)}\n` +
       `AI B     ${formatOffenseMetrics(state.aiOffenseMetrics.B)}\n` +
       `CLEANUP  A ${state.cleanupPlayers.A.join(', ') || '-'} / B ${state.cleanupPlayers.B.join(', ') || '-'}\n` +

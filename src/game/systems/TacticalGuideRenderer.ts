@@ -158,6 +158,8 @@ export class TacticalGuideRenderer {
 
 function abbreviateJob(job: TacticalAssignment['job']): string {
   const abbreviations: Record<TacticalAssignment['job'], string> = {
+    carrier: 'CARRY',
+    playmaker: 'PLAY',
     primaryPresser: 'PRESS',
     supportOutlet: 'OUT',
     frontSlot: 'SLOT',

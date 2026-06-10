@@ -2,6 +2,7 @@ import {
   arenaConfig,
   arenaDimensionsConfig,
 } from '../config/arenaConfig'
+import { aiCarrierConfig } from '../config/aiCarrierConfig'
 import { aiOffenseConfig } from '../config/aiOffenseConfig'
 import { clearSafetyConfig } from '../config/clearSafetyConfig'
 import { coreConfig } from '../config/entityConfig'
@@ -201,6 +202,23 @@ export function applyLabSettings(state: LabTuningState): void {
   })
   Object.assign(tacticalGuideConfig, state.tacticalGuides)
   Object.assign(aiOffenseConfig, state.aiOffense)
+  Object.assign(aiCarrierConfig, {
+    aiCarrierMinCommitMs: state.aiOffense.aiCarrierMinCommitMs,
+    aiCarrierMaxCommitMs: state.aiOffense.aiCarrierMaxCommitMs,
+    aiCarrierReevaluateAfterMs:
+      state.aiOffense.aiCarrierReevaluateAfterMs,
+    aiAimTurnRateRadiansPerSec:
+      state.aiOffense.aiAimTurnRateRadiansPerSec,
+    aiMaxCarryMs: state.aiOffense.aiMaxCarryMs,
+    aiSpinDetectionEnabled:
+      state.aiOffense.aiSpinDetectionEnabled,
+    aiSpinAngularVelocityThreshold:
+      state.aiOffense.aiSpinAngularVelocityThreshold,
+    aiSpinDurationMs: state.aiOffense.aiSpinDurationMs,
+    aiCarrySideCommitMs: state.aiOffense.aiCarrySideCommitMs,
+    freezeCarrierTacticalJob:
+      state.aiOffense.freezeCarrierTacticalJob,
+  })
   Object.assign(clearSafetyConfig, state.clearSafety)
   Object.assign(keeperConfig, {
     keeperOwnGoalPreventionEnabled:

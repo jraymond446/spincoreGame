@@ -272,6 +272,7 @@ export class GameScene extends Phaser.Scene {
     this.updateAIPlayers(
       players,
       controlledPlayer.id,
+      this.stickInteractionSystem.getCarrierId(),
       aiIntents,
       stickIntents,
       defenseIntents,
@@ -456,6 +457,7 @@ export class GameScene extends Phaser.Scene {
   private updateAIPlayers(
     players: Player[],
     controlledPlayerId: string,
+    carrierId: string | null,
     intents: Map<string, PlayerControlIntent>,
     stickIntents: Map<string, StickIntent>,
     defenseIntents: Map<string, DefenseIntent>,
@@ -469,7 +471,9 @@ export class GameScene extends Phaser.Scene {
 
       if (!intent) {
         player.update(new Phaser.Math.Vector2(), player.getAimAngle())
-        stickIntents.set(player.id, { hold: false })
+        stickIntents.set(player.id, {
+          hold: player.id === carrierId,
+        })
         defenseIntents.set(player.id, {
           truck: false,
           slash: false,
@@ -484,12 +488,15 @@ export class GameScene extends Phaser.Scene {
           )
         : movementToward(player.position, intent.moveTarget)
       const move = baseMove.scale(intent.moveSpeedMultiplier ?? 1)
-      const aimAngle = Phaser.Math.Angle.Between(
-        player.position.x,
-        player.position.y,
-        intent.aimTarget.x,
-        intent.aimTarget.y,
-      )
+      const isCarrier = player.id === carrierId
+      const aimAngle =
+        intent.aimAngle ??
+        Phaser.Math.Angle.Between(
+          player.position.x,
+          player.position.y,
+          intent.aimTarget.x,
+          intent.aimTarget.y,
+        )
 
       player.update(move, aimAngle)
       const usesKeeperShield =
@@ -497,15 +504,17 @@ export class GameScene extends Phaser.Scene {
         keeperShieldConfig.keeperUsesShieldDefault &&
         keeperShieldConfig.keeperEquipmentType === 'shield'
       stickIntents.set(player.id, {
-        hold: intent.hold,
-        swing: usesKeeperShield ? intent.swing : false,
+        hold: isCarrier ? true : intent.hold,
+        swing:
+          !isCarrier && usesKeeperShield ? intent.swing : false,
         suppressEmptyReleaseSwing: true,
         releaseTarget: intent.releaseTarget,
         aiReleaseDelayMs: intent.aiReleaseDelayMs,
       })
       defenseIntents.set(player.id, {
-        truck: intent.truck ?? false,
+        truck: isCarrier ? false : intent.truck ?? false,
         slash:
+          !isCarrier &&
           !usesKeeperShield &&
           ((intent.slash ?? false) || (intent.swing ?? false)),
         aimDirection: normalizedDirection(

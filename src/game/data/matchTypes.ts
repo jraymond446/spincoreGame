@@ -148,6 +148,7 @@ export type PlayerControlIntent = {
   moveVector?: Point
   moveSpeedMultiplier?: number
   aimTarget: Point
+  aimAngle?: number
   hold: boolean
   swing?: boolean
   truck?: boolean
