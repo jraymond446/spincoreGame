@@ -123,6 +123,7 @@ type GatherRipple = {
 type GatherEvaluation = GatherDebugState & {
   player: Player
   socketDistance: number
+  closeRangeForgiveness: boolean
   radius: number
   strength: number
   maxSpeed: number
@@ -874,15 +875,11 @@ export class StickInteractionSystem {
     const baseFumbleTime =
       stickConfig.fumbleMs *
       Phaser.Math.Linear(
-        0.96,
-        1.12,
+        0.98,
+        1.02,
         Phaser.Math.Clamp(carrier.attributes.ballHandling, 0, 1),
       )
-    const fumbleTime =
-      this.hardChargeActive &&
-      this.cradleElapsedMs >= stickConfig.chargeCradleMs
-        ? baseFumbleTime / possessionFeelConfig.hardChargeMultiplier
-        : baseFumbleTime
+    const fumbleTime = baseFumbleTime
 
     if (
       intent.releaseTarget &&
@@ -1057,7 +1054,9 @@ export class StickInteractionSystem {
     }
 
     const candidate = players
-      .map((player) => this.evaluateGather(core, player))
+      .map((player) =>
+        this.evaluateGather(core, player, preferredPlayerId),
+      )
       .filter((evaluation) => evaluation.eligible)
       .sort((a, b) => {
         if (a.player.id === preferredPlayerId) {
@@ -1119,7 +1118,11 @@ export class StickInteractionSystem {
     })
   }
 
-  private evaluateGather(core: Core, player: Player): GatherEvaluation {
+  private evaluateGather(
+    core: Core,
+    player: Player,
+    preferredPlayerId?: string,
+  ): GatherEvaluation {
     const mode = this.getGatherMode(player)
     const shieldDenied =
       this.keeperShield.usesShield(player) &&
@@ -1137,6 +1140,15 @@ export class StickInteractionSystem {
       this.gatherAttemptCooldowns.get(player.id) ?? 0,
     )
     const active = mode === 'active'
+    const socketDistance = distance(
+      core.position,
+      player.getCradleSocket(),
+    )
+    const closeRangeForgiveness =
+      active &&
+      player.controllerType === 'human' &&
+      player.id === preferredPlayerId &&
+      socketDistance <= gatherConfig.humanCloseGatherRadius
     const enabled = active
       ? gatherConfig.activeGatherEnabled
       : mode === 'passive'
@@ -1200,11 +1212,8 @@ export class StickInteractionSystem {
           Phaser.Math.Clamp(player.attributes.control, 0, 1),
         ) +
       (graceActive ? 0.12 : 0)
-    const socketDistance = distance(
-      core.position,
-      player.getCradleSocket(),
-    )
     const relativeSpeed = distance(core.velocity, player.velocity)
+    const legalEntrySpeed = getCradleEntrySpeedLimit(player)
     const axis = this.getGatherAxis(player, mode)
     const toCore = normalized({
       x: core.position.x - player.position.x,
@@ -1226,9 +1235,15 @@ export class StickInteractionSystem {
       denyReason = 'cooldown'
     } else if (socketDistance > radius) {
       denyReason = 'outside radius'
-    } else if (funnelAngleError > funnelAngle) {
+    } else if (
+      !closeRangeForgiveness &&
+      funnelAngleError > funnelAngle
+    ) {
       denyReason = 'outside angle'
-    } else if (relativeSpeed > maxSpeed) {
+    } else if (
+      relativeSpeed >
+      (closeRangeForgiveness ? legalEntrySpeed : maxSpeed)
+    ) {
       denyReason = 'speed too high'
     }
 
@@ -1236,6 +1251,7 @@ export class StickInteractionSystem {
       player,
       mode,
       eligible: denyReason === 'ready',
+      closeRangeForgiveness,
       funnelAngleError,
       relativeSpeed,
       cooldownMs,
@@ -1353,7 +1369,11 @@ export class StickInteractionSystem {
 
     const candidates = players
       .map((player) => {
-        const gather = this.evaluateGather(core, player)
+        const gather = this.evaluateGather(
+          core,
+          player,
+          preferredPlayerId,
+        )
         const attemptCooldown =
           this.gatherAttemptCooldowns.get(player.id) ?? 0
 
@@ -1380,18 +1400,24 @@ export class StickInteractionSystem {
         }
 
         const test = testLegalCradle(core, player)
+        const accepted =
+          test.accepted ||
+          (gather.closeRangeForgiveness &&
+            test.relativeSpeed <= test.maxEntrySpeed)
 
         this.cradleFailures.set(
           player.id,
-          !test.insideZone
-            ? 'outside cradle zone'
-            : test.relativeSpeed > test.maxEntrySpeed
-              ? 'speed too high'
-              : 'ready',
+          accepted
+            ? 'ready'
+            : !test.insideZone
+              ? 'outside cradle zone'
+              : test.relativeSpeed > test.maxEntrySpeed
+                ? 'speed too high'
+                : 'ready',
         )
 
         if (
-          !test.accepted &&
+          !accepted &&
           gather.socketDistance <= stickConfig.cradleCaptureRadius
         ) {
           this.gatherAttemptCooldowns.set(
@@ -1413,6 +1439,7 @@ export class StickInteractionSystem {
         return {
           player,
           test,
+          accepted,
           gather,
           socketDistance: distance(core.position, player.getCradleSocket()),
         }
@@ -1420,7 +1447,7 @@ export class StickInteractionSystem {
       .filter((candidate): candidate is NonNullable<typeof candidate> =>
         candidate !== null
       )
-      .filter((candidate) => candidate.test.accepted)
+      .filter((candidate) => candidate.accepted)
       .sort((a, b) => {
         if (a.player.id === preferredPlayerId) {
           return -1
@@ -1553,7 +1580,7 @@ export class StickInteractionSystem {
   }
 
   private syncCradleState(carrierId: string): void {
-    if (this.cradleElapsedMs >= stickConfig.chargeCradleMs) {
+    if (this.cradleElapsedMs >= stickConfig.overchargeMs) {
       this.coreState = 'CRADLED_OVERCHARGED'
       this.setActionState(carrierId, 'CRADLED_OVERCHARGED')
       return
@@ -1809,8 +1836,8 @@ export class StickInteractionSystem {
       curvedCharge,
     )
     const overchargeProgress = Phaser.Math.Clamp(
-      (chargeElapsedMs - stickConfig.chargeCradleMs) /
-        Math.max(1, stickConfig.fumbleMs - stickConfig.chargeCradleMs),
+      (chargeElapsedMs - stickConfig.overchargeMs) /
+        Math.max(1, stickConfig.fumbleMs - stickConfig.overchargeMs),
       0,
       1,
     )
@@ -2573,22 +2600,25 @@ function testLegalCradle(core: Core, player: Player): CradleTestResult {
     angle <= zone.maxAngle &&
     socketDistance <= stickConfig.cradleCaptureRadius
 
-  const handlingCatchTolerance = Phaser.Math.Linear(
-    0.94,
-    1.08,
-    Phaser.Math.Clamp(player.attributes.ballHandling, 0, 1),
-  )
+  const maxEntrySpeed = getCradleEntrySpeedLimit(player)
 
   return {
-    accepted:
-      insideZone &&
-      relativeSpeed <=
-        stickConfig.maxCradleEntrySpeed * handlingCatchTolerance,
+    accepted: insideZone && relativeSpeed <= maxEntrySpeed,
     relativeSpeed,
     insideZone,
-    maxEntrySpeed:
-      stickConfig.maxCradleEntrySpeed * handlingCatchTolerance,
+    maxEntrySpeed,
   }
+}
+
+function getCradleEntrySpeedLimit(player: Player): number {
+  return (
+    stickConfig.maxCradleEntrySpeed *
+    Phaser.Math.Linear(
+      0.94,
+      1.08,
+      Phaser.Math.Clamp(player.attributes.ballHandling, 0, 1),
+    )
+  )
 }
 
 function testDeflectZone(core: Core, player: Player): DeflectHit | null {

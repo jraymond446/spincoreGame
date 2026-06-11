@@ -678,6 +678,7 @@ export class AISystem {
       context.player,
       candidate,
       forceReleaseReason,
+      context.pressure,
     )
     const currentIntent = this.carrierIntent.getIntent(
       context.player.id,
@@ -722,6 +723,7 @@ export class AISystem {
     player: Player,
     decision: PossessionDecision,
     forceReleaseReason: string | null,
+    pressure: number,
   ): CarrierIntent {
     const intentType = carrierIntentType(decision)
     const targetPoint = {
@@ -736,18 +738,14 @@ export class AISystem {
           ? 'left'
           : 'right'
         : null
-    const releaseAfterChargeMs = forceReleaseReason
-      ? 80
-      : decision.intent.releaseTarget
-        ? Math.max(
-            160,
-            Math.min(
-              aiConfig.aiReleaseDelayMs,
-              decision.intent.aiReleaseDelayMs ??
-                aiConfig.aiReleaseDelayMs,
-            ),
-          )
-        : 0
+    const releaseAfterChargeMs = decision.intent.releaseTarget
+      ? getCarrierChargeTargetMs(
+          intentType,
+          player,
+          pressure,
+          forceReleaseReason,
+        )
+      : 0
     const minCommitMs =
       intentType === 'carryToAngle'
         ? Math.max(
@@ -1668,6 +1666,72 @@ function carrierIntentType(
   return 'holdBriefly'
 }
 
+function getCarrierChargeTargetMs(
+  intentType: CarrierIntentType,
+  player: Player,
+  pressure: number,
+  forceReleaseReason: string | null,
+): number {
+  if (forceReleaseReason) {
+    if (forceReleaseReason === 'maxCarry') {
+      return 80
+    }
+    if (
+      forceReleaseReason === 'spinDetected' ||
+      forceReleaseReason.startsWith('spinGuard:')
+    ) {
+      return 120
+    }
+    if (forceReleaseReason === 'stuck') {
+      return 220
+    }
+    return 160
+  }
+
+  let minimum = 0
+  let maximum = 0
+  let execution = player.attributes.ballHandling
+
+  switch (intentType) {
+    case 'clearSafe':
+      minimum = aiCarrierConfig.aiClearChargeMinMs
+      maximum = aiCarrierConfig.aiClearChargeMaxMs
+      execution = player.attributes.power
+      break
+    case 'passToTeammate':
+      minimum = aiCarrierConfig.aiPassChargeMinMs
+      maximum = aiCarrierConfig.aiPassChargeMaxMs
+      execution = player.attributes.passing
+      break
+    case 'shootDirect':
+      minimum = aiCarrierConfig.aiDirectShotChargeMinMs
+      maximum = aiCarrierConfig.aiDirectShotChargeMaxMs
+      execution = player.attributes.shooting
+      break
+    case 'shootBank':
+      minimum = Math.max(
+        1000,
+        aiCarrierConfig.aiBankShotChargeMinMs,
+      )
+      maximum = aiCarrierConfig.aiBankShotChargeMaxMs
+      execution = player.attributes.shooting
+      break
+    default:
+      return 0
+  }
+
+  const low = Math.min(minimum, maximum)
+  const high = Math.max(minimum, maximum)
+  const patience = Phaser.Math.Clamp(
+    (1 - Phaser.Math.Clamp(pressure, 0, 1)) * 0.75 +
+      Phaser.Math.Clamp(execution, 0, 1.2) * 0.25,
+    0,
+    1,
+  )
+
+  return Math.round(Phaser.Math.Linear(low, high, patience))
+}
+
 function carrierDecisionQuality(
   decision: PossessionDecision,
 ): number {
@@ -1708,7 +1772,8 @@ function formatCarrierIntentDebug(
     `TARGET ${Math.round(state.targetPoint.x)},${Math.round(state.targetPoint.y)} ` +
     `${state.targetPlayerId ?? '-'}\n` +
     `AIM ${state.aimAngle.toFixed(2)}>${state.desiredAimAngle.toFixed(2)} ` +
-    `D ${state.angleDelta.toFixed(2)} FORCE ${Math.round(state.forcedReleaseInMs)}ms ` +
+    `D ${state.angleDelta.toFixed(2)} CHARGE ${Math.round(state.releaseAfterChargeMs)}ms ` +
+    `SAFE ${Math.round(state.forcedReleaseInMs)}ms ` +
     `SPIN ${state.spinDetected ? 'YES' : 'NO'} ${state.reason}`
   )
 }

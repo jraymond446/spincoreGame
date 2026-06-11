@@ -159,6 +159,7 @@ export type LabStickTuning = {
   passiveGatherStrength: number
   passiveGatherMaxSpeed: number
   passiveGatherFunnelAngle: number
+  humanCloseGatherRadius: number
   releaseRegrabCooldownMs: number
   fumbleRegrabCooldownMs: number
   gatherAttemptCooldownMs: number
@@ -182,6 +183,10 @@ export type LabStickTuning = {
   cradleAssistRadius: number
   cradleAssistStrength: number
   cradleAssistMaxSpeed: number
+  stableCradleMs: number
+  chargeCradleMs: number
+  overchargeMs: number
+  fumbleMs: number
   passiveNudgeForce: number
   activeSwingForce: number
   maxDeflectImpulse: number
@@ -229,9 +234,16 @@ export type LabSpacingTuning = {
   maxCorePressersPerTeam: number
   presserSwitchCooldownMs: number
   presserDistanceAdvantageRequired: number
+  supportMinSpacingFromCarrier: number
   supportPreferredSpacing: number
   avoidClusterRadius: number
   teammateRepulsionStrength: number
+  possessionOffenseTransitionMs: number
+  possessionDefenseTransitionMs: number
+  offenseSupportMinSpacingFromCarrier: number
+  offenseSupportPreferredSpacing: number
+  offenseAvoidClusterRadius: number
+  offenseTeammateRepulsionStrength: number
   enableBehindGoalCuts: boolean
   behindGoalCutChanceSupport: number
   behindGoalCutChanceStriker: number
@@ -261,6 +273,14 @@ export type LabAIOffenseTuning = {
   aiSpinAngularVelocityThreshold: number
   aiSpinDurationMs: number
   aiCarrySideCommitMs: number
+  aiClearChargeMinMs: number
+  aiClearChargeMaxMs: number
+  aiPassChargeMinMs: number
+  aiPassChargeMaxMs: number
+  aiDirectShotChargeMinMs: number
+  aiDirectShotChargeMaxMs: number
+  aiBankShotChargeMinMs: number
+  aiBankShotChargeMaxMs: number
   freezeCarrierTacticalJob: boolean
   opponentAiScoringAggression: number
   opponentAiShotFrequency: number

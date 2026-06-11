@@ -21,7 +21,7 @@ export const possessionFeelConfig = {
   gatherDeflectSuppression: 0.35,
   chargeLoadbackDistance: 18,
   hardChargeEnabled: true,
-  hardChargeHoldMs: 550,
+  hardChargeHoldMs: 1250,
   hardChargePressureThreshold: 0.55,
   hardChargeDragThreshold: 36,
   hardChargeMultiplier: 1.15,

@@ -53,6 +53,16 @@ const baseStickGameplay = {
 
 export function applyLabSettings(state: LabTuningState): void {
   const { field, stick } = state
+  const stableCradleMs = stick.stableCradleMs
+  const chargeCradleMs = Math.max(
+    stableCradleMs,
+    stick.chargeCradleMs,
+  )
+  const overchargeMs = Math.max(
+    chargeCradleMs,
+    stick.overchargeMs,
+  )
+  const fumbleMs = Math.max(overchargeMs + 100, stick.fumbleMs)
   Object.assign(arenaDimensionsConfig, {
     width: field.arenaWidth,
     height: field.arenaHeight,
@@ -216,6 +226,18 @@ export function applyLabSettings(state: LabTuningState): void {
       state.aiOffense.aiSpinAngularVelocityThreshold,
     aiSpinDurationMs: state.aiOffense.aiSpinDurationMs,
     aiCarrySideCommitMs: state.aiOffense.aiCarrySideCommitMs,
+    aiClearChargeMinMs: state.aiOffense.aiClearChargeMinMs,
+    aiClearChargeMaxMs: state.aiOffense.aiClearChargeMaxMs,
+    aiPassChargeMinMs: state.aiOffense.aiPassChargeMinMs,
+    aiPassChargeMaxMs: state.aiOffense.aiPassChargeMaxMs,
+    aiDirectShotChargeMinMs:
+      state.aiOffense.aiDirectShotChargeMinMs,
+    aiDirectShotChargeMaxMs:
+      state.aiOffense.aiDirectShotChargeMaxMs,
+    aiBankShotChargeMinMs:
+      state.aiOffense.aiBankShotChargeMinMs,
+    aiBankShotChargeMaxMs:
+      state.aiOffense.aiBankShotChargeMaxMs,
     freezeCarrierTacticalJob:
       state.aiOffense.freezeCarrierTacticalJob,
   })
@@ -259,6 +281,7 @@ export function applyLabSettings(state: LabTuningState): void {
     passiveGatherStrength: stick.passiveGatherStrength,
     passiveGatherMaxSpeed: stick.passiveGatherMaxSpeed,
     passiveGatherFunnelAngle: stick.passiveGatherFunnelAngle,
+    humanCloseGatherRadius: stick.humanCloseGatherRadius,
     releaseRegrabCooldownMs: stick.releaseRegrabCooldownMs,
     fumbleRegrabCooldownMs: stick.fumbleRegrabCooldownMs,
     gatherAttemptCooldownMs: stick.gatherAttemptCooldownMs,
@@ -341,6 +364,10 @@ export function applyLabSettings(state: LabTuningState): void {
     cradleAssistRadius: stick.cradleAssistRadius,
     cradleAssistStrength: stick.cradleAssistStrength,
     cradleAssistMaxSpeed: stick.cradleAssistMaxSpeed,
+    stableCradleMs,
+    chargeCradleMs,
+    overchargeMs,
+    fumbleMs,
     passiveNudgeForce: stick.passiveNudgeForce,
     activeSwingForce: stick.activeSwingForce,
     maxDeflectImpulse: stick.maxDeflectImpulse,

@@ -1059,9 +1059,16 @@ export class LabPanel {
       ['Max Core pressers / team', 'maxCorePressersPerTeam', { min: 0, max: 2, step: 1 }],
       ['Presser switch cooldown', 'presserSwitchCooldownMs', { min: 0, max: 2500, step: 50 }],
       ['Presser distance advantage', 'presserDistanceAdvantageRequired', { min: 0, max: 220, step: 5 }],
+      ['Loose support minimum spacing', 'supportMinSpacingFromCarrier', { min: 80, max: 260, step: 5 }],
       ['Support preferred spacing', 'supportPreferredSpacing', { min: 100, max: 360, step: 5 }],
       ['Avoid cluster radius', 'avoidClusterRadius', { min: 60, max: 240, step: 5 }],
       ['Teammate repulsion', 'teammateRepulsionStrength', { min: 0, max: 1, step: 0.05, digits: 2 }],
+      ['Possession offense transition ms', 'possessionOffenseTransitionMs', { min: 0, max: 1200, step: 10 }],
+      ['Possession defense transition ms', 'possessionDefenseTransitionMs', { min: 0, max: 1600, step: 10 }],
+      ['Offense support minimum spacing', 'offenseSupportMinSpacingFromCarrier', { min: 80, max: 280, step: 5 }],
+      ['Offense support preferred spacing', 'offenseSupportPreferredSpacing', { min: 120, max: 380, step: 5 }],
+      ['Offense avoid cluster radius', 'offenseAvoidClusterRadius', { min: 60, max: 260, step: 5 }],
+      ['Offense teammate repulsion', 'offenseTeammateRepulsionStrength', { min: 0, max: 1, step: 0.05, digits: 2 }],
       ['Support behind-goal chance', 'behindGoalCutChanceSupport', { min: 0, max: 1, step: 0.05, digits: 2 }],
       ['Striker behind-goal chance', 'behindGoalCutChanceStriker', { min: 0, max: 1, step: 0.05, digits: 2 }],
       ['Front-slot spacing', 'frontSlotSpacing', { min: 70, max: 220, step: 5 }],
@@ -1329,6 +1336,78 @@ export class LabPanel {
         { min: 200, max: 2200, step: 50 },
         (value) => {
           offense.aiCarrySideCommitMs = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Clear charge minimum ms',
+        offense.aiClearChargeMinMs,
+        { min: 0, max: 1200, step: 25 },
+        (value) => {
+          offense.aiClearChargeMinMs = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Clear charge maximum ms',
+        offense.aiClearChargeMaxMs,
+        { min: 100, max: 1600, step: 25 },
+        (value) => {
+          offense.aiClearChargeMaxMs = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Pass charge minimum ms',
+        offense.aiPassChargeMinMs,
+        { min: 100, max: 1600, step: 25 },
+        (value) => {
+          offense.aiPassChargeMinMs = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Pass charge maximum ms',
+        offense.aiPassChargeMaxMs,
+        { min: 200, max: 1900, step: 25 },
+        (value) => {
+          offense.aiPassChargeMaxMs = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Direct-shot charge minimum ms',
+        offense.aiDirectShotChargeMinMs,
+        { min: 200, max: 1900, step: 25 },
+        (value) => {
+          offense.aiDirectShotChargeMinMs = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Direct-shot charge maximum ms',
+        offense.aiDirectShotChargeMaxMs,
+        { min: 400, max: 2200, step: 25 },
+        (value) => {
+          offense.aiDirectShotChargeMaxMs = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Bank-shot charge minimum ms',
+        offense.aiBankShotChargeMinMs,
+        { min: 800, max: 2100, step: 25 },
+        (value) => {
+          offense.aiBankShotChargeMinMs = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Bank-shot charge maximum ms',
+        offense.aiBankShotChargeMaxMs,
+        { min: 1000, max: 2400, step: 25 },
+        (value) => {
+          offense.aiBankShotChargeMaxMs = value
           this.markDraftChanged()
         },
       ),
@@ -1887,6 +1966,7 @@ export class LabPanel {
       ['Passive gather strength', 'passiveGatherStrength', { min: 0, max: 1, step: 0.02, digits: 2 }],
       ['Passive gather max speed', 'passiveGatherMaxSpeed', { min: 0, max: 18, step: 0.5, digits: 1 }],
       ['Passive funnel angle', 'passiveGatherFunnelAngle', { min: 0.1, max: 2.2, step: 0.05, digits: 2 }],
+      ['Human close gather radius', 'humanCloseGatherRadius', { min: 0, max: 60, step: 1 }],
       ['Release regrab cooldown ms', 'releaseRegrabCooldownMs', { min: 0, max: 1500, step: 10 }],
       ['Fumble regrab cooldown ms', 'fumbleRegrabCooldownMs', { min: 0, max: 1500, step: 10 }],
       ['Gather attempt cooldown ms', 'gatherAttemptCooldownMs', { min: 0, max: 500, step: 5 }],
@@ -1903,6 +1983,13 @@ export class LabPanel {
       ['Cradle min angle', 'cradleMinAngle', { min: 0, max: 35, step: 1 }],
       ['Cradle max angle', 'cradleMaxAngle', { min: 35, max: 90, step: 1 }],
       ['Cradle capture radius', 'cradleCaptureRadius', { min: 24, max: 100, step: 1 }],
+      ['Cradle assist radius', 'cradleAssistRadius', { min: 30, max: 120, step: 1 }],
+      ['Cradle assist strength', 'cradleAssistStrength', { min: 0, max: 1, step: 0.02, digits: 2 }],
+      ['Cradle assist max speed', 'cradleAssistMaxSpeed', { min: 0, max: 12, step: 0.2, digits: 1 }],
+      ['Stable cradle ms', 'stableCradleMs', { min: 200, max: 1400, step: 25 }],
+      ['Strong charge ms', 'chargeCradleMs', { min: 400, max: 1900, step: 25 }],
+      ['Overcharge ms', 'overchargeMs', { min: 800, max: 2400, step: 25 }],
+      ['Fumble ms', 'fumbleMs', { min: 1000, max: 3000, step: 25 }],
       ['Passive nudge force', 'passiveNudgeForce', { min: 0, max: 3, step: 0.05, digits: 2 }],
       ['Active swing force', 'activeSwingForce', { min: 1, max: 14, step: 0.2, digits: 1 }],
       ['Max deflect impulse', 'maxDeflectImpulse', { min: 1, max: 16, step: 0.2, digits: 1 }],

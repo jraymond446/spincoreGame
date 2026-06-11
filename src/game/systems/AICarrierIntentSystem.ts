@@ -1,6 +1,5 @@
 import Phaser from 'phaser'
 import { aiCarrierConfig } from '../config/aiCarrierConfig'
-import { possessionFeelConfig } from '../config/possessionFeelConfig'
 import { stickConfig } from '../config/stickConfig'
 import type { Point } from '../data/geometry'
 import type { Player } from '../entities/Player'
@@ -36,6 +35,7 @@ export type AICarrierIntentDebugState = {
   desiredAimAngle: number
   angleDelta: number
   carryDurationMs: number
+  releaseAfterChargeMs: number
   forcedReleaseInMs: number
   spinDetected: boolean
 }
@@ -82,25 +82,17 @@ export class AICarrierIntentSystem {
 
   getLatestReleaseStartMs(player: Player): number {
     const handlingFumbleMultiplier = Phaser.Math.Linear(
-      0.96,
-      1.12,
+      0.98,
+      1.02,
       Phaser.Math.Clamp(player.attributes.ballHandling, 0, 1),
     )
     const baseFumbleMs =
       stickConfig.fumbleMs * handlingFumbleMultiplier
-    const hardChargeFumbleMs = possessionFeelConfig.hardChargeEnabled
-      ? Math.max(
-          stickConfig.chargeCradleMs,
-          baseFumbleMs /
-            Math.max(1, possessionFeelConfig.hardChargeMultiplier),
-        )
-      : baseFumbleMs
-
     return Math.max(
       0,
       Math.min(
         aiCarrierConfig.aiMaxCarryMs,
-        hardChargeFumbleMs -
+        baseFumbleMs -
           aiCarrierConfig.aiReleaseSafetyLeadMs,
       ),
     )
@@ -360,6 +352,7 @@ export class AICarrierIntentSystem {
         state.desiredAimAngle - state.currentAimAngle,
       ),
       carryDurationMs: possessionMs,
+      releaseAfterChargeMs: state.intent.releaseAfterChargeMs,
       forcedReleaseInMs: Math.max(
         0,
         state.releaseDeadlineMs - possessionMs,

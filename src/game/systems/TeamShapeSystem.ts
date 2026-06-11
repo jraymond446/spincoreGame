@@ -62,6 +62,10 @@ export class TeamShapeSystem {
     A: 0,
     B: 0,
   }
+  private readonly phaseChanged: Record<TeamSide, boolean> = {
+    A: false,
+    B: false,
+  }
   private readonly cleanupAssignments: Record<TeamSide, string[]> = {
     A: [],
     B: [],
@@ -203,6 +207,8 @@ export class TeamShapeSystem {
     this.phases.B = 'LOOSE'
     this.transitionTimers.A = 0
     this.transitionTimers.B = 0
+    this.phaseChanged.A = false
+    this.phaseChanged.B = false
     this.cleanupAssignments.A = []
     this.cleanupAssignments.B = []
     this.previousCarrierIds.A = null
@@ -212,6 +218,8 @@ export class TeamShapeSystem {
   }
 
   private updatePossession(carrier: Player | null, deltaMs: number): void {
+    const previousPhases = { ...this.phases }
+
     for (const side of ['A', 'B'] as const) {
       this.transitionTimers[side] = Math.max(
         0,
@@ -236,20 +244,28 @@ export class TeamShapeSystem {
       possessionSide &&
       possessionSide !== this.lastPossessionSide
     ) {
-      this.transitionTimers.A = tacticsConfig.transitionWindowMs
-      this.transitionTimers.B = tacticsConfig.transitionWindowMs
+      const defendingSide = oppositeSide(possessionSide)
+      this.transitionTimers[possessionSide] =
+        spacingConfig.possessionOffenseTransitionMs
+      this.transitionTimers[defendingSide] =
+        spacingConfig.possessionDefenseTransitionMs
+    } else if (!possessionSide) {
+      this.transitionTimers.A = 0
+      this.transitionTimers.B = 0
     }
     this.lastPossessionSide = possessionSide
 
     for (const side of ['A', 'B'] as const) {
-      if (this.transitionTimers[side] > 0) {
-        this.phases[side] = 'TRANSITION'
-      } else if (!possessionSide) {
+      if (!possessionSide) {
         this.phases[side] = 'LOOSE'
+      } else if (this.transitionTimers[side] > 0) {
+        this.phases[side] = 'TRANSITION'
       } else {
         this.phases[side] =
           possessionSide === side ? 'OFFENSE' : 'DEFENSE'
       }
+      this.phaseChanged[side] =
+        this.phases[side] !== previousPhases[side]
     }
   }
 
@@ -374,7 +390,11 @@ export class TeamShapeSystem {
         opponentCarrier,
         core,
       )
-      const job = this.stabilizeJob(player.id, desiredJob)
+      const job = this.stabilizeJob(
+        player.id,
+        desiredJob,
+        this.phaseChanged[side],
+      )
       const tacticalTarget = this.getJobTarget(
         job,
         player,
@@ -677,7 +697,11 @@ export class TeamShapeSystem {
     }
   }
 
-  private stabilizeJob(playerId: string, desiredJob: TacticalJob): TacticalJob {
+  private stabilizeJob(
+    playerId: string,
+    desiredJob: TacticalJob,
+    forceTransition = false,
+  ): TacticalJob {
     const current = this.jobStates.get(playerId)
 
     if (!current) {
@@ -694,7 +718,7 @@ export class TeamShapeSystem {
 
     if (
       current.job !== desiredJob &&
-      (leavingPressure || current.cooldownMs <= 0)
+      (forceTransition || leavingPressure || current.cooldownMs <= 0)
     ) {
       current.job = desiredJob
       current.cooldownMs = tacticsConfig.tacticalJobSwitchCooldownMs
@@ -736,6 +760,14 @@ export class TeamShapeSystem {
     const anchor = carrier?.position ?? core.position
     const laneSign =
       anchor.x < arenaConfig.center.x ? 1 : -1
+    const supportPreferredSpacing =
+      this.phases[side] === 'OFFENSE'
+        ? spacingConfig.offenseSupportPreferredSpacing
+        : spacingConfig.supportPreferredSpacing
+    const supportMinSpacing =
+      this.phases[side] === 'OFFENSE'
+        ? spacingConfig.offenseSupportMinSpacingFromCarrier
+        : spacingConfig.supportMinSpacingFromCarrier
 
     switch (job) {
       case 'carrier':
@@ -746,14 +778,14 @@ export class TeamShapeSystem {
           target: {
             x:
               anchor.x +
-              right.x * spacingConfig.supportPreferredSpacing * laneSign,
+              right.x * supportPreferredSpacing * laneSign,
             y:
               anchor.y +
-              right.y * spacingConfig.supportPreferredSpacing * laneSign -
+              right.y * supportPreferredSpacing * laneSign -
               direction.y *
                 Math.max(
-                  spacingConfig.supportMinSpacingFromCarrier,
-                  spacingConfig.supportPreferredSpacing * 0.42,
+                  supportMinSpacing,
+                  supportPreferredSpacing * 0.42,
                 ),
           },
         }
@@ -1035,6 +1067,13 @@ export class TeamShapeSystem {
       },
     )
     let adjusted = { ...safeTarget }
+    const offenseSpacing = this.phases[player.teamSide] === 'OFFENSE'
+    const avoidClusterRadius = offenseSpacing
+      ? spacingConfig.offenseAvoidClusterRadius
+      : spacingConfig.avoidClusterRadius
+    const teammateRepulsionStrength = offenseSpacing
+      ? spacingConfig.offenseTeammateRepulsionStrength
+      : spacingConfig.teammateRepulsionStrength
 
     for (const teammate of teammates) {
       if (teammate.id === player.id) {
@@ -1043,7 +1082,7 @@ export class TeamShapeSystem {
 
       const separation = distance(adjusted, teammate.position)
 
-      if (separation >= spacingConfig.avoidClusterRadius) {
+      if (separation >= avoidClusterRadius) {
         continue
       }
 
@@ -1052,9 +1091,9 @@ export class TeamShapeSystem {
         player.teamSide === 'A' ? { x: 1, y: 0 } : { x: -1, y: 0 },
       )
       const strength =
-        (1 - separation / spacingConfig.avoidClusterRadius) *
-        spacingConfig.avoidClusterRadius *
-        spacingConfig.teammateRepulsionStrength
+        (1 - separation / avoidClusterRadius) *
+        avoidClusterRadius *
+        teammateRepulsionStrength
       adjusted = {
         x: adjusted.x + away.x * strength,
         y: adjusted.y + away.y * strength,
@@ -1063,7 +1102,7 @@ export class TeamShapeSystem {
 
     const avoidanceOffset = clampVectorMagnitude(
       subtract(adjusted, safeTarget),
-      spacingConfig.avoidClusterRadius *
+      avoidClusterRadius *
         spacingConfig.avoidanceMaxInfluence,
     )
     adjusted = {
