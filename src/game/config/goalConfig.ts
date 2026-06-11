@@ -13,7 +13,7 @@ export type GoalGateConfig = {
 }
 
 export const goalConfig = {
-  goalPostRadius: 11,
+  goalPostRadius: 8,
   goalPostRestitution: 0.82,
   goalPostFriction: 0.02,
   scoringPlaneTolerance: 5,

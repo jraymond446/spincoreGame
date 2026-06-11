@@ -125,6 +125,21 @@ function migrateGameplayDefaults(candidate: unknown): unknown {
     typeof migrated.defense === 'object'
       ? migrated.defense as Record<string, unknown>
       : null
+  const field =
+    migrated.field &&
+    typeof migrated.field === 'object'
+      ? migrated.field as Record<string, unknown>
+      : null
+  const keeper =
+    migrated.keeper &&
+    typeof migrated.keeper === 'object'
+      ? migrated.keeper as Record<string, unknown>
+      : null
+  const clearSafety =
+    migrated.clearSafety &&
+    typeof migrated.clearSafety === 'object'
+      ? migrated.clearSafety as Record<string, unknown>
+      : null
 
   replaceLegacyDefault(aiOffense, 'aiMaxCarryMs', 2200, 2950)
   replaceLegacyDefault(
@@ -172,6 +187,81 @@ function migrateGameplayDefaults(candidate: unknown): unknown {
     'truckKnockdownFumbleSpeed',
     4.4,
     4.8,
+  )
+  replaceLegacyDefault(field, 'goalPostRadius', 11, 8)
+  replaceLegacyDefault(keeper, 'keeperShieldWidth', 58, 52)
+  replaceLegacyDefault(keeper, 'keeperShieldDepth', 24, 22)
+  replaceLegacyDefault(
+    keeper,
+    'keeperShieldOwnGoalSafetyBias',
+    0.85,
+    0.95,
+  )
+  replaceLegacyDefault(
+    keeper,
+    'keeperShieldOwnGoalSafetyBias',
+    0.92,
+    0.95,
+  )
+  replaceLegacyDefault(
+    keeper,
+    'keeperClearMinAwayDot',
+    0.25,
+    0.4,
+  )
+  replaceLegacyDefault(
+    clearSafety,
+    'ownGoalDangerConeRadians',
+    0.75,
+    0.95,
+  )
+  replaceLegacyDefault(
+    clearSafety,
+    'ownGoalClearMinAwayDot',
+    0.25,
+    0.4,
+  )
+  replaceLegacyDefault(
+    clearSafety,
+    'safeClearSideBias',
+    0.45,
+    0.4,
+  )
+  replaceLegacyDefault(
+    clearSafety,
+    'safeClearMidfieldBias',
+    0.55,
+    0.65,
+  )
+  replaceLegacyDefault(
+    clearSafety,
+    'defensiveDeflectionAwayBias',
+    0.7,
+    0.85,
+  )
+  replaceLegacyDefault(
+    clearSafety,
+    'keeperShieldAwayBias',
+    0.85,
+    0.95,
+  )
+  replaceLegacyDefault(
+    clearSafety,
+    'keeperShieldAwayBias',
+    0.92,
+    0.95,
+  )
+  replaceLegacyDefault(
+    clearSafety,
+    'defenderStickAwayBias',
+    0.55,
+    0.72,
+  )
+  replaceLegacyDefault(
+    clearSafety,
+    'nearOwnGoalSafetyRadius',
+    260,
+    320,
   )
 
   return migrated

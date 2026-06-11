@@ -28,6 +28,7 @@ import { ScoreboardOverlay } from '../rendering/ScoreboardOverlay'
 import { preloadVisualAssetOverrides } from '../rendering/VisualAssetOverrides'
 import { GoalRule, type GoalCrossing } from '../rules/GoalRule'
 import { AISystem } from '../systems/AISystem'
+import { AIOwnGoalSafetySystem } from '../systems/AIOwnGoalSafetySystem'
 import { AIFacingSystem } from '../systems/AIFacingSystem'
 import { ArenaSystem } from '../systems/ArenaSystem'
 import { CoreRecoverySystem } from '../systems/CoreRecoverySystem'
@@ -79,6 +80,7 @@ export class GameScene extends Phaser.Scene {
   private playerControlSystem!: PlayerControlSystem
   private keeperControlAssistSystem!: KeeperControlAssistSystem
   private keeperSaveSystem!: KeeperSaveSystem
+  private aiOwnGoalSafetySystem!: AIOwnGoalSafetySystem
   private aiSystem!: AISystem
   private aiFacingSystem!: AIFacingSystem
   private tacticalGuideRenderer!: TacticalGuideRenderer
@@ -134,6 +136,10 @@ export class GameScene extends Phaser.Scene {
     this.goalRules.clear()
     this.core = new Core(this)
     this.wallBounceSystem = new WallBounceSystem(this, this.core)
+    this.aiOwnGoalSafetySystem = new AIOwnGoalSafetySystem(
+      this,
+      this.core,
+    )
     this.teamSystem = new TeamSystem(this, this.gameMode)
     this.playerControlSystem = new PlayerControlSystem()
     this.keeperControlAssistSystem = new KeeperControlAssistSystem()
@@ -191,6 +197,7 @@ export class GameScene extends Phaser.Scene {
       this.arenaDressing.destroy()
       this.tacticalGuideRenderer.destroy()
       this.wallBounceSystem.destroy()
+      this.aiOwnGoalSafetySystem.destroy()
       this.wallCarryPressureSystem.destroy()
     })
 
@@ -381,6 +388,11 @@ export class GameScene extends Phaser.Scene {
     this.wallBounceSystem.update(
       this.stickInteractionSystem.getCarrierId() !== null,
       delta,
+    )
+    this.aiOwnGoalSafetySystem.update(
+      players,
+      controlledPlayer.id,
+      this.stickInteractionSystem.getCarrierId() !== null,
     )
     this.core.update()
 
@@ -732,6 +744,7 @@ export class GameScene extends Phaser.Scene {
     this.defenseSystem.clear()
     this.fumbleSystem.clear()
     this.wallBounceSystem.reset()
+    this.aiOwnGoalSafetySystem.reset()
     this.wallCarryPressureSystem.reset()
     this.coreRecoverySystem.reset()
     this.creaseBattleSystem.reset()
@@ -802,6 +815,7 @@ export class GameScene extends Phaser.Scene {
     this.defenseSystem.clear()
     this.fumbleSystem.clear()
     this.wallBounceSystem.reset()
+    this.aiOwnGoalSafetySystem.reset()
     this.wallCarryPressureSystem.reset()
     this.coreRecoverySystem.reset()
     this.creaseBattleSystem.reset()
@@ -840,6 +854,7 @@ export class GameScene extends Phaser.Scene {
     this.defenseSystem.clear()
     this.fumbleSystem.clear()
     this.wallBounceSystem.reset()
+    this.aiOwnGoalSafetySystem.reset()
     this.wallCarryPressureSystem.reset()
     this.coreRecoverySystem.reset()
     this.creaseBattleSystem.reset()

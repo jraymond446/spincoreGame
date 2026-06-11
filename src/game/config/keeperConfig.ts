@@ -11,7 +11,7 @@ export const keeperConfig = {
   keeperDeflectAggression: 0.9,
   keeperClearUsesThreatVector: true,
   keeperOwnGoalPreventionEnabled: true,
-  keeperClearMinAwayDot: 0.25,
+  keeperClearMinAwayDot: 0.4,
   keeperClearLateralVariance: 0.2,
   keeperClearTowardCenterBias: 0.6,
   keeperOrbitSmoothing: 3.4,
