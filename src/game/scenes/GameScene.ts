@@ -1,5 +1,4 @@
 import Phaser from 'phaser'
-import { aiCarrierConfig } from '../config/aiCarrierConfig'
 import { aiConfig } from '../config/aiConfig'
 import { arenaConfig } from '../config/arenaConfig'
 import { arenaPresentationConfig } from '../config/arenaPresentationConfig'
@@ -29,6 +28,7 @@ import { ScoreboardOverlay } from '../rendering/ScoreboardOverlay'
 import { preloadVisualAssetOverrides } from '../rendering/VisualAssetOverrides'
 import { GoalRule, type GoalCrossing } from '../rules/GoalRule'
 import { AISystem } from '../systems/AISystem'
+import { AIFacingSystem } from '../systems/AIFacingSystem'
 import { ArenaSystem } from '../systems/ArenaSystem'
 import { CoreRecoverySystem } from '../systems/CoreRecoverySystem'
 import { CreaseBattleSystem } from '../systems/CreaseBattleSystem'
@@ -80,6 +80,7 @@ export class GameScene extends Phaser.Scene {
   private keeperControlAssistSystem!: KeeperControlAssistSystem
   private keeperSaveSystem!: KeeperSaveSystem
   private aiSystem!: AISystem
+  private aiFacingSystem!: AIFacingSystem
   private tacticalGuideRenderer!: TacticalGuideRenderer
   private stickInteractionSystem!: StickInteractionSystem
   private defenseSystem!: DefenseSystem
@@ -143,6 +144,7 @@ export class GameScene extends Phaser.Scene {
       this.teamSystem.getStrategies(),
       this.teamSystem.getTacticalQualities(),
     )
+    this.aiFacingSystem = new AIFacingSystem()
     this.tacticalGuideRenderer = new TacticalGuideRenderer(this)
     this.inputController = new PlayerInputController(this, hudRoot)
     this.stickInteractionSystem = new StickInteractionSystem(this)
@@ -610,9 +612,12 @@ export class GameScene extends Phaser.Scene {
       player.update(
         move,
         aimAngle,
-        isCarrier
-          ? getAICarrierFacingAngle(player, move, aimAngle, deltaMs)
-          : undefined,
+        this.aiFacingSystem.resolve(
+          player,
+          move,
+          isCarrier,
+          deltaMs,
+        ),
       )
       const usesKeeperShield =
         player.role === 'keeper' &&
@@ -715,6 +720,7 @@ export class GameScene extends Phaser.Scene {
     this.keeperControlAssistSystem.reset()
     this.keeperSaveSystem.reset()
     this.aiSystem.reset()
+    this.aiFacingSystem.reset()
     this.spinGuardSystem.reset()
     this.tacticalGuideRenderer.clear()
     this.stickInteractionSystem.clearForReset(this.core)
@@ -784,6 +790,7 @@ export class GameScene extends Phaser.Scene {
     this.keeperControlAssistSystem.reset()
     this.keeperSaveSystem.reset()
     this.aiSystem.reset()
+    this.aiFacingSystem.reset()
     this.spinGuardSystem.reset()
     this.tacticalGuideRenderer.clear()
     this.stickInteractionSystem.clearForReset(this.core)
@@ -882,6 +889,7 @@ export class GameScene extends Phaser.Scene {
     )
 
     for (const trigger of triggers) {
+      this.aiFacingSystem.clearPlayer(trigger.playerId)
       this.defenseSystem.cancelAction(trigger.playerId)
       this.stickInteractionSystem.cancelPlayerAction(
         trigger.playerId,
@@ -1194,28 +1202,6 @@ function stabilizeAIAim(
     maximumTurn,
   )
   return Phaser.Math.Angle.Wrap(currentAngle + turn)
-}
-
-function getAICarrierFacingAngle(
-  player: Player,
-  move: Phaser.Math.Vector2,
-  aimAngle: number,
-  deltaMs: number,
-): number {
-  if (move.lengthSq() > 0.02) {
-    return Math.atan2(move.y, move.x)
-  }
-
-  const current = player.getBodyFacingAngle()
-  const maximumTurn =
-    aiCarrierConfig.aiCarrierBodyTurnRateRadiansPerSec *
-    Math.max(0, deltaMs / 1000)
-  const turn = Phaser.Math.Clamp(
-    Phaser.Math.Angle.Wrap(aimAngle - current),
-    -maximumTurn,
-    maximumTurn,
-  )
-  return Phaser.Math.Angle.Wrap(current + turn)
 }
 
 function getCssPixelValue(propertyName: string): number {

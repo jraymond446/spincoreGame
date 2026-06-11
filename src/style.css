@@ -373,9 +373,7 @@ body {
   justify-items: center;
   color: #f8fdff;
   text-align: center;
-  text-shadow:
-    0 4px 0 #16324f,
-    0 7px 0 rgba(9, 31, 56, 0.36);
+  text-shadow: 0 3px 8px rgba(9, 31, 56, 0.42);
   pointer-events: none;
 }
 

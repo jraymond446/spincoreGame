@@ -170,7 +170,6 @@ export class SpinGuardSystem {
       sample.windowStart,
     )
     const visualSpinActionAllowed =
-      context.currentAction !== 'carrier' &&
       context.currentAction !== 'juke' &&
       context.currentAction !== 'slash'
     const visualSpinning =

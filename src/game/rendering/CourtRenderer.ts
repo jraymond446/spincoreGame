@@ -8,16 +8,14 @@ export class CourtRenderer {
   constructor(scene: Phaser.Scene) {
     this.graphics = scene.add.graphics().setDepth(-10)
     scene.add
-      .text(arenaConfig.center.x, arenaConfig.center.y + 4, 'SPINCORE', {
-        fontFamily: 'Arial Black, Arial, sans-serif',
-        fontSize: '56px',
-        fontStyle: 'bold',
+      .text(arenaConfig.center.x, arenaConfig.center.y + 3, 'SPINCORE', {
+        fontFamily: 'Inter, Arial, sans-serif',
+        fontSize: '48px',
+        fontStyle: '900',
         color: '#d9f3ff',
-        stroke: '#1268b8',
-        strokeThickness: 5,
       })
       .setOrigin(0.5)
-      .setAlpha(0.2)
+      .setAlpha(0.13)
       .setDepth(-9)
 
     this.draw()
@@ -206,13 +204,18 @@ export class CourtRenderer {
       arenaConfig.centerCircleRadius - 18,
     )
     this.graphics.beginPath()
-    this.graphics.moveTo(centerX - 118, centerY)
-    this.graphics.lineTo(centerX - 82, centerY - 24)
-    this.graphics.lineTo(centerX + 82, centerY - 24)
-    this.graphics.lineTo(centerX + 118, centerY)
-    this.graphics.lineTo(centerX + 82, centerY + 24)
-    this.graphics.lineTo(centerX - 82, centerY + 24)
-    this.graphics.closePath()
+    this.graphics.moveTo(centerX - 150, centerY)
+    this.graphics.lineTo(centerX - 118, centerY - 22)
+    this.graphics.lineTo(centerX - 92, centerY - 22)
+    this.graphics.moveTo(centerX - 150, centerY)
+    this.graphics.lineTo(centerX - 118, centerY + 22)
+    this.graphics.lineTo(centerX - 92, centerY + 22)
+    this.graphics.moveTo(centerX + 150, centerY)
+    this.graphics.lineTo(centerX + 118, centerY - 22)
+    this.graphics.lineTo(centerX + 92, centerY - 22)
+    this.graphics.moveTo(centerX + 150, centerY)
+    this.graphics.lineTo(centerX + 118, centerY + 22)
+    this.graphics.lineTo(centerX + 92, centerY + 22)
     this.graphics.strokePath()
 
     this.graphics.lineStyle(3, visualStyleConfig.court.emblem, 0.58)
