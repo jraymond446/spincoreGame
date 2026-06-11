@@ -387,6 +387,11 @@ export type LabDefenseTuning = {
   nonBruteTruckMultiplier: number
   truckMissRecoveryMovement: number
   truckOffBallSpeedBoostAllowed: boolean
+  truckKnockdownThreshold: number
+  truckKnockdownMs: number
+  truckGetUpMs: number
+  truckKnockdownImmunityMs: number
+  truckKnockdownFumbleSpeed: number
   slashCooldownMs: number
   slashStartupMs: number
   slashActiveMs: number

@@ -3,6 +3,8 @@ export type DefensiveVisualState =
   | 'TRUCK_STARTUP'
   | 'TRUCK_ACTIVE'
   | 'TRUCK_RECOVERY'
+  | 'KNOCKED_DOWN'
+  | 'GETTING_UP'
   | 'SLASH_STARTUP'
   | 'SLASH_ACTIVE'
   | 'SLASH_RECOVERY'

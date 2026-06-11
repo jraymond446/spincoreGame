@@ -102,6 +102,10 @@ type ActiveAIShot = {
   hitPost: boolean
 }
 
+type LooseGatherAnchor = {
+  direction: Point
+}
+
 type PossessionDecision = {
   intent: PlayerControlIntent
   decision: string
@@ -142,6 +146,11 @@ export class AISystem {
   private lastAIShotSide: TeamSide | null = null
   private lastAIShotWindowMs = 0
   private activeAIShot: ActiveAIShot | null = null
+  private looseGathererBySide: Partial<Record<TeamSide, string>> = {}
+  private readonly looseGatherAnchors = new Map<
+    string,
+    LooseGatherAnchor
+  >()
 
   constructor(
     scene: Phaser.Scene,
@@ -453,6 +462,8 @@ export class AISystem {
     this.lastAIShotSide = null
     this.lastAIShotWindowMs = 0
     this.activeAIShot = null
+    this.looseGathererBySide = {}
+    this.looseGatherAnchors.clear()
     this.teamShape.reset()
   }
 
@@ -509,6 +520,12 @@ export class AISystem {
   ): void {
     const carrier =
       players.find((player) => player.id === carrierId) ?? null
+    const looseGatherers = this.updateLooseGatherers(
+      players,
+      core,
+      carrier,
+      controlledPlayerId,
+    )
 
     for (const player of players) {
       if (player.id === controlledPlayerId || player.role === 'keeper') {
@@ -541,6 +558,7 @@ export class AISystem {
             assignment,
             carrier,
             players,
+            looseGatherers,
           )
       const followsShape =
         !context.isCarrier &&
@@ -554,7 +572,7 @@ export class AISystem {
       const shapedIntent = possessionDecision
         ? possessionDecision.intent
         : gatherDecision?.allowed
-          ? createGatherIntent(core.position)
+          ? this.createGatherIntent(player, core, players)
           : followsShape
             ? this.applyAdvisoryShape(
                 context,
@@ -670,6 +688,7 @@ export class AISystem {
     assignment: TacticalAssignment | null,
     carrier: Player | null,
     players: Player[],
+    looseGatherers: Set<string>,
   ): { allowed: boolean; reason: string; decision: string } {
     const player = context.player
     const distanceToCore = context.distanceToCore
@@ -707,6 +726,15 @@ export class AISystem {
         tacticsConfig.receiverCatchRadius * readMultiplier
     const candidate =
       catchable || emergency || presserUnavailable || transitionCollect
+
+    if (loose && !looseGatherers.has(player.id)) {
+      this.finishOverride(player.id)
+      return {
+        allowed: false,
+        reason: 'teammateCollectorAssigned',
+        decision: 'TACTICAL_POSITION',
+      }
+    }
 
     if (!candidate) {
       this.finishOverride(player.id)
@@ -780,6 +808,132 @@ export class AISystem {
             : catchable
               ? 'RECEIVE_CORE'
               : 'EMERGENCY_GATHER',
+    }
+  }
+
+  private updateLooseGatherers(
+    players: Player[],
+    core: Core,
+    carrier: Player | null,
+    controlledPlayerId: string,
+  ): Set<string> {
+    if (carrier) {
+      this.looseGathererBySide = {}
+      this.looseGatherAnchors.clear()
+      return new Set()
+    }
+
+    const selected = new Set<string>()
+
+    for (const side of ['A', 'B'] as const) {
+      const candidates = players.filter(
+        (player) =>
+          player.teamSide === side &&
+          player.role !== 'keeper' &&
+          player.controllerType === 'ai' &&
+          player.id !== controlledPlayerId &&
+          !isPlayerDowned(player),
+      )
+      const currentId = this.looseGathererBySide[side]
+      const current = candidates.find(
+        (player) => player.id === currentId,
+      )
+      const currentStillViable =
+        current !== undefined &&
+        distance(current.position, core.position) <=
+          tacticsConfig.receiverCatchRadius * 2.4
+      const gatherer =
+        currentStillViable
+          ? current
+          : candidates.sort(
+              (a, b) =>
+                looseGatherScore(a, core.position) -
+                looseGatherScore(b, core.position),
+            )[0]
+
+      if (!gatherer) {
+        delete this.looseGathererBySide[side]
+        continue
+      }
+
+      if (currentId && currentId !== gatherer.id) {
+        this.looseGatherAnchors.delete(currentId)
+      }
+      this.looseGathererBySide[side] = gatherer.id
+      selected.add(gatherer.id)
+    }
+
+    for (const playerId of this.looseGatherAnchors.keys()) {
+      if (!selected.has(playerId)) {
+        this.looseGatherAnchors.delete(playerId)
+      }
+    }
+
+    return selected
+  }
+
+  private createGatherIntent(
+    player: Player,
+    core: Core,
+    players: Player[],
+  ): PlayerControlIntent {
+    const coreSpeed = Math.hypot(core.velocity.x, core.velocity.y)
+    const opponentContesting = players.some(
+      (candidate) =>
+        candidate.teamSide !== player.teamSide &&
+        candidate.role !== 'keeper' &&
+        !isPlayerDowned(candidate) &&
+        distance(candidate.position, core.position) <= 135,
+    )
+    const closeEnoughToPlant =
+      distance(player.position, core.position) <= 165
+
+    if (
+      !opponentContesting ||
+      !closeEnoughToPlant ||
+      coreSpeed > 5.5
+    ) {
+      this.looseGatherAnchors.delete(player.id)
+      return createDirectGatherIntent(core.position)
+    }
+
+    let anchor = this.looseGatherAnchors.get(player.id)
+    if (!anchor) {
+      const fallbackDirection =
+        player.teamSide === 'A'
+          ? { x: 0, y: 1 }
+          : { x: 0, y: -1 }
+      const currentDirection = normalizePoint(
+        {
+          x: player.position.x - core.position.x,
+          y: player.position.y - core.position.y,
+        },
+        fallbackDirection,
+      )
+      anchor = {
+        direction: normalizePoint(
+          {
+            x: currentDirection.x * 0.35 + fallbackDirection.x * 0.65,
+            y: currentDirection.y * 0.35 + fallbackDirection.y * 0.65,
+          },
+          fallbackDirection,
+        ),
+      }
+      this.looseGatherAnchors.set(player.id, anchor)
+    }
+
+    return {
+      moveTarget: {
+        x: core.position.x + anchor.direction.x * 48,
+        y: core.position.y + anchor.direction.y * 48,
+      },
+      aimTarget: { ...core.position },
+      hold: true,
+      swing: false,
+      truck: false,
+      slash: false,
+      moveSpeedMultiplier: 0.92,
+      aiState: 'SEEK_CORE',
     }
   }
 
@@ -1994,7 +2148,7 @@ function goalPoint(defendingSide: TeamSide): Point {
   return keeperAreaConfig.areas[defendingSide]
 }
 
-function createGatherIntent(corePosition: Point): PlayerControlIntent {
+function createDirectGatherIntent(corePosition: Point): PlayerControlIntent {
   return {
     moveTarget: { ...corePosition },
     aimTarget: { ...corePosition },
@@ -2003,6 +2157,33 @@ function createGatherIntent(corePosition: Point): PlayerControlIntent {
     truck: false,
     slash: false,
     aiState: 'SEEK_CORE',
+  }
+}
+
+function looseGatherScore(player: Player, corePosition: Point): number {
+  const collectionSkill =
+    0.65 +
+    Phaser.Math.Clamp(player.attributes.reaction, 0, 1) * 0.2 +
+    Phaser.Math.Clamp(player.attributes.ballHandling, 0, 1) * 0.15
+
+  return distance(player.position, corePosition) / collectionSkill
+}
+
+function isPlayerDowned(player: Player): boolean {
+  const state = player.getDefenseVisualState()
+  return state === 'KNOCKED_DOWN' || state === 'GETTING_UP'
+}
+
+function normalizePoint(point: Point, fallback: Point): Point {
+  const length = Math.hypot(point.x, point.y)
+
+  if (!Number.isFinite(length) || length < 0.0001) {
+    return { ...fallback }
+  }
+
+  return {
+    x: point.x / length,
+    y: point.y / length,
   }
 }
 

@@ -446,9 +446,13 @@ export class GameScene extends Phaser.Scene {
             input.movement,
           )
         : input.movement
+    const movementLocked =
+      this.defenseSystem.isMovementLocked(player.id)
 
     player.update(
-      recovering ? new Phaser.Math.Vector2() : movement,
+      recovering || movementLocked
+        ? new Phaser.Math.Vector2()
+        : movement,
       input.aimAngle,
     )
     const stickActionAllowed =
@@ -546,11 +550,12 @@ export class GameScene extends Phaser.Scene {
       )
         ? Phaser.Math.Clamp(intent.moveSpeedMultiplier ?? 1, 0, 2)
         : 1
-      const move = recovering
-        ? new Phaser.Math.Vector2()
-        : baseMove.scale(speedMultiplier)
       const isCarrier = player.id === carrierId
       const actionLock = this.getActionLock(player)
+      const move =
+        recovering || actionLock === 'downed'
+          ? new Phaser.Math.Vector2()
+          : baseMove.scale(speedMultiplier)
       const stickActionAllowed =
         !recovering &&
         (actionLock === 'none' ||

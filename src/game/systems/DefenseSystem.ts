@@ -36,6 +36,7 @@ export type DefenseEvent = {
   attackerId: string
   targetId: string
   teamSide: TeamSide
+  knockedDown: boolean
 }
 
 export type DefenseTargetDebug = {
@@ -50,6 +51,7 @@ type DefenseRuntime = {
   elapsedMs: number
   truckCooldownMs: number
   slashCooldownMs: number
+  knockdownImmunityMs: number
   connected: boolean
   actionDirection: Point
 }
@@ -108,6 +110,26 @@ export class DefenseSystem {
 
       this.updateCooldowns(runtime, deltaMs)
       this.advanceState(runtime, player, deltaMs)
+
+      if (isKnockdownState(runtime.state)) {
+        if (player.id === stickSystem.getCarrierId()) {
+          if (
+            stickSystem.forceFumble(
+              core,
+              players,
+              player.id,
+              runtime.actionDirection,
+              defenseConfig.truckKnockdownFumbleSpeed,
+              0.18,
+            )
+          ) {
+            fumbleSystem.clear()
+            this.addBurst(core.position, 'fumble')
+          }
+        }
+        player.setDefenseVisualState(runtime.state)
+        continue
+      }
 
       if (player.id === stickSystem.getCarrierId()) {
         if (runtime.state !== 'IDLE') {
@@ -231,9 +253,13 @@ export class DefenseSystem {
     return this.getState(playerId).replaceAll('_', ' ')
   }
 
+  isMovementLocked(playerId: string): boolean {
+    return isKnockdownState(this.getState(playerId))
+  }
+
   cancelAction(playerId: string): void {
     const runtime = this.runtimes.get(playerId)
-    if (runtime) {
+    if (runtime && !isKnockdownState(runtime.state)) {
       runtime.state = 'IDLE'
       runtime.elapsedMs = 0
       runtime.connected = false
@@ -257,6 +283,7 @@ export class DefenseSystem {
       elapsedMs: 0,
       truckCooldownMs: 0,
       slashCooldownMs: 0,
+      knockdownImmunityMs: 0,
       connected: false,
       actionDirection: { x: 1, y: 0 },
     }
@@ -276,6 +303,10 @@ export class DefenseSystem {
       0,
       runtime.slashCooldownMs - deltaMs,
     )
+    runtime.knockdownImmunityMs = Math.max(
+      0,
+      runtime.knockdownImmunityMs - deltaMs,
+    )
   }
 
   private advanceState(
@@ -294,9 +325,15 @@ export class DefenseSystem {
       return
     }
 
-    const nextState = nextDefenseState(runtime.state)
+    const completedState = runtime.state
+    const nextState = nextDefenseState(completedState)
     runtime.state = nextState
     runtime.elapsedMs = 0
+
+    if (completedState === 'GETTING_UP' && nextState === 'IDLE') {
+      runtime.knockdownImmunityMs =
+        defenseConfig.truckKnockdownImmunityMs
+    }
 
     if (nextState === 'IDLE') {
       runtime.connected = false
@@ -385,12 +422,6 @@ export class DefenseSystem {
     }
 
     runtime.connected = true
-    this.pendingEvents.push({
-      type: 'truckConnected',
-      attackerId: attacker.id,
-      targetId: target.id,
-      teamSide: attacker.teamSide,
-    })
     const roleMultiplier =
       attacker.role === 'brute'
         ? defenseConfig.bruteTruckMultiplier
@@ -405,6 +436,19 @@ export class DefenseSystem {
       attacker.attributes.power *
       roleMultiplier *
       receivedImpulseMultiplier
+    const targetRuntime = this.getRuntime(target.id)
+    const knockedDown =
+      targetRuntime.knockdownImmunityMs === 0 &&
+      truckKnockdownMargin(attacker, target) >=
+        defenseConfig.truckKnockdownThreshold
+
+    this.pendingEvents.push({
+      type: 'truckConnected',
+      attackerId: attacker.id,
+      targetId: target.id,
+      teamSide: attacker.teamSide,
+      knockedDown,
+    })
 
     this.shoves.set(target.id, {
       velocity: {
@@ -412,7 +456,9 @@ export class DefenseSystem {
         y: direction.y * impulse,
       },
       remainingMs:
-        (defenseConfig.truckActiveMs + 120) *
+        (knockedDown
+          ? defenseConfig.truckActiveMs + 220
+          : defenseConfig.truckActiveMs + 120) *
         Phaser.Math.Linear(
           1.15,
           0.75,
@@ -421,6 +467,24 @@ export class DefenseSystem {
     })
     this.recordTargetDebug(attacker, target, 'TRUCK')
     this.addBurst(target.position, 'truck')
+
+    if (knockedDown) {
+      this.startKnockdown(targetRuntime, target, direction)
+      if (
+        stickSystem.forceFumble(
+          core,
+          players,
+          target.id,
+          direction,
+          defenseConfig.truckKnockdownFumbleSpeed,
+          0.18,
+        )
+      ) {
+        fumbleSystem.clear()
+        this.addBurst(core.position, 'fumble')
+      }
+      return
+    }
 
     if (stickSystem.getCarrierId() === target.id) {
       const pressure =
@@ -445,6 +509,19 @@ export class DefenseSystem {
         this.addBurst(core.position, 'fumble')
       }
     }
+  }
+
+  private startKnockdown(
+    runtime: DefenseRuntime,
+    target: Player,
+    direction: Point,
+  ): void {
+    runtime.state = 'KNOCKED_DOWN'
+    runtime.elapsedMs = 0
+    runtime.connected = false
+    runtime.actionDirection = { ...direction }
+    target.setDefenseVisualState('KNOCKED_DOWN')
+    target.stopMovement()
   }
 
   private applySlash(
@@ -853,6 +930,24 @@ function stateDuration(
         ) *
         (player.role === 'brute' ? 1.12 : 1)
       )
+    case 'KNOCKED_DOWN':
+      return (
+        defenseConfig.truckKnockdownMs *
+        Phaser.Math.Linear(
+          1.18,
+          0.78,
+          normalizedAttribute(player.attributes.toughness),
+        )
+      )
+    case 'GETTING_UP':
+      return (
+        defenseConfig.truckGetUpMs *
+        Phaser.Math.Linear(
+          1.12,
+          0.84,
+          normalizedAttribute(player.attributes.control),
+        )
+      )
     case 'SLASH_STARTUP':
       return defenseConfig.slashStartupMs
     case 'SLASH_ACTIVE':
@@ -877,6 +972,10 @@ function nextDefenseState(
       return 'TRUCK_RECOVERY'
     case 'TRUCK_RECOVERY':
       return 'IDLE'
+    case 'KNOCKED_DOWN':
+      return 'GETTING_UP'
+    case 'GETTING_UP':
+      return 'IDLE'
     case 'SLASH_STARTUP':
       return 'SLASH_ACTIVE'
     case 'SLASH_ACTIVE':
@@ -886,6 +985,26 @@ function nextDefenseState(
     default:
       return 'IDLE'
   }
+}
+
+function isKnockdownState(state: DefensiveActionState): boolean {
+  return state === 'KNOCKED_DOWN' || state === 'GETTING_UP'
+}
+
+function truckKnockdownMargin(
+  attacker: Player,
+  target: Player,
+): number {
+  const roleBonus = attacker.role === 'brute' ? 0.2 : 0
+  const attackingForce =
+    normalizedAttribute(attacker.attributes.power) * 0.72 +
+    normalizedAttribute(attacker.attributes.defense) * 0.28 +
+    roleBonus
+  const targetResistance =
+    normalizedAttribute(target.attributes.toughness) * 0.78 +
+    normalizedAttribute(target.attributes.control) * 0.22
+
+  return attackingForce - targetResistance
 }
 
 function nearestTargetInSector(

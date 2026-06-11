@@ -10,6 +10,7 @@ export type PlayerActionLock =
   | 'gather'
   | 'recovery'
   | 'fumble'
+  | 'downed'
 
 export function getPlayerActionLock(
   playerId: string,
@@ -18,6 +19,13 @@ export function getPlayerActionLock(
   stickState: StickActionState,
   defenseState: DefensiveActionState,
 ): PlayerActionLock {
+  if (
+    defenseState === 'KNOCKED_DOWN' ||
+    defenseState === 'GETTING_UP'
+  ) {
+    return 'downed'
+  }
+
   if (
     playerId === carrierId &&
     (coreState === 'CRADLED_STABLE' ||

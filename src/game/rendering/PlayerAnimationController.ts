@@ -1,4 +1,5 @@
 import Phaser from 'phaser'
+import { defenseConfig } from '../config/defenseConfig'
 import type { StickActionState } from '../data/matchTypes'
 import type {
   DefensiveVisualState,
@@ -169,6 +170,34 @@ export class PlayerAnimationController {
         pose.bodyScaleX *= 1.04
         pose.bodyScaleY *= 0.97
         break
+      case 'KNOCKED_DOWN':
+        pose.bodyForwardOffset += 7
+        pose.bodySideOffset += 5 * mirror
+        pose.bodyRotationOffset += 1.32 * mirror
+        pose.bodyScaleX *= 1.08
+        pose.bodyScaleY *= 0.72
+        pose.headForwardOffset -= 4
+        pose.shadowScale *= 1.22
+        pose.stickRotationOffset -= 0.48 * mirror
+        pose.stickScaleY *= 0.9
+        break
+      case 'GETTING_UP': {
+        const progress = Phaser.Math.Clamp(
+          elapsed / defenseConfig.truckGetUpMs,
+          0,
+          1,
+        )
+        const inverse = 1 - progress
+        pose.bodyForwardOffset += 7 * inverse
+        pose.bodySideOffset += 5 * mirror * inverse
+        pose.bodyRotationOffset += 1.32 * mirror * inverse
+        pose.bodyScaleX *= Phaser.Math.Linear(1.08, 1, progress)
+        pose.bodyScaleY *= Phaser.Math.Linear(0.72, 1, progress)
+        pose.headForwardOffset -= 4 * inverse
+        pose.shadowScale *= Phaser.Math.Linear(1.22, 1, progress)
+        pose.stickRotationOffset -= 0.48 * mirror * inverse
+        break
+      }
       case 'SLASH_STARTUP':
         pose.bodyRotationOffset -= 0.09 * mirror
         pose.stickRotationOffset -= 0.13 * mirror
