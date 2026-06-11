@@ -392,7 +392,8 @@ function formatOffenseMetrics(
     `S ${metrics.shotsAttempted} D ${metrics.directShots} ` +
     `B ${metrics.bankShots} P2S ${metrics.passesToShot} ` +
     `G ${metrics.goals} OG ${metrics.ownGoals} ` +
-    `BLK ${metrics.shotsBlockedSaved}`
+    `SAV ${metrics.shotsSaved} BLK ${metrics.shotsBlocked} ` +
+    `POST ${metrics.shotsHitPost} WIDE ${metrics.shotsWide}`
   )
 }
 

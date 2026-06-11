@@ -94,7 +94,6 @@ export class GameScene extends Phaser.Scene {
   private debugEnabled = false
   private gameMode: GameMode = gameplayConfig.defaultMode
   private currentInputIntent = 'IDLE'
-  private labSceneRestartQueued = false
 
   constructor() {
     super('GameScene')
@@ -102,7 +101,6 @@ export class GameScene extends Phaser.Scene {
 
   init(data?: { gameMode?: GameMode }): void {
     this.gameMode = data?.gameMode ?? getLabState().mode
-    this.labSceneRestartQueued = false
     this.matchState = structuredClone(initialMatchState)
     this.debugEnabled = false
   }
@@ -195,11 +193,6 @@ export class GameScene extends Phaser.Scene {
   }
 
   update(time: number, delta: number): void {
-    if (this.labSceneRestartQueued) {
-      this.applyPendingLabChanges()
-      return
-    }
-
     this.arenaDressing.update(time)
 
     if (this.inputController.consumeModeToggle()) {
@@ -307,7 +300,10 @@ export class GameScene extends Phaser.Scene {
         (player) => player.id === interactionEvent.playerId,
       )
       if (releasingPlayer) {
-        this.aiSystem.recordRelease(releasingPlayer)
+        this.aiSystem.recordRelease(
+          releasingPlayer,
+          this.core.position,
+        )
       }
     }
 
@@ -340,6 +336,16 @@ export class GameScene extends Phaser.Scene {
       this.matchStatsTracker.recordSave(savedSide)
       this.aiSystem.recordSave(savedSide)
       statsChanged = true
+    } else if (
+      interactionEvent &&
+      interactionEvent.result !== 'release'
+    ) {
+      const blockingPlayer = players.find(
+        (player) => player.id === interactionEvent.playerId,
+      )
+      if (blockingPlayer) {
+        this.aiSystem.recordShotBlock(blockingPlayer)
+      }
     }
 
     for (const event of defenseEvents) {
@@ -386,6 +392,10 @@ export class GameScene extends Phaser.Scene {
         goalScored = true
         break
       }
+    }
+
+    if (!goalScored) {
+      this.aiSystem.observeShotFlight(this.core.position)
     }
 
     const recoveryReason = goalScored
@@ -730,31 +740,34 @@ export class GameScene extends Phaser.Scene {
       event instanceof CustomEvent &&
       event.detail?.requiresSceneRestart === true
 
-    if (!requiresSceneRestart || this.labSceneRestartQueued) {
+    if (!requiresSceneRestart) {
       return
     }
 
-    this.labSceneRestartQueued = true
-  }
-
-  private applyPendingLabChanges(): void {
-    if (!this.labSceneRestartQueued) {
-      return
-    }
-
-    this.labSceneRestartQueued = false
-    console.info('[Lab Apply] Structural match rebuild queued')
-    this.scene.restart({
-      gameMode: getLabState().mode,
-    })
+    this.restartForLabState()
   }
 
   private resetMatch = (): void => {
+    if (getLabState().mode !== this.gameMode) {
+      this.restartForLabState()
+      return
+    }
+
     this.matchState = structuredClone(initialMatchState)
     this.matchStatsTracker.reset()
     this.aiSystem.resetMetrics()
     this.resetPositions()
     this.updateHud()
+  }
+
+  private restartForLabState(): void {
+    const gameMode = getLabState().mode
+
+    console.info('[Lab Apply] Structural match rebuild queued', {
+      fromMode: this.gameMode,
+      toMode: gameMode,
+    })
+    this.scene.restart({ gameMode })
   }
 
   private resetCore = (): void => {

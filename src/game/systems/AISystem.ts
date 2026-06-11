@@ -17,6 +17,8 @@ import { aiConfig } from '../config/aiConfig'
 import { aiOffenseConfig } from '../config/aiOffenseConfig'
 import { arenaConfig } from '../config/arenaConfig'
 import { defenseConfig } from '../config/defenseConfig'
+import { coreConfig } from '../config/entityConfig'
+import { goalConfig, goalConfigs } from '../config/goalConfig'
 import { keeperAreaConfig } from '../config/keeperAreaConfig'
 import { keeperZoneRulesConfig } from '../config/keeperZoneRulesConfig'
 import { stickConfig } from '../config/stickConfig'
@@ -80,7 +82,10 @@ export type AIOffenseMetricLine = {
   passesToShot: number
   goals: number
   ownGoals: number
-  shotsBlockedSaved: number
+  shotsSaved: number
+  shotsBlocked: number
+  shotsHitPost: number
+  shotsWide: number
 }
 
 export type AIOffenseMetrics = Record<TeamSide, AIOffenseMetricLine>
@@ -89,6 +94,12 @@ type PlannedOffenseAction = {
   teamSide: TeamSide
   kind: 'directShot' | 'bankShot' | 'pass'
   passToShot: boolean
+}
+
+type ActiveAIShot = {
+  side: TeamSide
+  previousPosition: Point
+  hitPost: boolean
 }
 
 type PossessionDecision = {
@@ -130,6 +141,7 @@ export class AISystem {
   private offenseMetrics = createEmptyOffenseMetrics()
   private lastAIShotSide: TeamSide | null = null
   private lastAIShotWindowMs = 0
+  private activeAIShot: ActiveAIShot | null = null
 
   constructor(
     scene: Phaser.Scene,
@@ -161,10 +173,21 @@ export class AISystem {
     }
     this.updateOverrideCooldowns(deltaMs)
     this.updateShotCooldowns(deltaMs)
+    const previousShotWindowMs = this.lastAIShotWindowMs
     this.lastAIShotWindowMs = Math.max(
       0,
       this.lastAIShotWindowMs - deltaMs,
     )
+    if (
+      previousShotWindowMs > 0 &&
+      this.lastAIShotWindowMs === 0 &&
+      this.activeAIShot
+    ) {
+      if (!this.activeAIShot.hitPost) {
+        this.offenseMetrics[this.activeAIShot.side].shotsWide += 1
+      }
+      this.clearActiveShot()
+    }
     this.teamShape.update(
       players,
       core,
@@ -249,7 +272,7 @@ export class AISystem {
     }
   }
 
-  recordRelease(player: Player): void {
+  recordRelease(player: Player, corePosition: Point): void {
     const action = this.plannedOffenseActions.get(player.id)
     this.carrierIntent.clearPlayer(player.id)
     if (this.carrierPossessionId === player.id) {
@@ -275,6 +298,11 @@ export class AISystem {
       }
       this.lastAIShotSide = action.teamSide
       this.lastAIShotWindowMs = 4000
+      this.activeAIShot = {
+        side: action.teamSide,
+        previousPosition: { ...corePosition },
+        hitPost: false,
+      }
       this.shotCooldowns.set(
         player.id,
         aiOffenseConfig.aiShotCooldownMs,
@@ -293,8 +321,20 @@ export class AISystem {
       return
     }
 
-    this.offenseMetrics[this.lastAIShotSide].shotsBlockedSaved += 1
-    this.lastAIShotWindowMs = 0
+    this.offenseMetrics[this.lastAIShotSide].shotsSaved += 1
+    this.clearActiveShot()
+  }
+
+  recordShotBlock(blockingPlayer: Player): void {
+    if (
+      !this.activeAIShot ||
+      blockingPlayer.teamSide === this.activeAIShot.side
+    ) {
+      return
+    }
+
+    this.offenseMetrics[this.activeAIShot.side].shotsBlocked += 1
+    this.clearActiveShot()
   }
 
   recordGoal(scoringSide: TeamSide): void {
@@ -311,13 +351,91 @@ export class AISystem {
       this.offenseMetrics[this.lastAIShotSide].ownGoals += 1
     }
 
-    this.lastAIShotWindowMs = 0
+    this.clearActiveShot()
+  }
+
+  observeShotFlight(position: Point): void {
+    const shot = this.activeAIShot
+
+    if (!shot) {
+      return
+    }
+
+    const goal = goalConfigs.find((candidate) =>
+      shot.side === 'A'
+        ? candidate.id === 'top-goal'
+        : candidate.id === 'bottom-goal',
+    )
+
+    if (!goal) {
+      return
+    }
+
+    const postContactRadius =
+      goalConfig.goalPostRadius + coreConfig.radius + 2
+    const postX = [
+      goal.x - goal.length / 2,
+      goal.x + goal.length / 2,
+    ]
+    const hitPost = postX.some(
+      (x) =>
+        distanceToSegment(
+          { x, y: goal.y },
+          shot.previousPosition,
+          position,
+        ) <= postContactRadius,
+    )
+
+    if (hitPost && !shot.hitPost) {
+      shot.hitPost = true
+      this.offenseMetrics[shot.side].shotsHitPost += 1
+    }
+
+    const crossedGoalPlane =
+      shot.side === 'A'
+        ? shot.previousPosition.y > goal.y && position.y <= goal.y
+        : shot.previousPosition.y < goal.y && position.y >= goal.y
+
+    if (crossedGoalPlane) {
+      const deltaY = position.y - shot.previousPosition.y
+      const progress =
+        Math.abs(deltaY) < 0.0001
+          ? 0
+          : Phaser.Math.Clamp(
+              (goal.y - shot.previousPosition.y) / deltaY,
+              0,
+              1,
+            )
+      const crossingX =
+        shot.previousPosition.x +
+        (position.x - shot.previousPosition.x) * progress
+      const scoringHalfWidth =
+        goal.length / 2 -
+        Math.max(
+          0,
+          goalConfig.goalPostRadius +
+            coreConfig.radius -
+            goalConfig.scoringPlaneTolerance,
+        )
+
+      if (
+        Math.abs(crossingX - goal.x) > scoringHalfWidth &&
+        !shot.hitPost
+      ) {
+        this.offenseMetrics[shot.side].shotsWide += 1
+        this.clearActiveShot()
+        return
+      }
+    }
+
+    shot.previousPosition = { ...position }
   }
 
   resetMetrics(): void {
     this.offenseMetrics = createEmptyOffenseMetrics()
     this.lastAIShotSide = null
     this.lastAIShotWindowMs = 0
+    this.activeAIShot = null
   }
 
   reset(): void {
@@ -334,7 +452,14 @@ export class AISystem {
     this.plannedOffenseActions.clear()
     this.lastAIShotSide = null
     this.lastAIShotWindowMs = 0
+    this.activeAIShot = null
     this.teamShape.reset()
+  }
+
+  private clearActiveShot(): void {
+    this.lastAIShotSide = null
+    this.lastAIShotWindowMs = 0
+    this.activeAIShot = null
   }
 
   private updateKeepers(
@@ -1159,13 +1284,15 @@ export class AISystem {
         )
       }
 
-      return this.createShotDecision(
-        context,
-        intent,
-        shotEvaluation.directTarget,
-        directGood ? 'directOpen' : 'bestAvailable',
-        shotEvaluation,
-      )
+      if (directGood) {
+        return this.createShotDecision(
+          context,
+          intent,
+          shotEvaluation.directTarget,
+          'directOpen',
+          shotEvaluation,
+        )
+      }
     }
 
     if (
@@ -2164,7 +2291,10 @@ function createEmptyOffenseMetrics(): AIOffenseMetrics {
     passesToShot: 0,
     goals: 0,
     ownGoals: 0,
-    shotsBlockedSaved: 0,
+    shotsSaved: 0,
+    shotsBlocked: 0,
+    shotsHitPost: 0,
+    shotsWide: 0,
   })
 
   return {

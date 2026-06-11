@@ -47,6 +47,7 @@ type CarrierRuntimeState = {
   desiredAimAngle: number
   lastBodyAngle: number
   spinDurationMs: number
+  spinRotationRadians: number
   spinDetected: boolean
   stuckDurationMs: number
   forceReleaseReason: string | null
@@ -258,22 +259,30 @@ export class AICarrierIntentSystem {
         aiCarrierConfig.aiSpinAngularVelocityThreshold
     ) {
       state.spinDurationMs += deltaMs
+      state.spinRotationRadians += bodyDelta
     } else {
       state.spinDurationMs = Math.max(
         0,
         state.spinDurationMs - deltaMs * 1.5,
       )
+      state.spinRotationRadians = Math.max(
+        0,
+        state.spinRotationRadians - bodyDelta * 1.5,
+      )
     }
 
     if (
       !state.spinDetected &&
-      state.spinDurationMs >= aiCarrierConfig.aiSpinDurationMs
+      state.spinDurationMs >= aiCarrierConfig.aiSpinDurationMs &&
+      state.spinRotationRadians >=
+        aiCarrierConfig.aiSpinMinimumRotationRadians
     ) {
       state.spinDetected = true
       console.warn('[AI Carrier Spin Detected]', {
         playerId: player.id,
         intentType: state.intent.intentType,
         angularVelocity,
+        rotationRadians: state.spinRotationRadians,
       })
       if (aiCarrierConfig.aiSpinForceRelease) {
         state.forceReleaseReason = 'spinDetected'
@@ -391,6 +400,7 @@ export class AICarrierIntentSystem {
       desiredAimAngle: angleTo(player.position, intent.targetPoint),
       lastBodyAngle: player.getBodyFacingAngle(),
       spinDurationMs: previous?.spinDurationMs ?? 0,
+      spinRotationRadians: previous?.spinRotationRadians ?? 0,
       spinDetected: previous?.spinDetected ?? false,
       stuckDurationMs: 0,
       forceReleaseReason: previous?.forceReleaseReason ?? null,

@@ -27,6 +27,7 @@ export const aiCarrierConfig = {
   aiForceReleaseWhenStuck: true,
   aiSpinDetectionEnabled: true,
   aiSpinAngularVelocityThreshold: 4.5,
-  aiSpinDurationMs: 500,
+  aiSpinDurationMs: 650,
+  aiSpinMinimumRotationRadians: 5.2,
   aiSpinForceRelease: true,
 } as const

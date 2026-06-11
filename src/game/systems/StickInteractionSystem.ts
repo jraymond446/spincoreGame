@@ -1144,11 +1144,13 @@ export class StickInteractionSystem {
       core.position,
       player.getCradleSocket(),
     )
+    const closeRangeRadius = active
+      ? gatherConfig.humanCloseGatherRadius
+      : gatherConfig.humanPassiveCloseGatherRadius
     const closeRangeForgiveness =
-      active &&
       player.controllerType === 'human' &&
       player.id === preferredPlayerId &&
-      socketDistance <= gatherConfig.humanCloseGatherRadius
+      socketDistance <= closeRangeRadius
     const enabled = active
       ? gatherConfig.activeGatherEnabled
       : mode === 'passive'

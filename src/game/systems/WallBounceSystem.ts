@@ -33,9 +33,10 @@ export type WallBounceDebugState = {
 }
 
 export class WallBounceSystem {
-  private readonly scene: Phaser.Scene
+  private readonly world: Phaser.Physics.Matter.World
   private readonly core: Core
   private readonly graphics: Phaser.GameObjects.Graphics
+  private destroyed = false
   private pendingImpacts: PendingWallImpact[] = []
   private effects: WallImpactEffect[] = []
   private lastVelocity: Point = { x: 0, y: 0 }
@@ -44,11 +45,11 @@ export class WallBounceSystem {
   private bankShotMsRemaining = 0
 
   constructor(scene: Phaser.Scene, core: Core) {
-    this.scene = scene
+    this.world = scene.matter.world
     this.core = core
     this.graphics = scene.add.graphics().setDepth(15)
     this.lastVelocity = core.velocity
-    scene.matter.world.on('collisionstart', this.handleCollisionStart)
+    this.world.on('collisionstart', this.handleCollisionStart)
   }
 
   update(isPossessed: boolean, deltaMs: number): void {
@@ -84,7 +85,12 @@ export class WallBounceSystem {
   }
 
   destroy(): void {
-    this.scene.matter.world.off(
+    if (this.destroyed) {
+      return
+    }
+
+    this.destroyed = true
+    this.world.off(
       'collisionstart',
       this.handleCollisionStart,
     )

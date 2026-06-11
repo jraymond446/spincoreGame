@@ -223,7 +223,10 @@ function getOpenGoalTarget(
 ): Point {
   const openSide =
     keeper && keeper.position.x < goal.x ? 1 : -1
-  const offset = goal.length * 0.31 * openSide
+  const offset =
+    goal.length *
+    aiOffenseConfig.aiDirectShotTargetOffsetRatio *
+    openSide
 
   return {
     x: goal.x + offset,

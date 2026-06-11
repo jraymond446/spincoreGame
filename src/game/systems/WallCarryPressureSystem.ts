@@ -32,7 +32,8 @@ export type WallCarryDebugState = {
 }
 
 export class WallCarryPressureSystem {
-  private readonly scene: Phaser.Scene
+  private readonly world: Phaser.Physics.Matter.World
+  private destroyed = false
   private previousVelocities = new Map<string, Point>()
   private pendingImpacts: PendingCarrierImpact[] = []
   private carrierId: string | null = null
@@ -43,8 +44,8 @@ export class WallCarryPressureSystem {
   private pressureAdded = 0
 
   constructor(scene: Phaser.Scene) {
-    this.scene = scene
-    scene.matter.world.on('collisionstart', this.handleCollisionStart)
+    this.world = scene.matter.world
+    this.world.on('collisionstart', this.handleCollisionStart)
   }
 
   update(
@@ -185,7 +186,12 @@ export class WallCarryPressureSystem {
   }
 
   destroy(): void {
-    this.scene.matter.world.off(
+    if (this.destroyed) {
+      return
+    }
+
+    this.destroyed = true
+    this.world.off(
       'collisionstart',
       this.handleCollisionStart,
     )

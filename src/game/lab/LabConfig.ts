@@ -160,6 +160,7 @@ export type LabStickTuning = {
   passiveGatherMaxSpeed: number
   passiveGatherFunnelAngle: number
   humanCloseGatherRadius: number
+  humanPassiveCloseGatherRadius: number
   releaseRegrabCooldownMs: number
   fumbleRegrabCooldownMs: number
   gatherAttemptCooldownMs: number
@@ -272,6 +273,7 @@ export type LabAIOffenseTuning = {
   aiSpinDetectionEnabled: boolean
   aiSpinAngularVelocityThreshold: number
   aiSpinDurationMs: number
+  aiSpinMinimumRotationRadians: number
   aiCarrySideCommitMs: number
   aiClearChargeMinMs: number
   aiClearChargeMaxMs: number
@@ -291,6 +293,7 @@ export type LabAIOffenseTuning = {
   opponentAiShotError: number
   opponentAiDecisionIntervalMs: number
   opponentAiAttackSpacing: number
+  aiDirectShotTargetOffsetRatio: number
   aiGoodDirectShotThreshold: number
   aiGoodBankShotThreshold: number
   aiPassBetterShotMargin: number

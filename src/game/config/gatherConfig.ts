@@ -12,6 +12,7 @@ export const gatherConfig = {
   passiveGatherMaxSpeed: 9.5,
   passiveGatherFunnelAngle: 1.1,
   humanCloseGatherRadius: 30,
+  humanPassiveCloseGatherRadius: 20,
   releaseRegrabCooldownMs: 180,
   fumbleRegrabCooldownMs: 260,
   gatherAttemptCooldownMs: 30,

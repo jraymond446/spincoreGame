@@ -225,6 +225,8 @@ export function applyLabSettings(state: LabTuningState): void {
     aiSpinAngularVelocityThreshold:
       state.aiOffense.aiSpinAngularVelocityThreshold,
     aiSpinDurationMs: state.aiOffense.aiSpinDurationMs,
+    aiSpinMinimumRotationRadians:
+      state.aiOffense.aiSpinMinimumRotationRadians,
     aiCarrySideCommitMs: state.aiOffense.aiCarrySideCommitMs,
     aiClearChargeMinMs: state.aiOffense.aiClearChargeMinMs,
     aiClearChargeMaxMs: state.aiOffense.aiClearChargeMaxMs,
@@ -282,6 +284,8 @@ export function applyLabSettings(state: LabTuningState): void {
     passiveGatherMaxSpeed: stick.passiveGatherMaxSpeed,
     passiveGatherFunnelAngle: stick.passiveGatherFunnelAngle,
     humanCloseGatherRadius: stick.humanCloseGatherRadius,
+    humanPassiveCloseGatherRadius:
+      stick.humanPassiveCloseGatherRadius,
     releaseRegrabCooldownMs: stick.releaseRegrabCooldownMs,
     fumbleRegrabCooldownMs: stick.fumbleRegrabCooldownMs,
     gatherAttemptCooldownMs: stick.gatherAttemptCooldownMs,

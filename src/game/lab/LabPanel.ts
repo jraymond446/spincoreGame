@@ -1331,6 +1331,15 @@ export class LabPanel {
         },
       ),
       this.createRange(
+        'Spin minimum rotation',
+        offense.aiSpinMinimumRotationRadians,
+        { min: 1, max: 12, step: 0.1, digits: 1 },
+        (value) => {
+          offense.aiSpinMinimumRotationRadians = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
         'Carry-side commit ms',
         offense.aiCarrySideCommitMs,
         { min: 200, max: 2200, step: 50 },
@@ -1450,6 +1459,15 @@ export class LabPanel {
         offense.aiFrontSlotPassEnabled,
         (value) => {
           offense.aiFrontSlotPassEnabled = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Direct-shot target offset ratio',
+        offense.aiDirectShotTargetOffsetRatio,
+        { min: 0, max: 0.4, step: 0.01, digits: 2 },
+        (value) => {
+          offense.aiDirectShotTargetOffsetRatio = value
           this.markDraftChanged()
         },
       ),
@@ -1967,6 +1985,7 @@ export class LabPanel {
       ['Passive gather max speed', 'passiveGatherMaxSpeed', { min: 0, max: 18, step: 0.5, digits: 1 }],
       ['Passive funnel angle', 'passiveGatherFunnelAngle', { min: 0.1, max: 2.2, step: 0.05, digits: 2 }],
       ['Human close gather radius', 'humanCloseGatherRadius', { min: 0, max: 60, step: 1 }],
+      ['Human passive close radius', 'humanPassiveCloseGatherRadius', { min: 0, max: 40, step: 1 }],
       ['Release regrab cooldown ms', 'releaseRegrabCooldownMs', { min: 0, max: 1500, step: 10 }],
       ['Fumble regrab cooldown ms', 'fumbleRegrabCooldownMs', { min: 0, max: 1500, step: 10 }],
       ['Gather attempt cooldown ms', 'gatherAttemptCooldownMs', { min: 0, max: 500, step: 5 }],
