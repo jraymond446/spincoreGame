@@ -696,11 +696,12 @@ export class StickInteractionSystem {
         core.position.x,
         core.position.y,
       )
+      const coreDistance = distance(player.position, core.position)
       const autoOrientActive =
         !this.isCradled() &&
         this.getStickState(player.id) === 'CATCH_READY' &&
-        distance(player.position, core.position) <=
-          stickConfig.catchAssistDetectionRadius
+        coreDistance >= stickConfig.catchAssistMinimumAimDistance &&
+        coreDistance <= stickConfig.catchAssistDetectionRadius
       const state = this.getStickState(player.id)
       const isCarrier = this.isCradled() && player.id === this.carrierId
       const usesKeeperShield = this.keeperShield.usesShield(player)

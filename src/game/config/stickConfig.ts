@@ -68,6 +68,7 @@ export const stickConfig = {
   handednessNaturalAimRadians: 0.035,
   readyStanceOffsetRadians: 0.55,
   catchAssistDetectionRadius: 205,
+  catchAssistMinimumAimDistance: 48,
   cradleFacingOffsetRadians: -0.35,
   catchAutoOrientStrength: 10,
   aiSwingCooldownMs: 1050,

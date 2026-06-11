@@ -13,9 +13,11 @@ type SpinSample = {
   windowStart: Point
   lastAimAngle: number
   lastFacingAngle: number
+  lastStickAngle: number
   lastMovementAngle: number | null
   aimDelta: number
   facingDelta: number
+  stickDelta: number
   movementDelta: number
   lastStableAimAngle: number
   lastStableFacingAngle: number
@@ -93,6 +95,7 @@ export class SpinGuardSystem {
   ): SpinGuardTrigger | null {
     const aimAngle = player.getReleaseAimAngle()
     const facingAngle = player.getBodyFacingAngle()
+    const stickAngle = player.getStickVisualRotation()
     const velocity = player.velocity
     const movementAngle =
       isValidVector(velocity) &&
@@ -106,7 +109,8 @@ export class SpinGuardSystem {
       !isValidVector(player.position) ||
       !isValidVector(velocity) ||
       !Number.isFinite(aimAngle) ||
-      !Number.isFinite(facingAngle)
+      !Number.isFinite(facingAngle) ||
+      !Number.isFinite(stickAngle)
     const bodyRotationExceeded =
       Math.abs(bodyAngularVelocity) >
       spinGuardConfig.maxAllowedPlayerAngularVelocity
@@ -134,6 +138,10 @@ export class SpinGuardSystem {
       facingAngle,
       sample.lastFacingAngle,
     )
+    sample.stickDelta += angleDistance(
+      stickAngle,
+      sample.lastStickAngle,
+    )
     if (
       movementAngle !== null &&
       sample.lastMovementAngle !== null
@@ -151,12 +159,26 @@ export class SpinGuardSystem {
       facingAngle,
       sample.lastFacingAngle,
     )
+    sample.lastStickAngle = sanitizeAngle(
+      stickAngle,
+      sample.lastStickAngle,
+    )
     sample.lastMovementAngle = movementAngle
 
     const displacement = distance(
       player.position,
       sample.windowStart,
     )
+    const visualSpinActionAllowed =
+      context.currentAction !== 'carrier' &&
+      context.currentAction !== 'juke' &&
+      context.currentAction !== 'slash'
+    const visualSpinning =
+      sample.windowMs >= spinGuardConfig.windowMs &&
+      displacement <= spinGuardConfig.orbitMaxDisplacement &&
+      visualSpinActionAllowed &&
+      (sample.aimDelta >= spinGuardConfig.aimDeltaThreshold ||
+        sample.stickDelta >= spinGuardConfig.stickDeltaThreshold)
     const orbiting =
       sample.windowMs >= spinGuardConfig.windowMs &&
       displacement <= spinGuardConfig.orbitMaxDisplacement &&
@@ -168,13 +190,15 @@ export class SpinGuardSystem {
         sample.tacticalJobChanges >= 3)
     const shouldTrigger =
       spinGuardConfig.enabled &&
-      (invalidState || runawayBodySpin || orbiting)
+      (invalidState || runawayBodySpin || visualSpinning || orbiting)
 
     if (shouldTrigger) {
       const reason = invalidState
         ? 'invalidVectorOrAngle'
         : runawayBodySpin
           ? 'bodyAngularVelocity'
+          : visualSpinning
+            ? 'stationaryAimOrStickSpin'
           : sample.carrierIntentChanges >= 3 ||
               sample.tacticalJobChanges >= 3
             ? 'intentChurnOrbit'
@@ -193,6 +217,7 @@ export class SpinGuardSystem {
         angularVelocity: bodyAngularVelocity,
         aimDelta: sample.aimDelta,
         facingDelta: sample.facingDelta,
+        stickDelta: sample.stickDelta,
         movementDelta: sample.movementDelta,
         jukeDurationMs: sample.jukeDurationMs,
         carrierIntentChanges: sample.carrierIntentChanges,
@@ -205,7 +230,7 @@ export class SpinGuardSystem {
     }
 
     if (sample.windowMs >= spinGuardConfig.windowMs) {
-      if (!orbiting && !invalidState) {
+      if (!orbiting && !visualSpinning && !invalidState) {
         sample.lastStableAimAngle = aimAngle
         sample.lastStableFacingAngle = facingAngle
       }
@@ -239,6 +264,7 @@ export class SpinGuardSystem {
     sample.windowStart = player.position
     sample.aimDelta = 0
     sample.facingDelta = 0
+    sample.stickDelta = 0
     sample.movementDelta = 0
     sample.carrierIntentChanges = 0
     sample.tacticalJobChanges = 0
@@ -256,15 +282,21 @@ function createSample(
     player.getBodyFacingAngle(),
     aimAngle,
   )
+  const stickAngle = sanitizeAngle(
+    player.getStickVisualRotation(),
+    aimAngle,
+  )
 
   return {
     windowMs: 0,
     windowStart: player.position,
     lastAimAngle: aimAngle,
     lastFacingAngle: facingAngle,
+    lastStickAngle: stickAngle,
     lastMovementAngle: movementAngle,
     aimDelta: 0,
     facingDelta: 0,
+    stickDelta: 0,
     movementDelta: 0,
     lastStableAimAngle: aimAngle,
     lastStableFacingAngle: facingAngle,

@@ -5,6 +5,7 @@ export const spinGuardConfig = {
   triggerPlayerAngularVelocity: 4,
   facingDeltaThreshold: 5.5,
   aimDeltaThreshold: 5.5,
+  stickDeltaThreshold: 5.5,
   movementDeltaThreshold: 4.5,
   windowMs: 600,
   orbitMaxDisplacement: 90,

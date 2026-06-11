@@ -534,7 +534,6 @@ export class AISystem {
     return {
       ...intent,
       moveTarget,
-      aimTarget: context.core.position,
       aiState: isDefensiveJob(assignment.job)
         ? 'MARK_CARRIER'
         : 'SUPPORT_ATTACK',

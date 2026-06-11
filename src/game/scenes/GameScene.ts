@@ -1,4 +1,5 @@
 import Phaser from 'phaser'
+import { aiConfig } from '../config/aiConfig'
 import { arenaConfig } from '../config/arenaConfig'
 import { arenaPresentationConfig } from '../config/arenaPresentationConfig'
 import { controlConfig } from '../config/controlConfig'
@@ -288,6 +289,7 @@ export class GameScene extends Phaser.Scene {
       aiIntents,
       stickIntents,
       defenseIntents,
+      delta,
     )
 
     this.stickInteractionSystem.update(
@@ -493,6 +495,7 @@ export class GameScene extends Phaser.Scene {
     intents: Map<string, PlayerControlIntent>,
     stickIntents: Map<string, StickIntent>,
     defenseIntents: Map<string, DefenseIntent>,
+    deltaMs: number,
   ): void {
     for (const player of players) {
       if (player.id === controlledPlayerId) {
@@ -569,7 +572,7 @@ export class GameScene extends Phaser.Scene {
             },
           )
         : undefined
-      const aimAngle =
+      const requestedAimAngle =
         intent.aimAngle ??
         Phaser.Math.Angle.Between(
           player.position.x,
@@ -577,6 +580,20 @@ export class GameScene extends Phaser.Scene {
           safeAimTarget.x,
           safeAimTarget.y,
         )
+      const aimAngle = stabilizeAIAim(
+        player,
+        requestedAimAngle,
+        safeAimTarget,
+        actionLock,
+        isCarrier,
+        Boolean(
+          intent.swing ||
+            intent.slash ||
+            intent.truck ||
+            intent.releaseTarget,
+        ),
+        deltaMs,
+      )
 
       player.update(move, aimAngle, isCarrier ? aimAngle : undefined)
       const usesKeeperShield =
@@ -1112,6 +1129,50 @@ function normalizedDirection(
     },
     fallback,
   )
+}
+
+function stabilizeAIAim(
+  player: Player,
+  requestedAngle: number,
+  target: Point,
+  actionLock: PlayerActionLock,
+  isCarrier: boolean,
+  actionRequested: boolean,
+  deltaMs: number,
+): number {
+  const currentAngle = player.getReleaseAimAngle()
+
+  const targetDistance = Math.hypot(
+    target.x - player.position.x,
+    target.y - player.position.y,
+  )
+  if (
+    !isCarrier &&
+    actionLock !== 'juke' &&
+    actionLock !== 'slash' &&
+    targetDistance < aiConfig.offBallAimMinimumDistance
+  ) {
+    return currentAngle
+  }
+
+  if (
+    isCarrier ||
+    actionRequested ||
+    actionLock === 'juke' ||
+    actionLock === 'slash'
+  ) {
+    return requestedAngle
+  }
+
+  const maximumTurn =
+    aiConfig.offBallAimMaxTurnRate *
+    Math.max(0, deltaMs / 1000)
+  const turn = Phaser.Math.Clamp(
+    Phaser.Math.Angle.Wrap(requestedAngle - currentAngle),
+    -maximumTurn,
+    maximumTurn,
+  )
+  return Phaser.Math.Angle.Wrap(currentAngle + turn)
 }
 
 function getCssPixelValue(propertyName: string): number {
