@@ -49,6 +49,8 @@ export type CradleZone = {
 
 export class Player {
   readonly id: string
+  readonly displayName: string
+  readonly jerseyNumber: number | null
   readonly teamId: string
   readonly teamSide: TeamSide
   readonly role: PlayerRole
@@ -85,6 +87,8 @@ export class Player {
   ) {
     this.scene = scene
     this.id = rosterEntry.id
+    this.displayName = rosterEntry.displayName ?? rosterEntry.id
+    this.jerseyNumber = rosterEntry.jerseyNumber ?? null
     this.teamId = rosterEntry.teamId
     this.teamSide = rosterEntry.teamSide
     this.role = rosterEntry.role
@@ -119,6 +123,7 @@ export class Player {
         this.id,
         this.role,
         rosterEntry.stickStyle,
+        rosterEntry.visualPreset,
       ),
     })
     this.syncVisuals()

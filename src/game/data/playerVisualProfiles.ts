@@ -12,16 +12,40 @@ export function createPlayerVisualProfile(
   playerId: string,
   role: PlayerRole,
   stickStyle?: StickStyle,
+  visualPreset?: string,
 ): PlayerVisualProfile {
   const hash = [...playerId].reduce(
     (value, character) => value + character.charCodeAt(0),
     0,
   )
 
+  const preset = getVisualPreset(visualPreset)
+
   return {
-    hairStyle: hairStyleOrder[hash % hairStyleOrder.length],
-    hairColor: hairColorPalette[hash % hairColorPalette.length],
+    hairStyle:
+      preset?.hairStyle ??
+      hairStyleOrder[hash % hairStyleOrder.length],
+    hairColor:
+      preset?.hairColor ??
+      hairColorPalette[hash % hairColorPalette.length],
     stickStyle: stickStyle ?? stickStyleForPlayer(playerId, role),
+  }
+}
+
+function getVisualPreset(
+  preset: string | undefined,
+): Pick<PlayerVisualProfile, 'hairStyle' | 'hairColor'> | null {
+  switch (preset) {
+    case 'solarGold':
+      return { hairStyle: 'swoop', hairColor: 0xc08a38 }
+    case 'neonRose':
+      return { hairStyle: 'tuft', hairColor: 0x72538d }
+    case 'deepCourt':
+      return { hairStyle: 'crop', hairColor: 0x17283b }
+    case 'circuitBlue':
+      return { hairStyle: 'spikes', hairColor: 0x2f746b }
+    default:
+      return null
   }
 }
 

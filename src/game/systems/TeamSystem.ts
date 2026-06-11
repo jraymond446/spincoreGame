@@ -1,6 +1,7 @@
 import type Phaser from 'phaser'
 import { gameplayConfig, type GameMode } from '../config/gameplayConfig'
 import { playerArchetypes } from '../data/playerArchetypes'
+import { opponentTeams } from '../data/opponentTeams'
 import { teams } from '../data/teams'
 import type {
   FormationAIBias,
@@ -15,6 +16,8 @@ import type {
 import type { TeamStrategy } from '../tactics/TeamStrategy'
 import { Player } from '../entities/Player'
 import { getLabState } from '../lab/LabState'
+import { getMatchLaunchConfig } from '../../match/MatchLaunchConfig'
+import { applyMatchRosterOverrides } from '../../match/buildRosterFromSave'
 import { FormationSystem } from './FormationSystem'
 
 export class TeamSystem {
@@ -25,7 +28,8 @@ export class TeamSystem {
 
   constructor(scene: Phaser.Scene, gameMode: GameMode) {
     const labState = getLabState()
-    const runtimeTeams = createRuntimeTeams()
+    const runtime = createRuntimeTeams(gameMode)
+    const runtimeTeams = runtime.teams
     const stickLabPlayerId = resolveControlledPlayerId(
       runtimeTeams.find((team) => team.side === 'A')?.roster ?? [],
       labState.controlledPlayer,
@@ -62,7 +66,7 @@ export class TeamSystem {
         return new Player(
           scene,
           resolvedEntry,
-          createRuntimeArchetype(entry),
+          createRuntimeArchetype(entry, runtime.archetypes),
           getLabState().players[entry.id]?.defenseTendencies ?? {
             truckAggression: 0.5,
             slashAggression: 0.5,
@@ -138,10 +142,12 @@ export class TeamSystem {
   }
 }
 
-function createRuntimeTeams(): Team[] {
+function createRuntimeTeams(gameMode: GameMode): {
+  teams: Team[]
+  archetypes: Map<string, PlayerArchetype>
+} {
   const labState = getLabState()
-
-  return teams.map((team) => ({
+  const runtimeTeams = teams.map((team) => ({
     ...team,
     formation: labState.formations[team.side],
     strategy: {
@@ -165,9 +171,68 @@ function createRuntimeTeams(): Team[] {
       }
     }),
   }))
+  const launch = getMatchLaunchConfig()
+  const shouldApplyCareerRoster =
+    gameMode === 'match3v3' && launch.mode !== 'lab'
+
+  if (!shouldApplyCareerRoster) {
+    return {
+      teams: runtimeTeams,
+      archetypes: new Map(),
+    }
+  }
+
+  const teamA = runtimeTeams.find((team) => team.side === 'A')
+  const teamB = runtimeTeams.find((team) => team.side === 'B')
+  const opponent =
+    launch.opponentTeam ??
+    opponentTeams.find(
+      (candidate) => candidate.id === launch.opponentTeamId,
+    ) ??
+    opponentTeams[0]
+
+  if (!teamA || !teamB) {
+    return {
+      teams: runtimeTeams,
+      archetypes: new Map(),
+    }
+  }
+
+  const overrides = applyMatchRosterOverrides(
+    teamA.roster,
+    teamB.roster,
+    launch.useCreatedPlayer
+      ? launch.saveGameSnapshot
+      : undefined,
+    opponent,
+  )
+
+  if (opponent) {
+    teamB.id = opponent.id
+    teamB.name = opponent.name
+    teamB.color = opponent.primaryColor
+    teamB.accentColor = opponent.secondaryColor
+    teamB.formation = opponent.formation
+    teamB.strategy = structuredClone(opponent.strategy)
+    teamB.tacticalQuality = { ...opponent.tacticalQuality }
+  }
+
+  return {
+    teams: runtimeTeams,
+    archetypes: overrides.archetypes,
+  }
 }
 
-function createRuntimeArchetype(entry: PlayerRosterEntry): PlayerArchetype {
+function createRuntimeArchetype(
+  entry: PlayerRosterEntry,
+  overrides: Map<string, PlayerArchetype>,
+): PlayerArchetype {
+  const override = overrides.get(entry.id)
+
+  if (override) {
+    return override
+  }
+
   const tuning = getLabState().players[entry.id]
   const base = playerArchetypes[entry.archetypeId]
 

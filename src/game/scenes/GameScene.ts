@@ -23,6 +23,7 @@ import { GoalGate } from '../entities/GoalGate'
 import type { Player } from '../entities/Player'
 import { labEvents } from '../lab/LabEvents'
 import { getLabState, setLabMode } from '../lab/LabState'
+import { getMatchLaunchConfig } from '../../match/MatchLaunchConfig'
 import { ArenaDressing } from '../rendering/ArenaDressing'
 import { ScoreboardOverlay } from '../rendering/ScoreboardOverlay'
 import { preloadVisualAssetOverrides } from '../rendering/VisualAssetOverrides'
@@ -219,7 +220,7 @@ export class GameScene extends Phaser.Scene {
       this.core.position,
       this.core.velocity,
       delta,
-      getLabState().controlledPlayer,
+      this.getControlledPlayerSelection(),
     )
     const controlledIsCarrier =
       this.stickInteractionSystem.getCarrierId() === controlledPlayer.id
@@ -888,6 +889,29 @@ export class GameScene extends Phaser.Scene {
       this.stickInteractionSystem.getStickState(player.id),
       this.defenseSystem.getState(player.id),
     )
+  }
+
+  private getControlledPlayerSelection():
+    | 'auto'
+    | 'keeper'
+    | 'striker'
+    | 'flex' {
+    const launch = getMatchLaunchConfig()
+    const role = launch.saveGameSnapshot?.player.primaryRole
+
+    if (
+      launch.mode === 'lab' ||
+      !launch.useCreatedPlayer ||
+      !role
+    ) {
+      return getLabState().controlledPlayer
+    }
+
+    if (role === 'keeper' || role === 'striker') {
+      return role
+    }
+
+    return 'flex'
   }
 
   private applySpinGuard(players: Player[], deltaMs: number): void {

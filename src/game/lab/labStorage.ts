@@ -2,7 +2,8 @@ import { createDefaultLabTuning } from '../config/tuningDefaults'
 import type { LabTuningState } from './LabConfig'
 import { sanitizeLabSettings } from './labValidation'
 
-const storageKey = 'spincore:lab-settings:v3'
+const storageKey = 'spincore_lab_settings_v1'
+const previousStorageKey = 'spincore:lab-settings:v3'
 const legacyStorageKey = 'spincore:lab-settings:v2'
 const settingsVersion = 3
 
@@ -14,15 +15,18 @@ type StoredLabSettings = {
 export function loadLabSettings(): LabTuningState | null {
   try {
     const current = window.localStorage.getItem(storageKey)
+    const previous = window.localStorage.getItem(previousStorageKey)
     const legacy = window.localStorage.getItem(legacyStorageKey)
 
-    if (!current && !legacy) {
+    if (!current && !previous && !legacy) {
       return null
     }
 
-    const parsed = JSON.parse(current ?? legacy ?? 'null') as unknown
+    const parsed = JSON.parse(
+      current ?? previous ?? legacy ?? 'null',
+    ) as unknown
     const candidate = migrateGameplayDefaults(
-      current ? readVersionedSettings(parsed) : parsed,
+      current || previous ? readVersionedSettings(parsed) : parsed,
     )
     const result = sanitizeLabSettings(
       fillMissingSettings(
@@ -42,10 +46,11 @@ export function loadLabSettings(): LabTuningState | null {
       }
     }
 
-    if (!current && legacy) {
+    if (!current) {
       saveLabSettings(result.state)
+      window.localStorage.removeItem(previousStorageKey)
       window.localStorage.removeItem(legacyStorageKey)
-    } else if (current) {
+    } else {
       saveLabSettings(result.state)
     }
 
@@ -76,6 +81,7 @@ export function saveLabSettings(state: LabTuningState): boolean {
 
 export function resetSavedLabSettings(): void {
   window.localStorage.removeItem(storageKey)
+  window.localStorage.removeItem(previousStorageKey)
   window.localStorage.removeItem(legacyStorageKey)
 }
 

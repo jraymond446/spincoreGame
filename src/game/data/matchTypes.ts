@@ -101,6 +101,9 @@ export type PlayerArchetype = {
 
 export type PlayerRosterEntry = {
   id: string
+  displayName?: string
+  jerseyNumber?: number
+  visualPreset?: string
   teamId: string
   teamSide: TeamSide
   role: PlayerRole
