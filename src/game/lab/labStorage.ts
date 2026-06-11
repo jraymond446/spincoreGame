@@ -120,6 +120,11 @@ function migrateGameplayDefaults(candidate: unknown): unknown {
     typeof migrated.stick === 'object'
       ? migrated.stick as Record<string, unknown>
       : null
+  const defense =
+    migrated.defense &&
+    typeof migrated.defense === 'object'
+      ? migrated.defense as Record<string, unknown>
+      : null
 
   replaceLegacyDefault(aiOffense, 'aiMaxCarryMs', 2200, 2950)
   replaceLegacyDefault(
@@ -155,6 +160,19 @@ function migrateGameplayDefaults(candidate: unknown): unknown {
     0.55,
   )
   replaceLegacyDefault(stick, 'fumbleMs', 2150, 2500)
+  replaceLegacyDefault(
+    defense,
+    'truckKnockdownThreshold',
+    0.08,
+    -0.06,
+  )
+  replaceLegacyDefault(defense, 'truckKnockdownMs', 760, 900)
+  replaceLegacyDefault(
+    defense,
+    'truckKnockdownFumbleSpeed',
+    4.4,
+    4.8,
+  )
 
   return migrated
 }

@@ -6,11 +6,12 @@ export const inputConfig = {
   debugTouchControls: false,
   debugTouchHud: true,
   touch: {
-    movementRegionHeightRatio: 0.58,
+    movementRegionHeightRatio: 0.82,
     rightSideStartRatio: 0.5,
     joystickRadius: 62,
     joystickKnobRadius: 27,
     joystickMaxDistance: 54,
+    joystickFollowThreshold: 1.28,
     aimIndicatorRadius: 35,
     aimDragDeadzone: 18,
     safePadding: 34,

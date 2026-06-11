@@ -2,6 +2,7 @@ import Phaser from 'phaser'
 import { arenaConfig } from '../config/arenaConfig'
 import { arenaPresentationConfig } from '../config/arenaPresentationConfig'
 import { assetOverrideConfig } from '../config/assetOverrideConfig'
+import { viewConfig } from '../config/viewConfig'
 import {
   crowdVariants,
   type CrowdVariant,
@@ -16,19 +17,18 @@ type CrowdMember = {
   variant: CrowdVariant
   scale: number
   facing: -1 | 1
+  rotation: number
 }
 
 export class CrowdRenderer {
   private readonly scene: Phaser.Scene
-  private readonly graphics: Phaser.GameObjects.Graphics
   private assetSprites: Phaser.GameObjects.Image[] = []
+  private generatedCrowd: Phaser.GameObjects.Image | null = null
   private members: CrowdMember[] = []
   private simplified = false
-  private lastDrawTime = Number.NEGATIVE_INFINITY
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene
-    this.graphics = scene.add.graphics().setDepth(-14)
     this.rebuild()
   }
 
@@ -43,38 +43,29 @@ export class CrowdRenderer {
 
   update(time: number): void {
     if (!arenaPresentationConfig.showCrowd) {
-      this.graphics.setVisible(false)
+      this.generatedCrowd?.setVisible(false)
       this.assetSprites.forEach((sprite) => sprite.setVisible(false))
       return
     }
 
     const usingAsset = this.assetSprites.length > 0
-    this.graphics.setVisible(!usingAsset)
+    this.generatedCrowd?.setVisible(!usingAsset)
     this.assetSprites.forEach((sprite) => sprite.setVisible(usingAsset))
 
     if (usingAsset) {
       this.updateAssetSprites(time)
-      return
     }
-
-    if (
-      time - this.lastDrawTime <
-      arenaPresentationConfig.crowd.redrawIntervalMs
-    ) {
-      return
-    }
-
-    this.lastDrawTime = time
-    this.draw(time)
   }
 
   destroy(): void {
-    this.graphics.destroy()
+    this.generatedCrowd?.destroy()
     this.destroyAssetSprites()
   }
 
   private rebuild(): void {
     this.destroyAssetSprites()
+    this.generatedCrowd?.destroy()
+    this.generatedCrowd = null
     this.members = []
     const density =
       arenaPresentationConfig.crowdDensity *
@@ -95,7 +86,7 @@ export class CrowdRenderer {
 
     this.addBottomMembers(bottomCount, 83)
     this.buildAssetSprites()
-    this.lastDrawTime = Number.NEGATIVE_INFINITY
+    this.buildGeneratedCrowd()
   }
 
   private buildAssetSprites(): void {
@@ -124,6 +115,7 @@ export class CrowdRenderer {
           config.displayHeight * member.scale,
         )
         .setAlpha(arenaPresentationConfig.crowd.alpha)
+        .setRotation(member.rotation)
         .setDepth(-14),
     )
   }
@@ -144,6 +136,43 @@ export class CrowdRenderer {
   private destroyAssetSprites(): void {
     this.assetSprites.forEach((sprite) => sprite.destroy())
     this.assetSprites = []
+  }
+
+  private buildGeneratedCrowd(): void {
+    if (this.assetSprites.length > 0) {
+      return
+    }
+
+    const textureKey = this.simplified
+      ? 'generated-crowd-mobile'
+      : 'generated-crowd-full'
+    const padding = 150
+
+    if (!this.scene.textures.exists(textureKey)) {
+      const graphics = this.scene.add.graphics()
+      for (const member of this.members) {
+        drawMiniCharacter(graphics, {
+          x: member.x + padding,
+          y: member.y + padding,
+          scale: member.scale,
+          alpha: arenaPresentationConfig.crowd.alpha,
+          variant: member.variant,
+          facing: member.facing,
+          rotation: member.rotation,
+        })
+      }
+      graphics.generateTexture(
+        textureKey,
+        viewConfig.width + padding * 2,
+        viewConfig.height + padding * 2,
+      )
+      graphics.destroy()
+    }
+
+    this.generatedCrowd = this.scene.add
+      .image(-padding, -padding, textureKey)
+      .setOrigin(0)
+      .setDepth(-14)
   }
 
   private addSideMembers(
@@ -186,6 +215,7 @@ export class CrowdRenderer {
             seeded(index + seedOffset) * 3,
           index + seedOffset,
           side < 0 ? 1 : -1,
+          side < 0 ? 0 : Math.PI,
         ),
       )
     }
@@ -211,6 +241,12 @@ export class CrowdRenderer {
           y,
           index + seedOffset,
           seeded(index + 331) > 0.5 ? 1 : -1,
+          -Math.PI / 2 +
+            Phaser.Math.Linear(
+              -0.16,
+              0.16,
+              seeded(index + 377),
+            ),
         ),
       )
     }
@@ -221,6 +257,7 @@ export class CrowdRenderer {
     y: number,
     seed: number,
     facing: -1 | 1,
+    rotation: number,
   ): CrowdMember {
     return {
       x,
@@ -234,28 +271,10 @@ export class CrowdRenderer {
         Phaser.Math.Linear(1.02, 1.28, seeded(seed + 53)) *
         (this.simplified ? 1.22 : 1),
       facing,
+      rotation,
     }
   }
 
-  private draw(time: number): void {
-    this.graphics.clear()
-
-    for (const member of this.members) {
-      const bob =
-        Math.sin(
-          time * arenaPresentationConfig.crowd.bobSpeed +
-            member.phase,
-        ) * arenaPresentationConfig.crowd.bobAmplitude
-      drawMiniCharacter(this.graphics, {
-        x: member.x,
-        y: member.y + bob,
-        scale: member.scale,
-        alpha: arenaPresentationConfig.crowd.alpha,
-        variant: member.variant,
-        facing: member.facing,
-      })
-    }
-  }
 }
 
 function seeded(seed: number): number {

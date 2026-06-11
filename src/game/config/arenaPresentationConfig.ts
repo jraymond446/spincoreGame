@@ -23,10 +23,10 @@ export const arenaPresentationConfig = {
   },
   crowd: {
     alpha: 0.9,
-    mobileDensityMultiplier: 0.46,
-    bobAmplitude: 0.8,
+    mobileDensityMultiplier: 0.4,
+    bobAmplitude: 0.55,
     bobSpeed: 0.0022,
-    redrawIntervalMs: 100,
+    redrawIntervalMs: 450,
     shirtColors: [
       0x35a5dc,
       0xef6376,

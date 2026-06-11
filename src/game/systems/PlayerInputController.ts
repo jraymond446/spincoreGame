@@ -145,6 +145,12 @@ export class PlayerInputController {
     scene.input.on(Phaser.Input.Events.POINTER_MOVE, this.handlePointerMove, this)
     scene.input.on(Phaser.Input.Events.POINTER_UP, this.handlePointerUp, this)
     scene.input.on('pointerupoutside', this.handlePointerUp, this)
+    scene.game.canvas.addEventListener('pointercancel', this.handleTouchCancel)
+    scene.game.canvas.addEventListener(
+      'lostpointercapture',
+      this.handleTouchCancel,
+    )
+    window.addEventListener('blur', this.handleTouchCancel)
 
     this.layout()
     this.updateTouchVisuals()
@@ -193,7 +199,11 @@ export class PlayerInputController {
     this.rightMouseWasDown = rightMouseDown
     this.previousPrimaryAction = primaryStickAction
 
-    moveVectorToward(this.movement, targetMovement, movementStep)
+    if (this.mode === 'touch') {
+      this.movement.copy(targetMovement)
+    } else {
+      moveVectorToward(this.movement, targetMovement, movementStep)
+    }
     const aimAngle = this.getSmoothedAimAngle(
       origin,
       currentAimAngle,
@@ -332,6 +342,15 @@ export class PlayerInputController {
     this.scene.input.off(Phaser.Input.Events.POINTER_UP, this.handlePointerUp, this)
     this.scene.input.off('pointerupoutside', this.handlePointerUp, this)
     this.scene.game.canvas.removeEventListener(
+      'pointercancel',
+      this.handleTouchCancel,
+    )
+    this.scene.game.canvas.removeEventListener(
+      'lostpointercapture',
+      this.handleTouchCancel,
+    )
+    window.removeEventListener('blur', this.handleTouchCancel)
+    this.scene.game.canvas.removeEventListener(
       'contextmenu',
       this.preventContextMenu,
     )
@@ -350,10 +369,7 @@ export class PlayerInputController {
 
     this.setMode('touch')
     const point = { x: pointer.x, y: pointer.y }
-    const inMovementRegion =
-      pointer.x < this.scene.scale.width * inputConfig.touch.rightSideStartRatio &&
-      pointer.y >
-        this.scene.scale.height * (1 - inputConfig.touch.movementRegionHeightRatio)
+    const inMovementRegion = this.isMovementRegion(pointer)
 
     if (inMovementRegion && !this.leftTouch) {
       this.leftTouch = {
@@ -383,8 +399,22 @@ export class PlayerInputController {
       return
     }
 
+    this.setMode('touch')
+    if (
+      pointer.isDown &&
+      !this.leftTouch &&
+      this.isMovementRegion(pointer)
+    ) {
+      this.leftTouch = {
+        pointerId: pointer.id,
+        start: { ...this.defaultJoystickCenter },
+        current: { x: pointer.x, y: pointer.y },
+      }
+    }
+
     if (this.leftTouch?.pointerId === pointer.id) {
       this.leftTouch.current = { x: pointer.x, y: pointer.y }
+      this.followMovementTouch()
     }
 
     if (this.rightTouch?.pointerId === pointer.id) {
@@ -392,6 +422,53 @@ export class PlayerInputController {
     }
 
     this.updateTouchVisuals()
+  }
+
+  private handleTouchCancel = (): void => {
+    this.leftTouch = null
+    this.rightTouch = null
+    this.movement.set(0, 0)
+    this.previousPrimaryAction = false
+    this.updateTouchVisuals()
+  }
+
+  private isMovementRegion(pointer: Phaser.Input.Pointer): boolean {
+    return (
+      pointer.x <
+        this.scene.scale.width *
+          inputConfig.touch.rightSideStartRatio &&
+      pointer.y >
+        this.scene.scale.height *
+          (1 - inputConfig.touch.movementRegionHeightRatio)
+    )
+  }
+
+  private followMovementTouch(): void {
+    if (!this.leftTouch) {
+      return
+    }
+
+    const offset = {
+      x: this.leftTouch.current.x - this.leftTouch.start.x,
+      y: this.leftTouch.current.y - this.leftTouch.start.y,
+    }
+    const distance = Math.hypot(offset.x, offset.y)
+    const maximumDistance = inputConfig.touch.joystickMaxDistance
+    const followDistance =
+      maximumDistance * inputConfig.touch.joystickFollowThreshold
+
+    if (distance <= followDistance || distance === 0) {
+      return
+    }
+
+    this.leftTouch.start = {
+      x:
+        this.leftTouch.current.x -
+        (offset.x / distance) * maximumDistance,
+      y:
+        this.leftTouch.current.y -
+        (offset.y / distance) * maximumDistance,
+    }
   }
 
   private handlePointerUp(pointer: Phaser.Input.Pointer): void {
