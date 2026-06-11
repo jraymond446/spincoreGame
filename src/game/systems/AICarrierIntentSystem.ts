@@ -1,8 +1,8 @@
 import Phaser from 'phaser'
 import { aiCarrierConfig } from '../config/aiCarrierConfig'
-import { stickConfig } from '../config/stickConfig'
 import type { Point } from '../data/geometry'
 import type { Player } from '../entities/Player'
+import { getHandlingAdjustedFumbleMs } from '../utils/possessionTiming'
 
 export type CarrierIntentType =
   | 'shootDirect'
@@ -82,13 +82,9 @@ export class AICarrierIntentSystem {
   }
 
   getLatestReleaseStartMs(player: Player): number {
-    const handlingFumbleMultiplier = Phaser.Math.Linear(
-      0.98,
-      1.02,
-      Phaser.Math.Clamp(player.attributes.ballHandling, 0, 1),
+    const baseFumbleMs = getHandlingAdjustedFumbleMs(
+      player.attributes.ballHandling,
     )
-    const baseFumbleMs =
-      stickConfig.fumbleMs * handlingFumbleMultiplier
     return Math.max(
       0,
       Math.min(
@@ -245,12 +241,10 @@ export class AICarrierIntentSystem {
       state.lastAimTurnSign = Math.sign(turn)
     }
 
-    const bodyDelta = Math.abs(
-      Phaser.Math.Angle.Wrap(
-        player.getBodyFacingAngle() - state.lastBodyAngle,
-      ),
+    const bodyDelta = Phaser.Math.Angle.Wrap(
+      player.getBodyFacingAngle() - state.lastBodyAngle,
     )
-    const angularVelocity = bodyDelta / deltaSeconds
+    const angularVelocity = Math.abs(bodyDelta) / deltaSeconds
     state.lastBodyAngle = player.getBodyFacingAngle()
 
     if (
@@ -258,6 +252,13 @@ export class AICarrierIntentSystem {
       angularVelocity >=
         aiCarrierConfig.aiSpinAngularVelocityThreshold
     ) {
+      if (
+        state.spinRotationRadians !== 0 &&
+        Math.sign(state.spinRotationRadians) !== Math.sign(bodyDelta)
+      ) {
+        state.spinDurationMs *= 0.35
+        state.spinRotationRadians *= 0.35
+      }
       state.spinDurationMs += deltaMs
       state.spinRotationRadians += bodyDelta
     } else {
@@ -265,16 +266,19 @@ export class AICarrierIntentSystem {
         0,
         state.spinDurationMs - deltaMs * 1.5,
       )
-      state.spinRotationRadians = Math.max(
+      const decayedRotation = Math.max(
         0,
-        state.spinRotationRadians - bodyDelta * 1.5,
+        Math.abs(state.spinRotationRadians) -
+          Math.abs(bodyDelta) * 1.5,
       )
+      state.spinRotationRadians =
+        decayedRotation * Math.sign(state.spinRotationRadians)
     }
 
     if (
       !state.spinDetected &&
       state.spinDurationMs >= aiCarrierConfig.aiSpinDurationMs &&
-      state.spinRotationRadians >=
+      Math.abs(state.spinRotationRadians) >=
         aiCarrierConfig.aiSpinMinimumRotationRadians
     ) {
       state.spinDetected = true
@@ -282,7 +286,7 @@ export class AICarrierIntentSystem {
         playerId: player.id,
         intentType: state.intent.intentType,
         angularVelocity,
-        rotationRadians: state.spinRotationRadians,
+        rotationRadians: Math.abs(state.spinRotationRadians),
       })
       if (aiCarrierConfig.aiSpinForceRelease) {
         state.forceReleaseReason = 'spinDetected'

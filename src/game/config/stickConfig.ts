@@ -34,7 +34,7 @@ export const stickConfig = {
   stableCradleMs: 650,
   chargeCradleMs: 1250,
   overchargeMs: 1850,
-  fumbleMs: 2150,
+  fumbleMs: 2500,
   releaseCooldownMs: 340,
   releaseForceMin: 7.2,
   releaseForceMax: 17.2,

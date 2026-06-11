@@ -19,6 +19,7 @@ import {
   clampVectorMagnitude,
   normalizeSafe,
 } from '../utils/vectorSafety'
+import { getHandlingAdjustedFumbleMs } from '../utils/possessionTiming'
 import {
   KeeperClearSafetySystem,
   type KeeperClearSafetyResult,
@@ -872,14 +873,9 @@ export class StickInteractionSystem {
       this.calculateReleaseVelocity(carrier.getReleaseAimForward(), carrier),
     )
 
-    const baseFumbleTime =
-      stickConfig.fumbleMs *
-      Phaser.Math.Linear(
-        0.98,
-        1.02,
-        Phaser.Math.Clamp(carrier.attributes.ballHandling, 0, 1),
-      )
-    const fumbleTime = baseFumbleTime
+    const fumbleTime = getHandlingAdjustedFumbleMs(
+      carrier.attributes.ballHandling,
+    )
 
     if (
       intent.releaseTarget &&

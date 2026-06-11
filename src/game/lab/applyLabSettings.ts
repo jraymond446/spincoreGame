@@ -219,6 +219,8 @@ export function applyLabSettings(state: LabTuningState): void {
       state.aiOffense.aiCarrierReevaluateAfterMs,
     aiAimTurnRateRadiansPerSec:
       state.aiOffense.aiAimTurnRateRadiansPerSec,
+    aiCarrierBodyTurnRateRadiansPerSec:
+      state.aiOffense.aiCarrierBodyTurnRateRadiansPerSec,
     aiMaxCarryMs: state.aiOffense.aiMaxCarryMs,
     aiSpinDetectionEnabled:
       state.aiOffense.aiSpinDetectionEnabled,

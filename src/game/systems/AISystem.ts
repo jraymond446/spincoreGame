@@ -1030,17 +1030,17 @@ export class AISystem {
     const roleShotPenalty = context.player.role === 'brute' ? 0.12 : 0
     const directThreshold = Phaser.Math.Clamp(
       aiOffenseConfig.aiGoodDirectShotThreshold -
-        aggression * 0.12 +
+        aggression * 0.05 +
         roleShotPenalty -
-        selectionBonus * 0.45,
+        selectionBonus * 0.25,
       0.25,
       0.9,
     )
     const bankThreshold = Phaser.Math.Clamp(
       aiOffenseConfig.aiGoodBankShotThreshold -
-        aggression * 0.1 +
+        aggression * 0.04 +
         roleShotPenalty * 0.6 -
-        selectionBonus * 0.35,
+        selectionBonus * 0.2,
       0.2,
       0.85,
     )
@@ -1158,6 +1158,41 @@ export class AISystem {
       )
     }
 
+    const exceptionalImmediateShot =
+      directGood &&
+      shotEvaluation.directScore >=
+        Math.max(0.82, directThreshold + 0.14)
+    const settlingPossession =
+      this.carrierPossessionMs <
+        aiOffenseConfig.aiPossessionSettleMs *
+          Phaser.Math.Clamp(carryPatience, 0.85, 1.2) &&
+      pressure < 0.78 &&
+      !exceptionalImmediateShot
+
+    if (settlingPossession) {
+      return {
+        intent: {
+          ...intent,
+          moveTarget: context.player.position,
+          aimTarget: shotEvaluation.directTarget,
+          hold: true,
+          swing: false,
+          releaseTarget: undefined,
+          aiReleaseDelayMs: undefined,
+          aiState: 'SUPPORT_ATTACK',
+        },
+        decision: 'SET_OFFENSE',
+        passTargetId: passOption?.player.id ?? null,
+        passLaneScore: passOption?.score ?? 0,
+        passShotScore: scoringChance.passShotScore,
+        passDeniedReason: 'settlingPossession',
+        shotReason: 'settlingPossession',
+        bankShotSelected: false,
+        selectedBankReflection: null,
+        shotEvaluation,
+      }
+    }
+
     if (
       directGood &&
       shotRoll &&
@@ -1210,11 +1245,18 @@ export class AISystem {
     const pressurePass =
       pressure >= tacticsConfig.passUnderPressureThreshold &&
       passShotScore >= currentBestShot - 0.08
+    const setPass =
+      this.carrierPossessionMs >=
+        aiOffenseConfig.aiPossessionSettleMs * 1.15 &&
+      !directGood &&
+      !bankGood &&
+      passShotScore >= currentBestShot - 0.04
     const shouldPass =
       passEnabled &&
       passOption.score >= passThreshold &&
       (teammateBetter ||
         pressurePass ||
+        setPass ||
         passBack ||
         frontSlotPass ||
         behindGoalPass ||
@@ -1231,6 +1273,8 @@ export class AISystem {
             ? 'behindGoalPass'
             : pressurePass
               ? 'pressurePass'
+              : setPass
+                ? 'setPass'
               : behindGoalPass
                 ? 'behindGoalPass'
                 : 'frontSlotPass',
@@ -1242,7 +1286,7 @@ export class AISystem {
       if (
         scoringChance.bestAction === 'bankShot' &&
         bestBank &&
-        bestBank.score >= bankThreshold * 0.72
+        bestBank.score >= bankThreshold * 0.86
       ) {
         return this.createShotDecision(
           context,

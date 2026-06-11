@@ -1,4 +1,5 @@
 import Phaser from 'phaser'
+import { aiCarrierConfig } from '../config/aiCarrierConfig'
 import { aiConfig } from '../config/aiConfig'
 import { arenaConfig } from '../config/arenaConfig'
 import { arenaPresentationConfig } from '../config/arenaPresentationConfig'
@@ -94,6 +95,7 @@ export class GameScene extends Phaser.Scene {
   private debugEnabled = false
   private gameMode: GameMode = gameplayConfig.defaultMode
   private currentInputIntent = 'IDLE'
+  private labEventsBound = false
 
   constructor() {
     super('GameScene')
@@ -172,14 +174,14 @@ export class GameScene extends Phaser.Scene {
     this.createHud(hudRoot)
     this.layoutViewport()
     this.scale.on('resize', this.layoutViewport, this)
-    window.addEventListener(labEvents.apply, this.applyLabChanges)
-    window.addEventListener(labEvents.resetMatch, this.resetMatch)
-    window.addEventListener(labEvents.resetCore, this.resetCore)
+    if (!this.labEventsBound) {
+      this.labEventsBound = true
+      window.addEventListener(labEvents.apply, this.applyLabChanges)
+      window.addEventListener(labEvents.resetMatch, this.resetMatch)
+      window.addEventListener(labEvents.resetCore, this.resetCore)
+    }
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off('resize', this.layoutViewport, this)
-      window.removeEventListener(labEvents.apply, this.applyLabChanges)
-      window.removeEventListener(labEvents.resetMatch, this.resetMatch)
-      window.removeEventListener(labEvents.resetCore, this.resetCore)
       this.inputController.destroy()
       this.debugHudSystem.destroy()
       this.matchFlowSystem.destroy()
@@ -605,7 +607,13 @@ export class GameScene extends Phaser.Scene {
         deltaMs,
       )
 
-      player.update(move, aimAngle, isCarrier ? aimAngle : undefined)
+      player.update(
+        move,
+        aimAngle,
+        isCarrier
+          ? getAICarrierFacingAngle(player, move, aimAngle, deltaMs)
+          : undefined,
+      )
       const usesKeeperShield =
         player.role === 'keeper' &&
         keeperShieldConfig.keeperUsesShieldDefault &&
@@ -1186,6 +1194,28 @@ function stabilizeAIAim(
     maximumTurn,
   )
   return Phaser.Math.Angle.Wrap(currentAngle + turn)
+}
+
+function getAICarrierFacingAngle(
+  player: Player,
+  move: Phaser.Math.Vector2,
+  aimAngle: number,
+  deltaMs: number,
+): number {
+  if (move.lengthSq() > 0.02) {
+    return Math.atan2(move.y, move.x)
+  }
+
+  const current = player.getBodyFacingAngle()
+  const maximumTurn =
+    aiCarrierConfig.aiCarrierBodyTurnRateRadiansPerSec *
+    Math.max(0, deltaMs / 1000)
+  const turn = Phaser.Math.Clamp(
+    Phaser.Math.Angle.Wrap(aimAngle - current),
+    -maximumTurn,
+    maximumTurn,
+  )
+  return Phaser.Math.Angle.Wrap(current + turn)
 }
 
 function getCssPixelValue(propertyName: string): number {

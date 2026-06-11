@@ -1304,6 +1304,15 @@ export class LabPanel {
         },
       ),
       this.createRange(
+        'Carrier body turn rate',
+        offense.aiCarrierBodyTurnRateRadiansPerSec,
+        { min: 0.5, max: 8, step: 0.1, digits: 1 },
+        (value) => {
+          offense.aiCarrierBodyTurnRateRadiansPerSec = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
         'Maximum AI carry ms',
         offense.aiMaxCarryMs,
         { min: 600, max: 4000, step: 50 },
@@ -1478,6 +1487,15 @@ export class LabPanel {
         (value) => {
           offense.aiGoodDirectShotThreshold = value
           offense.aiShotBlockedThreshold = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Possession settle ms',
+        offense.aiPossessionSettleMs,
+        { min: 0, max: 1600, step: 25 },
+        (value) => {
+          offense.aiPossessionSettleMs = value
           this.markDraftChanged()
         },
       ),
@@ -2008,7 +2026,7 @@ export class LabPanel {
       ['Stable cradle ms', 'stableCradleMs', { min: 200, max: 1400, step: 25 }],
       ['Strong charge ms', 'chargeCradleMs', { min: 400, max: 1900, step: 25 }],
       ['Overcharge ms', 'overchargeMs', { min: 800, max: 2400, step: 25 }],
-      ['Fumble ms', 'fumbleMs', { min: 1000, max: 3000, step: 25 }],
+      ['Fumble ms', 'fumbleMs', { min: 1000, max: 3500, step: 25 }],
       ['Passive nudge force', 'passiveNudgeForce', { min: 0, max: 3, step: 0.05, digits: 2 }],
       ['Active swing force', 'activeSwingForce', { min: 1, max: 14, step: 0.2, digits: 1 }],
       ['Max deflect impulse', 'maxDeflectImpulse', { min: 1, max: 16, step: 0.2, digits: 1 }],

@@ -269,6 +269,7 @@ export type LabAIOffenseTuning = {
   aiCarrierMaxCommitMs: number
   aiCarrierReevaluateAfterMs: number
   aiAimTurnRateRadiansPerSec: number
+  aiCarrierBodyTurnRateRadiansPerSec: number
   aiMaxCarryMs: number
   aiSpinDetectionEnabled: boolean
   aiSpinAngularVelocityThreshold: number
@@ -298,6 +299,7 @@ export type LabAIOffenseTuning = {
   aiGoodBankShotThreshold: number
   aiPassBetterShotMargin: number
   aiMaxCarryBeforeShotMs: number
+  aiPossessionSettleMs: number
   aiShotCooldownMs: number
   aiMinShotDistance: number
   aiCloseRangeShotBonus: number
