@@ -19,6 +19,14 @@ import {
   setMatchLaunchConfig,
   type MatchLaunchConfig,
 } from '../match/MatchLaunchConfig'
+import {
+  matchEvents,
+  type MatchCompletionDetail,
+} from '../match/MatchEvents'
+
+export type MatchExitSummary = {
+  result: MatchCompletionDetail | null
+}
 
 export class GameHost {
   private readonly root: HTMLElement
@@ -28,11 +36,13 @@ export class GameHost {
   private game: Phaser.Game | null = null
   private labPanel: LabPanel | null = null
   private destroyed = false
+  private matchResult: MatchCompletionDetail | null = null
+  private readonly exitButton: HTMLButtonElement
 
   constructor(options: {
     root: HTMLElement
     launch: MatchLaunchConfig
-    onExit: () => void
+    onExit: (summary: MatchExitSummary) => void
   }) {
     this.root = options.root
     this.root.replaceChildren()
@@ -49,12 +59,14 @@ export class GameHost {
     const hudRoot = document.createElement('div')
     hudRoot.id = 'hud-root'
     hudRoot.setAttribute('aria-live', 'polite')
-    const exitButton = document.createElement('button')
-    exitButton.type = 'button'
-    exitButton.className = 'match-menu-button'
-    exitButton.textContent = 'MENU'
-    exitButton.addEventListener('click', options.onExit)
-    shell.append(this.gameRoot, hudRoot, exitButton)
+    this.exitButton = document.createElement('button')
+    this.exitButton.type = 'button'
+    this.exitButton.className = 'match-menu-button'
+    this.exitButton.textContent = 'MENU'
+    this.exitButton.addEventListener('click', () => {
+      options.onExit({ result: this.matchResult })
+    })
+    shell.append(this.gameRoot, hudRoot, this.exitButton)
     this.labRoot = document.createElement('div')
     this.labRoot.id = 'lab-root'
     host.append(shell, this.labRoot)
@@ -86,6 +98,10 @@ export class GameHost {
     )
     window.addEventListener('resize', this.syncViewport)
     window.addEventListener('orientationchange', this.syncViewport)
+    window.addEventListener(
+      matchEvents.completed,
+      this.handleMatchCompleted,
+    )
     this.syncViewport()
     window.requestAnimationFrame(this.syncViewport)
   }
@@ -102,6 +118,10 @@ export class GameHost {
     )
     window.removeEventListener('resize', this.syncViewport)
     window.removeEventListener('orientationchange', this.syncViewport)
+    window.removeEventListener(
+      matchEvents.completed,
+      this.handleMatchCompleted,
+    )
     this.resizeObserver.disconnect()
     this.labPanel?.destroy()
     this.labPanel = null
@@ -130,6 +150,13 @@ export class GameHost {
         error,
       )
     }
+  }
+
+  private handleMatchCompleted = (event: Event): void => {
+    const customEvent = event as CustomEvent<MatchCompletionDetail>
+    this.matchResult = structuredClone(customEvent.detail)
+    this.exitButton.textContent = 'RESULTS'
+    this.exitButton.classList.add('has-result')
   }
 
   private syncViewport = (): void => {
@@ -163,4 +190,3 @@ export class GameHost {
     )
   }
 }
-

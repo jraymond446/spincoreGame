@@ -65,7 +65,7 @@ export class MatchStatsTracker {
     this.stats[side].saves += 1
   }
 
-  recordGoal(side: TeamSide): void {
+  recordGoal(side: TeamSide): string | null {
     const lastCarrier = this.lastCarrierByTeam[side]
     const previousCarrier = this.previousCarrierByTeam[side]
 
@@ -78,6 +78,7 @@ export class MatchStatsTracker {
     }
 
     this.clearPossessionChain()
+    return lastCarrier
   }
 
   reset(): void {

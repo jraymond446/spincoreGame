@@ -1,3 +1,4 @@
+import { equipmentCatalog } from '../equipment/equipmentCatalog'
 import { getEffectivePlayerAttributes } from '../equipment/equipmentEffects'
 import type {
   PlayerAttributeKey,
@@ -5,11 +6,15 @@ import type {
 } from '../save/saveTypes'
 import { playerAttributeKeys } from '../save/saveTypes'
 import {
-  createButton,
-  createMetric,
-  createScreenFrame,
+  createPlayerIdentityCard,
+  createSpincoreAttributeRow,
+  createSpincoreBadge,
+  createSpincoreButton,
+  createSpincoreMetric,
+  createSpincorePanel,
+  createSpincoreScreenFrame,
   titleCase,
-} from './ui'
+} from '../ui'
 
 export function createPlayerProfileScreen(options: {
   save: SaveGame
@@ -17,108 +22,126 @@ export function createPlayerProfileScreen(options: {
   onPlay: () => void
   onSpendPoint: (key: PlayerAttributeKey) => void
 }): HTMLElement {
-  const { root, body } = createScreenFrame({
+  const { root, body } = createSpincoreScreenFrame({
     eyebrow: 'PLAYER PROFILE',
-    title: `#${options.save.player.jerseyNumber} ${options.save.player.name}`,
+    title: options.save.player.name,
     subtitle:
-      `${titleCase(options.save.player.primaryRole)} · ${titleCase(options.save.player.handedness)} handed`,
+      `#${options.save.player.jerseyNumber} / ` +
+      `${titleCase(options.save.player.primaryRole)} / ` +
+      `${titleCase(options.save.player.handedness)} handed`,
   })
-  const summary = document.createElement('section')
+  const identityLayout = document.createElement('section')
+  identityLayout.className = 'profile-identity-layout'
+  identityLayout.appendChild(
+    createPlayerIdentityCard(options.save, { expanded: true }),
+  )
+  const summary = document.createElement('div')
   summary.className = 'profile-summary-grid'
   summary.append(
-    createMetric('Level', options.save.progression.level, true),
-    createMetric('XP', options.save.progression.xp),
-    createMetric('Money', `$${options.save.wallet.money}`),
-    createMetric(
+    createSpincoreMetric('Level', options.save.progression.level, true),
+    createSpincoreMetric('XP', options.save.progression.xp),
+    createSpincoreMetric('Money', `$${options.save.wallet.money}`),
+    createSpincoreMetric(
       'Record',
       `${options.save.league.record.wins}-${options.save.league.record.losses}`,
     ),
-    createMetric('Matches', options.save.stats.matchesPlayed),
-    createMetric(
-      'Attribute Points',
+    createSpincoreMetric('Matches', options.save.stats.matchesPlayed),
+    createSpincoreMetric(
+      'Open Points',
       options.save.progression.unspentAttributePoints,
       options.save.progression.unspentAttributePoints > 0,
     ),
   )
+  identityLayout.appendChild(summary)
+
   const layout = document.createElement('div')
   layout.className = 'profile-layout'
-  const attributesPanel = document.createElement('section')
-  attributesPanel.className = 'app-panel'
-  const attributesHeading = document.createElement('div')
-  attributesHeading.className = 'panel-heading-row'
-  const heading = document.createElement('h2')
-  heading.textContent = 'Attributes'
-  const note = document.createElement('span')
-  note.textContent =
-    options.save.progression.unspentAttributePoints > 0
-      ? 'Spend points instantly'
-      : 'Earn points by leveling up'
-  attributesHeading.append(heading, note)
+  const attributesPanel = createSpincorePanel({
+    eyebrow: 'BUILD',
+    title: 'Attributes',
+    copy:
+      options.save.progression.unspentAttributePoints > 0
+        ? 'Spend available points instantly.'
+        : 'Level up to earn more attribute points.',
+  })
   const attributeList = document.createElement('div')
   attributeList.className = 'profile-attribute-list'
   const effective = getEffectivePlayerAttributes(options.save)
 
   for (const key of playerAttributeKeys) {
-    const row = document.createElement('div')
-    row.className = 'profile-attribute-row'
-    const label = document.createElement('span')
-    label.textContent = titleCase(key)
-    const value = document.createElement('strong')
-    const base = options.save.player.attributes[key]
-    const bonus = effective[key] - base
-    value.textContent = bonus > 0 ? `${base} +${bonus}` : String(base)
-    const meter = document.createElement('div')
-    meter.className = 'attribute-meter'
-    const fill = document.createElement('i')
-    fill.style.width = `${effective[key]}%`
-    meter.appendChild(fill)
-    const add = createButton('+', () => options.onSpendPoint(key), {
-      tone: 'primary',
-      disabled:
-        options.save.progression.unspentAttributePoints <= 0 ||
-        base >= 99,
-    })
-    add.setAttribute('aria-label', `Increase ${titleCase(key)}`)
-    add.classList.add('attribute-add-button')
-    row.append(label, value, meter, add)
-    attributeList.appendChild(row)
+    attributeList.appendChild(
+      createSpincoreAttributeRow({
+        label: titleCase(key),
+        base: options.save.player.attributes[key],
+        effective: effective[key],
+        canIncrease:
+          options.save.progression.unspentAttributePoints > 0 &&
+          options.save.player.attributes[key] < 99,
+        onIncrease: () => options.onSpendPoint(key),
+      }),
+    )
   }
 
-  attributesPanel.append(attributesHeading, attributeList)
-  const statsPanel = document.createElement('section')
-  statsPanel.className = 'app-panel'
-  const statsHeading = document.createElement('h2')
-  statsHeading.textContent = 'Career Ledger'
+  attributesPanel.content.appendChild(attributeList)
+  const rightRail = document.createElement('div')
+  rightRail.className = 'profile-right-rail'
+  const loadoutPanel = createSpincorePanel({
+    eyebrow: 'GEAR',
+    title: 'Current Loadout',
+  })
+  const loadout = document.createElement('div')
+  loadout.className = 'profile-loadout-list'
+
+  for (const [slot, itemId] of Object.entries(
+    options.save.equipment.equipped,
+  )) {
+    const row = document.createElement('div')
+    const label = document.createElement('span')
+    label.textContent = titleCase(slot.replace(/Id$/, ''))
+    const item = equipmentCatalog.find((candidate) => candidate.id === itemId)
+    row.append(
+      label,
+      createSpincoreBadge(item?.name ?? 'Empty', item ? 'mint' : 'navy'),
+    )
+    loadout.appendChild(row)
+  }
+
+  loadoutPanel.content.appendChild(loadout)
+  const statsPanel = createSpincorePanel({
+    eyebrow: 'CAREER',
+    title: 'Circuit Ledger',
+  })
   const stats = document.createElement('dl')
   stats.className = 'profile-stats-list'
   const statEntries: Array<[string, number]> = [
     ['Goals', options.save.stats.goals],
+    ['Bank goals', options.save.stats.bankShotGoals],
     ['Assists', options.save.stats.assists],
     ['Shots', options.save.stats.shots],
-    ['Bank goals', options.save.stats.bankShotGoals],
     ['Steals', options.save.stats.steals],
     ['Saves', options.save.stats.saves],
     ['Turnovers', options.save.stats.turnovers],
   ]
 
-  for (const [label, value] of statEntries) {
+  for (const [labelText, value] of statEntries) {
     const term = document.createElement('dt')
-    term.textContent = label
+    term.textContent = labelText
     const description = document.createElement('dd')
     description.textContent = String(value)
     stats.append(term, description)
   }
 
-  statsPanel.append(statsHeading, stats)
-  layout.append(attributesPanel, statsPanel)
+  statsPanel.content.appendChild(stats)
+  rightRail.append(loadoutPanel.panel, statsPanel.panel)
+  layout.append(attributesPanel.panel, rightRail)
   const actions = document.createElement('div')
   actions.className = 'app-screen-actions'
   actions.append(
-    createButton('Back', options.onBack, { tone: 'quiet' }),
-    createButton('Play Exhibition', options.onPlay, {
+    createSpincoreButton('Back', options.onBack, { tone: 'quiet' }),
+    createSpincoreButton('Play Exhibition', options.onPlay, {
       tone: 'primary',
     }),
   )
-  body.append(summary, layout, actions)
+  body.append(identityLayout, layout, actions)
   return root
 }

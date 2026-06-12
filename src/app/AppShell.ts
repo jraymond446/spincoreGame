@@ -13,6 +13,10 @@ import {
   saveGame,
   updateSave,
 } from '../save/saveStorage'
+import {
+  recordMatchRewards,
+  type MatchRewardBreakdown,
+} from '../save/progression'
 import type {
   EquipmentSlot,
   PlayerAttributeKey,
@@ -24,6 +28,8 @@ import type { AppScreen } from './GameScreen'
 import { GameHost } from './GameHost'
 import { createLeagueHubScreen } from './LeagueHubScreen'
 import { createMainMenu } from './MainMenu'
+import type { RewardNotice } from './MainMenu'
+import type { MatchExitSummary } from './GameHost'
 import { createPlayerProfileScreen } from './PlayerProfileScreen'
 import { createSettingsScreen } from './SettingsScreen'
 import { createStoreScreen } from './StoreScreen'
@@ -34,6 +40,7 @@ export class AppShell {
   private screen: AppScreen = 'boot'
   private selectedOpponentId = opponentTeams[0]?.id ?? ''
   private gameHost: GameHost | null = null
+  private rewardNotice: RewardNotice | null = null
 
   constructor(root: HTMLElement) {
     this.root = root
@@ -106,6 +113,7 @@ export class AppShell {
         save,
         opponents: opponentTeams,
         selectedOpponentId: this.selectedOpponentId,
+        rewardNotice: this.rewardNotice,
         onOpponentChange: (id) => {
           this.selectedOpponentId = id
         },
@@ -216,17 +224,67 @@ export class AppShell {
     }
 
     this.screen = 'match'
+    this.rewardNotice = null
     this.gameHost?.destroy()
     this.gameHost = new GameHost({
       root: this.root,
       launch,
-      onExit: () => {
+      onExit: (summary) => {
         this.gameHost?.destroy()
         this.gameHost = null
-        this.save = loadSave()
+
+        if (mode === 'lab') {
+          this.save = loadSave()
+        } else {
+          this.applyMatchRewards(summary)
+        }
+
         this.renderMainMenu()
       },
     })
+  }
+
+  private applyMatchRewards(summary: MatchExitSummary): void {
+    const current = this.save ?? loadSave()
+
+    if (!current) {
+      return
+    }
+
+    const draft = structuredClone(current)
+    const result = summary.result
+    const rewards: MatchRewardBreakdown = recordMatchRewards(
+      draft,
+      result
+        ? {
+            won: result.winner === 'A',
+            goals: result.playerGoals,
+            bankShotGoals: result.playerBankShotGoals,
+          }
+        : null,
+    )
+    const saved = saveGame(draft)
+
+    if (!saved) {
+      this.save = loadSave()
+      return
+    }
+
+    this.save = saved
+    const score = summary.result?.score
+    this.rewardNotice = {
+      title: rewards.completed
+        ? rewards.won
+          ? 'Match won'
+          : 'Match complete'
+        : 'Exhibition run logged',
+      xp: rewards.xp,
+      money: rewards.money,
+      details: score
+        ? `Final score ${score.A}-${score.B}. ` +
+          `${rewards.goals} goals, ${rewards.bankShotGoals} bank goals.`
+        : 'Participation rewards banked. Results were not recorded.',
+    }
   }
 
   private spendAttributePoint(key: PlayerAttributeKey): void {

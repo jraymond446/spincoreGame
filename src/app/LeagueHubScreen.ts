@@ -1,11 +1,14 @@
-import type { League } from '../league/leagueTypes'
 import type { OpponentTeam } from '../game/data/opponentTeams'
+import type { League } from '../league/leagueTypes'
 import type { SaveGame } from '../save/saveTypes'
 import {
-  createButton,
-  createMetric,
-  createScreenFrame,
-} from './ui'
+  createSpincoreBadge,
+  createSpincoreButton,
+  createSpincoreMetric,
+  createSpincorePanel,
+  createSpincoreScreenFrame,
+  createSpincoreTeamCard,
+} from '../ui'
 
 export function createLeagueHubScreen(options: {
   save: SaveGame
@@ -14,66 +17,88 @@ export function createLeagueHubScreen(options: {
   onBack: () => void
   onPlayNext: () => void
 }): HTMLElement {
-  const { root, body } = createScreenFrame({
-    eyebrow: 'LEAGUE HUB',
+  const { root, body } = createSpincoreScreenFrame({
+    eyebrow: 'LEAGUE HUB / ROOKIE DIVISION',
     title: options.league.name,
     subtitle: options.league.description,
   })
-  const metrics = document.createElement('section')
-  metrics.className = 'profile-summary-grid'
-  metrics.append(
-    createMetric(
-      'Record',
+  const status = document.createElement('section')
+  status.className = 'league-status-grid'
+  status.append(
+    createSpincoreMetric(
+      'Current Record',
       `${options.save.league.record.wins}-${options.save.league.record.losses}`,
       true,
     ),
-    createMetric('Next Opponent', options.nextOpponent.shortName),
-    createMetric('Difficulty', options.nextOpponent.difficulty),
+    createSpincoreMetric('Matches', options.save.stats.matchesPlayed),
+    createSpincoreMetric('Division', 'Rookie'),
   )
-  const panels = document.createElement('div')
-  panels.className = 'placeholder-grid'
-  const next = document.createElement('section')
-  next.className = 'app-panel placeholder-panel is-live'
-  const nextHeading = document.createElement('h2')
-  nextHeading.textContent = options.nextOpponent.name
-  const nextCopy = document.createElement('p')
-  nextCopy.textContent =
-    `Formation: ${options.nextOpponent.formation}. ` +
-    `Offense: ${options.nextOpponent.strategy.offenseScheme}.`
-  next.append(
-    nextHeading,
-    nextCopy,
-    createButton('Play Next Match', options.onPlayNext, {
+
+  const nextPanel = createSpincorePanel({
+    eyebrow: 'NEXT FIXTURE',
+    title: 'Local Circuit Match',
+    copy:
+      'The Rookie division is open. Win, earn rewards, and build the foundation of your career.',
+    tone: 'featured',
+  })
+  nextPanel.content.appendChild(
+    createSpincoreTeamCard({
+      team: options.nextOpponent,
+      selected: true,
+      compact: true,
+    }),
+  )
+  nextPanel.actions.append(
+    createSpincoreButton('Play Next Match', options.onPlayNext, {
       tone: 'primary',
     }),
   )
-  const standings = placeholder(
-    'Standings',
-    'Circuit tables and tiebreakers will connect here.',
+
+  const ladderHeading = document.createElement('div')
+  ladderHeading.className = 'section-heading-row'
+  const ladderCopy = document.createElement('div')
+  const ladderTitle = document.createElement('h2')
+  ladderTitle.textContent = 'Circuit Ladder'
+  const ladderDescription = document.createElement('p')
+  ladderDescription.textContent =
+    'Higher leagues unlock as the career structure expands.'
+  ladderCopy.append(ladderTitle, ladderDescription)
+  ladderHeading.append(
+    ladderCopy,
+    createSpincoreBadge('1 OF 4 OPEN', 'gold'),
   )
-  const schedule = placeholder(
-    'Schedule',
-    'Future rounds, travel, and playoff brackets will connect here.',
+  const tiers = document.createElement('div')
+  tiers.className = 'league-tier-grid'
+  tiers.append(
+    createTier('Local Circuit', 'Rookie', 'Your current proving ground.', true),
+    createTier('Metro League', 'Locked', 'Regional clubs and longer schedules.'),
+    createTier('Pro Circuit', 'Locked', 'Professional rosters and contracts.'),
+    createTier('Apex Series', 'Locked', 'The top level of Spincore competition.'),
   )
-  panels.append(next, standings, schedule)
+
   const actions = document.createElement('div')
   actions.className = 'app-screen-actions'
-  actions.append(createButton('Back', options.onBack, { tone: 'quiet' }))
-  body.append(metrics, panels, actions)
+  actions.append(
+    createSpincoreButton('Back', options.onBack, { tone: 'quiet' }),
+  )
+  body.append(status, nextPanel.panel, ladderHeading, tiers, actions)
   return root
 }
 
-function placeholder(titleText: string, copyText: string): HTMLElement {
-  const panel = document.createElement('section')
-  panel.className = 'app-panel placeholder-panel'
-  const title = document.createElement('h2')
-  title.textContent = titleText
-  const copy = document.createElement('p')
-  copy.textContent = copyText
-  const badge = document.createElement('span')
-  badge.className = 'coming-soon-badge'
-  badge.textContent = 'COMING SOON'
-  panel.append(title, copy, badge)
-  return panel
+function createTier(
+  name: string,
+  status: string,
+  description: string,
+  current = false,
+): HTMLElement {
+  const panel = createSpincorePanel({
+    eyebrow: status.toUpperCase(),
+    title: name,
+    copy: description,
+    tone: current ? 'featured' : 'locked',
+  })
+  panel.content.appendChild(
+    createSpincoreBadge(current ? 'CURRENT LEAGUE' : 'COMING SOON', current ? 'mint' : 'navy'),
+  )
+  return panel.panel
 }
-

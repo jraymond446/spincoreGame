@@ -24,6 +24,10 @@ import type { Player } from '../entities/Player'
 import { labEvents } from '../lab/LabEvents'
 import { getLabState, setLabMode } from '../lab/LabState'
 import { getMatchLaunchConfig } from '../../match/MatchLaunchConfig'
+import {
+  matchEvents,
+  type MatchCompletionDetail,
+} from '../../match/MatchEvents'
 import { ArenaDressing } from '../rendering/ArenaDressing'
 import { ScoreboardOverlay } from '../rendering/ScoreboardOverlay'
 import { preloadVisualAssetOverrides } from '../rendering/VisualAssetOverrides'
@@ -100,6 +104,9 @@ export class GameScene extends Phaser.Scene {
   private gameMode: GameMode = gameplayConfig.defaultMode
   private currentInputIntent = 'IDLE'
   private labEventsBound = false
+  private playerGoals = 0
+  private playerBankShotGoals = 0
+  private matchCompletionEmitted = false
 
   constructor() {
     super('GameScene')
@@ -109,6 +116,9 @@ export class GameScene extends Phaser.Scene {
     this.gameMode = data?.gameMode ?? getLabState().mode
     this.matchState = structuredClone(initialMatchState)
     this.debugEnabled = false
+    this.playerGoals = 0
+    this.playerBankShotGoals = 0
+    this.matchCompletionEmitted = false
   }
 
   preload(): void {
@@ -713,10 +723,26 @@ export class GameScene extends Phaser.Scene {
     const scoringSide: TeamSide = goal.id === 'top-goal' ? 'A' : 'B'
     const newScore = this.matchState.score[scoringSide] + 1
 
-    this.matchStatsTracker.recordGoal(scoringSide)
+    const scorerId = this.matchStatsTracker.recordGoal(scoringSide)
     this.aiSystem.recordGoal(scoringSide)
     this.matchState.score[scoringSide] = newScore
     this.matchState.lastScorer = scoringSide
+
+    const scorer = scorerId
+      ? this.teamSystem.players.find((player) => player.id === scorerId)
+      : null
+    const createdPlayerScored =
+      scoringSide === 'A' &&
+      scorer?.controllerType === 'human' &&
+      getMatchLaunchConfig().useCreatedPlayer
+
+    if (createdPlayerScored) {
+      this.playerGoals += 1
+
+      if (this.wallBounceSystem.getDebugState().recentBankShot) {
+        this.playerBankShotGoals += 1
+      }
+    }
 
     if (newScore >= this.matchState.firstTo) {
       this.matchState.winner = scoringSide
@@ -726,6 +752,33 @@ export class GameScene extends Phaser.Scene {
     this.beginGoalSequence()
     this.matchFlowSystem.scoreGoal(scoringSide, crossing.impactPoint)
     this.updateHud()
+    this.emitMatchCompletion()
+  }
+
+  private emitMatchCompletion(): void {
+    const launch = getMatchLaunchConfig()
+
+    if (
+      this.matchCompletionEmitted ||
+      !this.matchState.winner ||
+      launch.mode === 'lab'
+    ) {
+      return
+    }
+
+    this.matchCompletionEmitted = true
+    const detail: MatchCompletionDetail = {
+      winner: this.matchState.winner,
+      score: { ...this.matchState.score },
+      playerGoals: this.playerGoals,
+      playerBankShotGoals: this.playerBankShotGoals,
+    }
+    window.dispatchEvent(
+      new CustomEvent<MatchCompletionDetail>(
+        matchEvents.completed,
+        { detail },
+      ),
+    )
   }
 
   private resetPositions = (clearGoalCooldown = true): void => {

@@ -1,11 +1,14 @@
 import type { EquipmentItem } from '../equipment/equipmentTypes'
 import type { SaveGame } from '../save/saveTypes'
 import {
-  createButton,
-  createMetric,
-  createScreenFrame,
-  titleCase,
-} from './ui'
+  createSpincoreButton,
+  createSpincoreEquipmentCard,
+  createSpincoreMetric,
+  createSpincorePanel,
+  createSpincoreScreenFrame,
+} from '../ui'
+
+type StoreFilter = 'all' | EquipmentItem['type']
 
 export function createStoreScreen(options: {
   save: SaveGame
@@ -14,77 +17,78 @@ export function createStoreScreen(options: {
   onBuy: (item: EquipmentItem) => void
   onEquip: (item: EquipmentItem) => void
 }): HTMLElement {
-  const { root, body } = createScreenFrame({
+  const { root, body, header } = createSpincoreScreenFrame({
     eyebrow: 'EQUIPMENT DEPOT',
     title: 'Circuit Store',
     subtitle:
-      'Starter inventory is live. Equipment modifiers already feed your exhibition attributes.',
+      'Tune the edges of your build with gear that feeds directly into match attributes.',
   })
-  const balance = document.createElement('section')
-  balance.className = 'store-balance'
+  const balance = document.createElement('div')
+  balance.className = 'store-header-balance'
   balance.append(
-    createMetric('Available Funds', `$${options.save.wallet.money}`, true),
+    createSpincoreMetric('Available Funds', `$${options.save.wallet.money}`, true),
   )
+  header.appendChild(balance)
+
+  const inventoryPanel = createSpincorePanel({
+    eyebrow: 'INVENTORY',
+    title: 'Equipment',
+    copy: 'Buy once, then swap owned gear freely.',
+  })
+  const filters = document.createElement('div')
+  filters.className = 'store-filter-tabs'
   const grid = document.createElement('div')
   grid.className = 'store-grid'
+  let activeFilter: StoreFilter = 'all'
+  const filterOptions: Array<[StoreFilter, string]> = [
+    ['all', 'All Gear'],
+    ['stick', 'Sticks'],
+    ['shield', 'Shields'],
+    ['shoes', 'Shoes'],
+  ]
 
-  for (const item of options.catalog) {
-    const card = document.createElement('article')
-    card.className = `store-item is-${item.rarity}`
-    const meta = document.createElement('div')
-    meta.className = 'store-item-meta'
-    const type = document.createElement('span')
-    type.textContent = titleCase(item.type)
-    const rarity = document.createElement('span')
-    rarity.textContent = titleCase(item.rarity)
-    meta.append(type, rarity)
-    const name = document.createElement('h2')
-    name.textContent = item.name
-    const description = document.createElement('p')
-    description.textContent = item.description
-    const modifiers = document.createElement('p')
-    modifiers.className = 'store-modifiers'
-    const modifierText = Object.entries(item.modifiers)
-      .map(([key, value]) => `+${value} ${titleCase(key)}`)
-      .join(' · ')
-    modifiers.textContent = modifierText || 'Standard issue'
-    const owned = options.save.equipment.inventory.includes(item.id)
-    const equipped = Object.values(options.save.equipment.equipped).includes(
-      item.id,
+  const renderGrid = (): void => {
+    const visibleItems = options.catalog.filter(
+      (item) => activeFilter === 'all' || item.type === activeFilter,
     )
-    const footer = document.createElement('div')
-    footer.className = 'store-item-footer'
-    const price = document.createElement('strong')
-    price.textContent = item.price === 0 ? 'OWNED' : `$${item.price}`
-    const action = owned
-      ? createButton(
-          equipped ? 'Equipped' : 'Equip',
-          () => options.onEquip(item),
-          {
-            tone: equipped ? 'quiet' : 'secondary',
-            disabled: equipped,
-          },
-        )
-      : createButton('Buy', () => options.onBuy(item), {
-          tone: 'primary',
-          disabled: options.save.wallet.money < item.price,
-        })
-    action.setAttribute(
-      'aria-label',
-      owned
-        ? equipped
-          ? `${item.name} equipped`
-          : `Equip ${item.name}`
-        : `Buy ${item.name}`,
+    grid.replaceChildren(
+      ...visibleItems.map((item) =>
+        createSpincoreEquipmentCard({
+          item,
+          save: options.save,
+          onBuy: () => options.onBuy(item),
+          onEquip: () => options.onEquip(item),
+        }),
+      ),
     )
-    footer.append(price, action)
-    card.append(meta, name, description, modifiers, footer)
-    grid.appendChild(card)
+
+    for (const button of filters.querySelectorAll('button')) {
+      button.classList.toggle(
+        'is-active',
+        button.dataset.filter === activeFilter,
+      )
+    }
   }
 
+  for (const [filter, label] of filterOptions) {
+    const button = createSpincoreButton(label, () => {
+      activeFilter = filter
+      renderGrid()
+    }, {
+      tone: 'quiet',
+      compact: true,
+    })
+    button.dataset.filter = filter
+    filters.appendChild(button)
+  }
+
+  renderGrid()
+  inventoryPanel.content.append(filters, grid)
   const actions = document.createElement('div')
   actions.className = 'app-screen-actions'
-  actions.append(createButton('Back', options.onBack, { tone: 'quiet' }))
-  body.append(balance, grid, actions)
+  actions.append(
+    createSpincoreButton('Back', options.onBack, { tone: 'quiet' }),
+  )
+  body.append(inventoryPanel.panel, actions)
   return root
 }

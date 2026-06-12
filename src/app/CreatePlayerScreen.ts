@@ -7,10 +7,13 @@ import type {
 } from '../save/saveTypes'
 import { playerAttributeKeys } from '../save/saveTypes'
 import {
-  createButton,
-  createScreenFrame,
+  createSpincoreBadge,
+  createSpincoreButton,
+  createSpincorePanel,
+  createSpincoreScreenFrame,
+  createSpincoreStatBar,
   titleCase,
-} from './ui'
+} from '../ui'
 
 type CreatePlayerValues = {
   name: string
@@ -23,7 +26,7 @@ type CreatePlayerValues = {
 export function createCreatePlayerScreen(options: {
   onCreate: (values: CreatePlayerValues) => void
 }): HTMLElement {
-  const { root, body } = createScreenFrame({
+  const { root, body } = createSpincoreScreenFrame({
     eyebrow: 'NEW CIRCUIT ENTRY',
     title: 'Create Your Player',
     subtitle:
@@ -31,10 +34,13 @@ export function createCreatePlayerScreen(options: {
   })
   const form = document.createElement('form')
   form.className = 'creation-layout'
-  const identity = document.createElement('section')
-  identity.className = 'app-panel creation-form'
-  const heading = document.createElement('h2')
-  heading.textContent = 'Player Card'
+  const identityPanel = createSpincorePanel({
+    eyebrow: 'IDENTITY',
+    title: 'Player Card',
+    copy: 'This profile follows you into every career match.',
+  })
+  const identity = identityPanel.panel
+  identity.classList.add('creation-form')
   const nameField = createInput('Player name', 'text', 'ROOKIE')
   nameField.input.maxLength = 24
   nameField.input.required = true
@@ -60,8 +66,7 @@ export function createCreatePlayerScreen(options: {
   const error = document.createElement('p')
   error.className = 'form-error'
   error.setAttribute('role', 'alert')
-  identity.append(
-    heading,
+  identityPanel.content.append(
     nameField.label,
     numberField.label,
     handedness.label,
@@ -70,15 +75,17 @@ export function createCreatePlayerScreen(options: {
     error,
   )
 
-  const attributes = document.createElement('section')
-  attributes.className = 'app-panel creation-attributes'
-  const attributeHeading = document.createElement('h2')
-  attributeHeading.textContent = 'Starting Attributes'
+  const attributesPanel = createSpincorePanel({
+    eyebrow: 'ARCHETYPE',
+    title: 'Starting Attributes',
+  })
+  const attributes = attributesPanel.panel
+  attributes.classList.add('creation-attributes')
   const roleNote = document.createElement('p')
   roleNote.className = 'panel-note'
   const attributeGrid = document.createElement('div')
   attributeGrid.className = 'attribute-preview-grid'
-  attributes.append(attributeHeading, roleNote, attributeGrid)
+  attributesPanel.content.append(roleNote, attributeGrid)
 
   const renderAttributes = (): void => {
     const selectedRole =
@@ -88,12 +95,10 @@ export function createCreatePlayerScreen(options: {
       `${titleCase(selectedRole)} starts with a specialized, editable foundation.`
     attributeGrid.replaceChildren(
       ...playerAttributeKeys.map((key) => {
-        const row = document.createElement('div')
-        const label = document.createElement('span')
-        label.textContent = titleCase(key)
-        const value = document.createElement('strong')
-        value.textContent = String(values[key])
-        row.append(label, value)
+        const row = createSpincoreStatBar({
+          label: titleCase(key),
+          value: values[key],
+        })
         return row
       }),
     )
@@ -104,9 +109,10 @@ export function createCreatePlayerScreen(options: {
 
   const actions = document.createElement('div')
   actions.className = 'app-screen-actions'
-  const submit = createButton('Enter the Circuit', () => {
+  const submit = createSpincoreButton('Enter the Circuit', () => {
     form.requestSubmit()
   }, { tone: 'primary' })
+  actions.prepend(createSpincoreBadge('LOCAL SAVE', 'mint'))
   actions.append(submit)
   form.append(identity, attributes, actions)
   form.addEventListener('submit', (event) => {
@@ -181,4 +187,3 @@ function createSelect(
   label.append(span, select)
   return { label, select }
 }
-

@@ -1,17 +1,28 @@
 import type { OpponentTeam } from '../game/data/opponentTeams'
 import type { SaveGame } from '../save/saveTypes'
 import {
-  createButton,
-  createCard,
-  createMetric,
-  createScreenFrame,
-  titleCase,
-} from './ui'
+  createPlayerIdentityCard,
+  createSpincoreBadge,
+  createSpincoreButton,
+  createSpincoreCard,
+  createSpincoreMetric,
+  createSpincorePanel,
+  createSpincoreScreenFrame,
+  createSpincoreTeamCard,
+} from '../ui'
+
+export type RewardNotice = {
+  title: string
+  xp: number
+  money: number
+  details: string
+}
 
 export function createMainMenu(options: {
   save: SaveGame
   opponents: OpponentTeam[]
   selectedOpponentId: string
+  rewardNotice?: RewardNotice | null
   onOpponentChange: (id: string) => void
   onPlay: () => void
   onPlayer: () => void
@@ -21,107 +32,159 @@ export function createMainMenu(options: {
   onSettings: () => void
   onResetSave: () => void
 }): HTMLElement {
-  const { root, body, header } = createScreenFrame({
-    eyebrow: 'LOCAL CIRCUIT',
+  const { root, body, header } = createSpincoreScreenFrame({
+    eyebrow: 'LOCAL CIRCUIT / ROOKIE DIVISION',
     title: 'SPINCORE',
     subtitle: 'Build your player. Own the walls. Climb the circuit.',
   })
-  const playerBadge = document.createElement('div')
-  playerBadge.className = 'menu-player-badge'
-  const playerIdentity = document.createElement('div')
-  const playerName = document.createElement('strong')
-  playerName.textContent =
-    `#${options.save.player.jerseyNumber} ${options.save.player.name}`
-  const playerRole = document.createElement('span')
-  playerRole.textContent =
-    `${titleCase(options.save.player.primaryRole)} · Level ${options.save.progression.level}`
-  playerIdentity.append(playerName, playerRole)
-  const playerMetrics = document.createElement('div')
-  playerMetrics.className = 'menu-player-metrics'
-  playerMetrics.append(
-    createMetric('XP', options.save.progression.xp),
-    createMetric('Cash', `$${options.save.wallet.money}`, true),
+  const headerMetrics = document.createElement('div')
+  headerMetrics.className = 'spincore-header-metrics'
+  headerMetrics.append(
+    createSpincoreMetric('XP', options.save.progression.xp),
+    createSpincoreMetric('Funds', `$${options.save.wallet.money}`, true),
+    createSpincoreMetric(
+      'Record',
+      `${options.save.league.record.wins}-${options.save.league.record.losses}`,
+    ),
   )
-  playerBadge.append(playerIdentity, playerMetrics)
-  header.appendChild(playerBadge)
+  header.appendChild(headerMetrics)
 
-  const grid = document.createElement('div')
-  grid.className = 'menu-card-grid'
-  const play = createCard(
-    'Play Exhibition',
-    'Launch the tuned 3v3 match with your created player.',
-  )
-  play.card.classList.add('is-featured')
-  const opponentField = document.createElement('label')
-  opponentField.className = 'app-field menu-opponent-field'
-  const opponentLabel = document.createElement('span')
-  opponentLabel.textContent = 'Opponent'
-  const opponentSelect = document.createElement('select')
-
-  for (const opponent of options.opponents) {
-    const option = document.createElement('option')
-    option.value = opponent.id
-    option.textContent =
-      `${opponent.name} · Difficulty ${opponent.difficulty}`
-    opponentSelect.appendChild(option)
+  if (options.rewardNotice) {
+    body.appendChild(createRewardBanner(options.rewardNotice))
   }
 
-  opponentSelect.value = options.selectedOpponentId
-  opponentSelect.addEventListener('change', () => {
-    options.onOpponentChange(opponentSelect.value)
+  const frontDoor = document.createElement('section')
+  frontDoor.className = 'menu-front-door'
+  frontDoor.appendChild(createPlayerIdentityCard(options.save, {
+    expanded: true,
+  }))
+  const playPanel = createSpincorePanel({
+    eyebrow: 'NEXT UP',
+    title: 'Exhibition Match',
+    copy:
+      'Take your created player into the tuned 3v3 match. ' +
+      'Every run earns circuit XP and cash.',
+    tone: 'featured',
   })
-  opponentField.append(opponentLabel, opponentSelect)
-  play.content.appendChild(opponentField)
-  play.actions.append(
-    createButton('Play Now', options.onPlay, { tone: 'primary' }),
+  playPanel.content.append(
+    createSpincoreBadge('FIRST TO 5', 'rose'),
+    createSpincoreBadge('3 VS 3', 'blue'),
   )
+  playPanel.actions.append(
+    createSpincoreButton('Play Match', options.onPlay, {
+      tone: 'primary',
+    }),
+  )
+  frontDoor.appendChild(playPanel.panel)
 
-  const player = createCard(
+  const opponentPanel = createSpincorePanel({
+    eyebrow: 'MATCHUP',
+    title: 'Choose Your Opponent',
+    copy: 'Each club brings a different shape and offensive identity.',
+  })
+  const opponentGrid = document.createElement('div')
+  opponentGrid.className = 'opponent-card-grid'
+  let selectedOpponentId = options.selectedOpponentId
+
+  const renderOpponents = (): void => {
+    opponentGrid.replaceChildren(
+      ...options.opponents.map((team) =>
+        createSpincoreTeamCard({
+          team,
+          selected: team.id === selectedOpponentId,
+          onSelect: () => {
+            selectedOpponentId = team.id
+            options.onOpponentChange(team.id)
+            renderOpponents()
+          },
+        }),
+      ),
+    )
+  }
+
+  renderOpponents()
+  opponentPanel.content.appendChild(opponentGrid)
+
+  const grid = document.createElement('div')
+  grid.className = 'menu-card-grid menu-navigation-grid'
+  const player = createSpincoreCard(
     'Player',
-    'Review attributes, equipment bonuses, stats, and progression.',
+    'Attributes, equipment bonuses, career stats, and progression.',
   )
-  player.actions.append(createButton('Open Profile', options.onPlayer))
-  const league = createCard(
+  player.actions.append(
+    createSpincoreButton('Open Profile', options.onPlayer),
+  )
+  const league = createSpincoreCard(
     'League',
-    'Enter the Local Circuit and preview the progression structure.',
+    'Track your Local Circuit record and preview the road upward.',
   )
-  league.actions.append(createButton('League Hub', options.onLeague))
-  const store = createCard(
+  league.actions.append(
+    createSpincoreButton('League Hub', options.onLeague),
+  )
+  const store = createSpincoreCard(
     'Store',
-    'Browse starter sticks, keeper shields, and court shoes.',
+    'Upgrade sticks, keeper shields, and court shoes.',
   )
-  store.actions.append(createButton('Visit Store', options.onStore))
-  const lab = createCard(
-    'Prototype Lab',
-    'Launch the original tunable match and full Lab Console.',
+  store.actions.append(
+    createSpincoreButton('Visit Store', options.onStore),
   )
-  lab.actions.append(createButton('Open Lab Match', options.onLab))
-  const settings = createCard(
+  const settings = createSpincoreCard(
     'Settings',
-    'Save status, controls notes, and prototype utilities.',
+    'Controls, save details, and prototype utilities.',
   )
-  settings.actions.append(createButton('Open Settings', options.onSettings))
-  grid.append(
-    play.card,
-    player.card,
-    league.card,
-    store.card,
-    lab.card,
-    settings.card,
+  settings.actions.append(
+    createSpincoreButton('Open Settings', options.onSettings),
+  )
+  grid.append(player.card, league.card, store.card, settings.card)
+
+  const labStrip = document.createElement('section')
+  labStrip.className = 'menu-lab-strip'
+  const labCopy = document.createElement('div')
+  const labTitle = document.createElement('strong')
+  labTitle.textContent = 'Prototype Lab'
+  const labDescription = document.createElement('span')
+  labDescription.textContent =
+    'Original tuning console. Career rewards are disabled here.'
+  labCopy.append(labTitle, labDescription)
+  labStrip.append(
+    labCopy,
+    createSpincoreButton('Open Lab', options.onLab, { tone: 'quiet' }),
   )
 
   const footer = document.createElement('footer')
   footer.className = 'menu-footer'
   const saveStatus = document.createElement('span')
   saveStatus.textContent =
-    `Profile updated ${new Date(options.save.updatedAt).toLocaleString()}`
+    `Profile saved ${new Date(options.save.updatedAt).toLocaleString()}`
   footer.append(
     saveStatus,
-    createButton('Reset Save', options.onResetSave, {
+    createSpincoreButton('Reset Save', options.onResetSave, {
       tone: 'danger',
+      compact: true,
     }),
   )
-  body.append(grid, footer)
+  body.append(frontDoor, opponentPanel.panel, grid, labStrip, footer)
   return root
 }
 
+function createRewardBanner(notice: RewardNotice): HTMLElement {
+  const banner = document.createElement('section')
+  banner.className = 'match-reward-banner'
+  const mark = document.createElement('div')
+  mark.className = 'match-reward-mark'
+  mark.textContent = '+'
+  const copy = document.createElement('div')
+  const title = document.createElement('strong')
+  title.textContent = notice.title
+  const details = document.createElement('span')
+  details.textContent = notice.details
+  copy.append(title, details)
+  const rewards = document.createElement('div')
+  rewards.className = 'match-reward-values'
+  rewards.append(
+    createSpincoreBadge(`+${notice.xp} XP`, 'gold'),
+    createSpincoreBadge(`+$${notice.money}`, 'mint'),
+  )
+  banner.append(mark, copy, rewards)
+  return banner
+}
