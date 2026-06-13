@@ -46,23 +46,49 @@ export function recordMatchRewards(
   save: SaveGame,
   result: MatchResultRewardInput | null,
 ): MatchRewardBreakdown {
-  save.stats.matchesPlayed += 1
+  const trackedLines = [save.stats, save.seasonStats]
+  const leagueId = save.league.currentLeagueId
+  const leagueStats = leagueId ? save.leagueStats[leagueId] : null
+
+  for (const stats of trackedLines) {
+    stats.matchesPlayed += 1
+  }
+  if (leagueStats) {
+    leagueStats.matchesPlayed += 1
+  }
   const goals = Math.max(0, result?.goals ?? 0)
   const bankShotGoals = Math.max(0, result?.bankShotGoals ?? 0)
 
   if (result) {
-    save.stats.goals += goals
-    save.stats.assists += Math.max(0, result.assists ?? 0)
-    save.stats.shots += Math.max(0, result.shots ?? 0)
-    save.stats.bankShotGoals += bankShotGoals
-    save.stats.steals += Math.max(0, result.steals ?? 0)
-    save.stats.saves += Math.max(0, result.saves ?? 0)
-    save.stats.turnovers += Math.max(0, result.turnovers ?? 0)
+    for (const stats of trackedLines) {
+      stats.goals += goals
+      stats.assists += Math.max(0, result.assists ?? 0)
+      stats.shots += Math.max(0, result.shots ?? 0)
+      stats.bankShotGoals += bankShotGoals
+      stats.steals += Math.max(0, result.steals ?? 0)
+      stats.saves += Math.max(0, result.saves ?? 0)
+      stats.turnovers += Math.max(0, result.turnovers ?? 0)
+    }
+    if (leagueStats) {
+      leagueStats.goals += goals
+      leagueStats.assists += Math.max(0, result.assists ?? 0)
+      leagueStats.bankShotGoals += bankShotGoals
+    }
 
     if (result.won) {
       save.league.record.wins += 1
+      save.stats.wins += 1
+      save.seasonStats.wins += 1
+      if (leagueStats) {
+        leagueStats.wins += 1
+      }
     } else {
       save.league.record.losses += 1
+      save.stats.losses += 1
+      save.seasonStats.losses += 1
+      if (leagueStats) {
+        leagueStats.losses += 1
+      }
     }
   }
 

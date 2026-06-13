@@ -1,11 +1,21 @@
 import { hairColorPalette } from './visualPalettes'
 import { hairStyleOrder, type HairStyleId } from './hairStyles'
-import type { PlayerRole, StickStyle } from './matchTypes'
+import type {
+  PlayerRole,
+  PlayerVisualProfileOverride,
+  StickStyle,
+} from './matchTypes'
 
 export type PlayerVisualProfile = {
   hairStyle: HairStyleId
   hairColor: number
   stickStyle: StickStyle
+  skinColor?: number
+  skinShadeColor?: number
+  shirtColor?: number
+  shirtShadeColor?: number
+  trimColor?: number
+  shortsColor?: number
 }
 
 export function createPlayerVisualProfile(
@@ -13,6 +23,7 @@ export function createPlayerVisualProfile(
   role: PlayerRole,
   stickStyle?: StickStyle,
   visualPreset?: string,
+  override?: PlayerVisualProfileOverride,
 ): PlayerVisualProfile {
   const hash = [...playerId].reduce(
     (value, character) => value + character.charCodeAt(0),
@@ -23,12 +34,20 @@ export function createPlayerVisualProfile(
 
   return {
     hairStyle:
+      override?.hairStyle ??
       preset?.hairStyle ??
       hairStyleOrder[hash % hairStyleOrder.length],
     hairColor:
+      override?.hairColor ??
       preset?.hairColor ??
       hairColorPalette[hash % hairColorPalette.length],
     stickStyle: stickStyle ?? stickStyleForPlayer(playerId, role),
+    skinColor: override?.skinColor,
+    skinShadeColor: override?.skinShadeColor,
+    shirtColor: override?.shirtColor,
+    shirtShadeColor: override?.shirtShadeColor,
+    trimColor: override?.trimColor,
+    shortsColor: override?.shortsColor,
   }
 }
 

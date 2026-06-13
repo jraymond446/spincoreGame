@@ -31,8 +31,19 @@ export function createPlayerIdentityCard(
 ): HTMLElement {
   const card = document.createElement('article')
   card.className =
-    `spincore-player-card is-${save.player.visualPreset} ` +
-    `${options?.expanded ? 'is-expanded' : ''}`
+    `spincore-player-card ${options?.expanded ? 'is-expanded' : ''}`
+  card.style.setProperty(
+    '--player-accent',
+    cosmeticAccent(save.player.cosmetics.accentColor),
+  )
+  card.style.setProperty(
+    '--player-shirt',
+    cosmeticShirt(save.player.cosmetics.shirtColor),
+  )
+  card.style.setProperty(
+    '--player-skin',
+    cosmeticSkin(save.player.cosmetics.skinTone),
+  )
   const avatar = document.createElement('div')
   avatar.className = 'spincore-player-avatar'
   const jersey = document.createElement('strong')
@@ -44,7 +55,7 @@ export function createPlayerIdentityCard(
   badges.className = 'spincore-player-badges'
   badges.append(
     createSpincoreBadge(`LV ${save.progression.level}`, 'gold'),
-    createSpincoreBadge(titleCase(save.player.primaryRole), 'blue'),
+    createSpincoreBadge(titleCase(save.player.archetype), 'blue'),
   )
   const name = document.createElement('h2')
   name.textContent = save.player.name
@@ -73,6 +84,44 @@ export function createPlayerIdentityCard(
 
   card.append(avatar, identity, ratings)
   return card
+}
+
+function cosmeticAccent(value: string): string {
+  const colors: Record<string, string> = {
+    gold: '#f2c84b',
+    cyan: '#78e5ff',
+    pink: '#e54872',
+    navy: '#16324f',
+    orange: '#e78c3f',
+    lime: '#8fd26e',
+  }
+  return colors[value] ?? colors.gold
+}
+
+function cosmeticShirt(value: string): string {
+  const colors: Record<string, string> = {
+    cyan: '#25b9c7',
+    blue: '#198bd5',
+    red: '#df4b4b',
+    pink: '#e4588d',
+    yellow: '#f2c84b',
+    green: '#35a970',
+    purple: '#7868ba',
+    black: '#253344',
+    white: '#f7f3e7',
+  }
+  return colors[value] ?? colors.cyan
+}
+
+function cosmeticSkin(value: string): string {
+  const colors: Record<string, string> = {
+    light: '#f3cda4',
+    tan: '#f0bd91',
+    medium: '#c98760',
+    brown: '#a96f50',
+    dark: '#744836',
+  }
+  return colors[value] ?? colors.tan
 }
 
 function titleCase(value: string): string {

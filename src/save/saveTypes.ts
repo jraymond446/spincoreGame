@@ -5,26 +5,75 @@ import type {
 
 export const playerAttributeKeys = [
   'speed',
-  'control',
-  'passing',
-  'shooting',
-  'defense',
-  'power',
-  'accuracy',
   'reaction',
-  'ballHandling',
+  'shotPower',
+  'shotAccuracy',
+  'shotSpin',
   'toughness',
 ] as const
 
 export type PlayerAttributeKey = (typeof playerAttributeKeys)[number]
-
 export type CreatedPlayerAttributes = Record<PlayerAttributeKey, number>
 
-export type PlayerVisualPreset =
-  | 'circuitBlue'
-  | 'solarGold'
-  | 'neonRose'
-  | 'deepCourt'
+export const playerArchetypeKeys = [
+  'striker',
+  'support',
+  'brute',
+  'technician',
+  'keeper',
+] as const
+
+export type CreatedPlayerArchetype =
+  (typeof playerArchetypeKeys)[number]
+
+export type PlayerSkinTone =
+  | 'light'
+  | 'tan'
+  | 'medium'
+  | 'brown'
+  | 'dark'
+export type PlayerHairStyle =
+  | 'short'
+  | 'messy'
+  | 'curly'
+  | 'buzz'
+  | 'ponytail'
+  | 'cap'
+  | 'bald'
+export type PlayerHairColor =
+  | 'black'
+  | 'brown'
+  | 'blonde'
+  | 'red'
+  | 'gray'
+  | 'blue'
+  | 'pink'
+export type PlayerShirtColor =
+  | 'cyan'
+  | 'blue'
+  | 'red'
+  | 'pink'
+  | 'yellow'
+  | 'green'
+  | 'purple'
+  | 'black'
+  | 'white'
+export type PlayerAccentColor =
+  | 'gold'
+  | 'cyan'
+  | 'pink'
+  | 'navy'
+  | 'orange'
+  | 'lime'
+
+export type PlayerCosmetics = {
+  skinTone: PlayerSkinTone
+  hairStyle: PlayerHairStyle
+  hairColor: PlayerHairColor
+  shirtColor: PlayerShirtColor
+  accentColor: PlayerAccentColor
+  shortsColor: PlayerShirtColor
+}
 
 export type CreatedPlayer = {
   id: string
@@ -32,14 +81,50 @@ export type CreatedPlayer = {
   jerseyNumber: number
   handedness: PlayerHandedness
   primaryRole: PlayerRole
-  visualPreset: PlayerVisualPreset
+  archetype: CreatedPlayerArchetype
+  cosmetics: PlayerCosmetics
   attributes: CreatedPlayerAttributes
+  selectedStickId: string
+}
+
+export type PlayerStatLine = {
+  matchesPlayed: number
+  wins: number
+  losses: number
+  goals: number
+  assists: number
+  shots: number
+  bankShotGoals: number
+  saves: number
+  steals: number
+  turnovers: number
+  hitsTaken: number
+  slashes: number
+  successfulGathers: number
+  fumbles: number
+}
+
+export type SeasonStats = PlayerStatLine & {
+  seasonId: string
+}
+
+export type LeagueStatLine = Pick<
+  PlayerStatLine,
+  | 'matchesPlayed'
+  | 'wins'
+  | 'losses'
+  | 'goals'
+  | 'assists'
+  | 'bankShotGoals'
+> & {
+  leagueName: string
+  championships: number
 }
 
 export type EquipmentSlot = 'stickId' | 'shieldId' | 'shoesId'
 
 export type SaveGame = {
-  version: 1
+  version: 2
   createdAt: string
   updatedAt: string
   player: CreatedPlayer
@@ -63,18 +148,10 @@ export type SaveGame = {
       losses: number
     }
   }
-  stats: {
-    matchesPlayed: number
-    goals: number
-    assists: number
-    shots: number
-    bankShotGoals: number
-    steals: number
-    saves: number
-    turnovers: number
-  }
+  seasonStats: SeasonStats
+  stats: PlayerStatLine
+  leagueStats: Record<string, LeagueStatLine>
   settings: {
     createdPlayerComplete: boolean
   }
 }
-

@@ -83,7 +83,14 @@ export class PlayerVisual {
   constructor(scene: Phaser.Scene, options: PlayerVisualOptions) {
     this.scene = scene
     this.options = options
-    this.palette = teamVisualPalettes[options.teamSide]
+    const teamPalette = teamVisualPalettes[options.teamSide]
+    this.palette = {
+      shirt: options.profile.shirtColor ?? teamPalette.shirt,
+      shirtShade:
+        options.profile.shirtShadeColor ?? teamPalette.shirtShade,
+      trim: options.profile.trimColor ?? teamPalette.trim,
+      shorts: options.profile.shortsColor ?? teamPalette.shorts,
+    }
     this.hairStyle = hairStyles[options.profile.hairStyle]
     this.animationPhase = this.hash(options.id) * 0.01
 
@@ -456,7 +463,8 @@ export class PlayerVisual {
       right,
       rearSide,
     )
-    const armColor = visualConfig.skinColor
+    const armColor =
+      this.options.profile.skinColor ?? visualConfig.skinColor
     const armWidth = Math.max(4, visualConfig.playerScale * 6)
 
     this.character.lineStyle(
@@ -651,7 +659,10 @@ export class PlayerVisual {
       visualConfig.outlineAlpha,
     )
     this.character.fillCircle(center.x, center.y, radius + 2.5)
-    this.character.fillStyle(visualConfig.skinColor, 1)
+    this.character.fillStyle(
+      this.options.profile.skinColor ?? visualConfig.skinColor,
+      1,
+    )
     this.character.fillCircle(center.x, center.y, radius)
 
     for (const side of [-1, 1]) {
@@ -664,12 +675,19 @@ export class PlayerVisual {
       )
       this.character.fillStyle(visualConfig.outlineColor, 0.9)
       this.character.fillCircle(ear.x, ear.y, radius * 0.25)
-      this.character.fillStyle(visualConfig.skinColor, 1)
+      this.character.fillStyle(
+        this.options.profile.skinColor ?? visualConfig.skinColor,
+        1,
+      )
       this.character.fillCircle(ear.x, ear.y, radius * 0.17)
     }
 
     const faceShade = this.offset(center, forward, -1, right, radius * 0.42)
-    this.character.fillStyle(visualConfig.skinShadeColor, 0.42)
+    this.character.fillStyle(
+      this.options.profile.skinShadeColor ??
+        visualConfig.skinShadeColor,
+      0.42,
+    )
     this.character.fillCircle(faceShade.x, faceShade.y, radius * 0.58)
 
     const crownCenter = this.offset(

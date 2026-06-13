@@ -1,20 +1,26 @@
-import { equipmentCatalog } from '../equipment/equipmentCatalog'
 import { getEffectivePlayerAttributes } from '../equipment/equipmentEffects'
+import { getStickType } from '../equipment/stickTypes'
 import type {
+  LeagueStatLine,
   PlayerAttributeKey,
+  PlayerStatLine,
   SaveGame,
+  SeasonStats,
 } from '../save/saveTypes'
 import { playerAttributeKeys } from '../save/saveTypes'
 import {
-  createPlayerIdentityCard,
   createSpincoreAttributeRow,
   createSpincoreBadge,
   createSpincoreButton,
   createSpincoreMetric,
   createSpincorePanel,
+  createSpincorePlayerPreview,
   createSpincoreScreenFrame,
+  createSpincoreStickCard,
   titleCase,
 } from '../ui'
+
+type StatsTab = 'season' | 'career' | 'league'
 
 export function createPlayerProfileScreen(options: {
   save: SaveGame
@@ -22,118 +28,140 @@ export function createPlayerProfileScreen(options: {
   onPlay: () => void
   onSpendPoint: (key: PlayerAttributeKey) => void
 }): HTMLElement {
+  const { save } = options
   const { root, body } = createSpincoreScreenFrame({
     eyebrow: 'PLAYER PROFILE',
-    title: options.save.player.name,
+    title: save.player.name,
     subtitle:
-      `#${options.save.player.jerseyNumber} / ` +
-      `${titleCase(options.save.player.primaryRole)} / ` +
-      `${titleCase(options.save.player.handedness)} handed`,
+      `#${save.player.jerseyNumber} / ` +
+      `${titleCase(save.player.archetype)} / ` +
+      `${titleCase(save.player.handedness)} handed`,
   })
-  const identityLayout = document.createElement('section')
-  identityLayout.className = 'profile-identity-layout'
-  identityLayout.appendChild(
-    createPlayerIdentityCard(options.save, { expanded: true }),
-  )
+  const profileGrid = document.createElement('section')
+  profileGrid.className = 'player-profile-grid'
+  const identityPanel = createSpincorePanel({
+    eyebrow: 'PLAYER CARD',
+    title: 'Circuit Identity',
+    tone: 'featured',
+  })
+  identityPanel.panel.classList.add('player-profile-identity-panel')
+  const preview = createSpincorePlayerPreview({
+    name: save.player.name,
+    jerseyNumber: save.player.jerseyNumber,
+    handedness: save.player.handedness,
+    archetype: save.player.archetype,
+    cosmetics: save.player.cosmetics,
+    selectedStickId: save.player.selectedStickId,
+  })
   const summary = document.createElement('div')
-  summary.className = 'profile-summary-grid'
+  summary.className = 'player-profile-summary'
   summary.append(
-    createSpincoreMetric('Level', options.save.progression.level, true),
-    createSpincoreMetric('XP', options.save.progression.xp),
-    createSpincoreMetric('Money', `$${options.save.wallet.money}`),
+    createSpincoreMetric('Level', save.progression.level, true),
+    createSpincoreMetric('XP', save.progression.xp),
+    createSpincoreMetric('Money', `$${save.wallet.money}`),
     createSpincoreMetric(
       'Record',
-      `${options.save.league.record.wins}-${options.save.league.record.losses}`,
-    ),
-    createSpincoreMetric('Matches', options.save.stats.matchesPlayed),
-    createSpincoreMetric(
-      'Open Points',
-      options.save.progression.unspentAttributePoints,
-      options.save.progression.unspentAttributePoints > 0,
+      `${save.league.record.wins}-${save.league.record.losses}`,
     ),
   )
-  identityLayout.appendChild(summary)
+  identityPanel.content.append(preview.element, summary)
 
-  const layout = document.createElement('div')
-  layout.className = 'profile-layout'
+  const buildColumn = document.createElement('div')
+  buildColumn.className = 'player-profile-build-column'
   const attributesPanel = createSpincorePanel({
-    eyebrow: 'BUILD',
-    title: 'Attributes',
+    eyebrow: 'PLAYER RATINGS',
+    title: 'Core Attributes',
     copy:
-      options.save.progression.unspentAttributePoints > 0
-        ? 'Spend available points instantly.'
-        : 'Level up to earn more attribute points.',
+      save.progression.unspentAttributePoints > 0
+        ? `${save.progression.unspentAttributePoints} points available.`
+        : 'Earn attribute points by leveling up.',
   })
   const attributeList = document.createElement('div')
   attributeList.className = 'profile-attribute-list'
-  const effective = getEffectivePlayerAttributes(options.save)
+  const effective = getEffectivePlayerAttributes(save)
 
   for (const key of playerAttributeKeys) {
     attributeList.appendChild(
       createSpincoreAttributeRow({
         label: titleCase(key),
-        base: options.save.player.attributes[key],
+        base: save.player.attributes[key],
         effective: effective[key],
         canIncrease:
-          options.save.progression.unspentAttributePoints > 0 &&
-          options.save.player.attributes[key] < 99,
+          save.progression.unspentAttributePoints > 0 &&
+          save.player.attributes[key] < 99,
         onIncrease: () => options.onSpendPoint(key),
       }),
     )
   }
 
   attributesPanel.content.appendChild(attributeList)
-  const rightRail = document.createElement('div')
-  rightRail.className = 'profile-right-rail'
-  const loadoutPanel = createSpincorePanel({
-    eyebrow: 'GEAR',
-    title: 'Current Loadout',
+  const stickPanel = createSpincorePanel({
+    eyebrow: 'EQUIPMENT',
+    title: 'Stick Attributes',
+    copy: 'Stick modifiers are included in the effective ratings above.',
   })
-  const loadout = document.createElement('div')
-  loadout.className = 'profile-loadout-list'
+  const stick = getStickType(save.player.selectedStickId)
+  stickPanel.content.appendChild(
+    createSpincoreStickCard(stick, { detailed: true }),
+  )
+  stickPanel.actions.append(
+    createSpincoreButton('Manage Equipment', () => {}, {
+      tone: 'quiet',
+      disabled: true,
+    }),
+    createSpincoreBadge('STORE LINK COMING SOON', 'navy'),
+  )
+  buildColumn.append(attributesPanel.panel, stickPanel.panel)
+  profileGrid.append(identityPanel.panel, buildColumn)
 
-  for (const [slot, itemId] of Object.entries(
-    options.save.equipment.equipped,
-  )) {
-    const row = document.createElement('div')
-    const label = document.createElement('span')
-    label.textContent = titleCase(slot.replace(/Id$/, ''))
-    const item = equipmentCatalog.find((candidate) => candidate.id === itemId)
-    row.append(
-      label,
-      createSpincoreBadge(item?.name ?? 'Empty', item ? 'mint' : 'navy'),
-    )
-    loadout.appendChild(row)
-  }
-
-  loadoutPanel.content.appendChild(loadout)
   const statsPanel = createSpincorePanel({
-    eyebrow: 'CAREER',
-    title: 'Circuit Ledger',
+    eyebrow: 'PERFORMANCE',
+    title: 'Player Statistics',
   })
-  const stats = document.createElement('dl')
-  stats.className = 'profile-stats-list'
-  const statEntries: Array<[string, number]> = [
-    ['Goals', options.save.stats.goals],
-    ['Bank goals', options.save.stats.bankShotGoals],
-    ['Assists', options.save.stats.assists],
-    ['Shots', options.save.stats.shots],
-    ['Steals', options.save.stats.steals],
-    ['Saves', options.save.stats.saves],
-    ['Turnovers', options.save.stats.turnovers],
-  ]
+  const tabBar = document.createElement('div')
+  tabBar.className = 'profile-stats-tabs'
+  const statsContent = document.createElement('div')
+  statsContent.className = 'profile-stats-content'
+  let activeTab: StatsTab = 'season'
 
-  for (const [labelText, value] of statEntries) {
-    const term = document.createElement('dt')
-    term.textContent = labelText
-    const description = document.createElement('dd')
-    description.textContent = String(value)
-    stats.append(term, description)
+  const renderStats = (): void => {
+    for (const button of tabBar.querySelectorAll('button')) {
+      button.classList.toggle(
+        'is-active',
+        button.dataset.tab === activeTab,
+      )
+    }
+
+    if (activeTab === 'league') {
+      statsContent.replaceChildren(
+        createLeagueStats(save.leagueStats),
+      )
+      return
+    }
+
+    const stats =
+      activeTab === 'season' ? save.seasonStats : save.stats
+    statsContent.replaceChildren(createStatGrid(stats))
   }
 
-  statsPanel.content.appendChild(stats)
-  rightRail.append(loadoutPanel.panel, statsPanel.panel)
-  layout.append(attributesPanel.panel, rightRail)
+  for (const [tab, label] of [
+    ['season', 'Season Stats'],
+    ['career', 'Career Stats'],
+    ['league', 'League Stats'],
+  ] as Array<[StatsTab, string]>) {
+    const button = createSpincoreButton(label, () => {
+      activeTab = tab
+      renderStats()
+    }, {
+      tone: 'quiet',
+      compact: true,
+    })
+    button.dataset.tab = tab
+    tabBar.appendChild(button)
+  }
+
+  renderStats()
+  statsPanel.content.append(tabBar, statsContent)
   const actions = document.createElement('div')
   actions.className = 'app-screen-actions'
   actions.append(
@@ -142,6 +170,79 @@ export function createPlayerProfileScreen(options: {
       tone: 'primary',
     }),
   )
-  body.append(identityLayout, layout, actions)
+  body.append(profileGrid, statsPanel.panel, actions)
   return root
+}
+
+function createStatGrid(stats: PlayerStatLine | SeasonStats): HTMLElement {
+  const grid = document.createElement('dl')
+  grid.className = 'profile-stat-grid'
+  const shotPercentage =
+    stats.shots > 0 ? Math.round(stats.goals / stats.shots * 100) : 0
+  const entries: Array<[string, string | number]> = [
+    ['Matches', stats.matchesPlayed],
+    ['Record', `${stats.wins}-${stats.losses}`],
+    ['Goals', stats.goals],
+    ['Assists', stats.assists],
+    ['Shots', stats.shots],
+    ['Shot %', `${shotPercentage}%`],
+    ['Bank goals', stats.bankShotGoals],
+    ['Saves', stats.saves],
+    ['Steals', stats.steals],
+    ['Turnovers', stats.turnovers],
+    ['Hits taken', stats.hitsTaken],
+    ['Slashes', stats.slashes],
+    ['Gathers', stats.successfulGathers],
+    ['Fumbles', stats.fumbles],
+  ]
+
+  for (const [label, value] of entries) {
+    const item = document.createElement('div')
+    const term = document.createElement('dt')
+    term.textContent = label
+    const description = document.createElement('dd')
+    description.textContent = String(value)
+    item.append(term, description)
+    grid.appendChild(item)
+  }
+
+  return grid
+}
+
+function createLeagueStats(
+  leagueStats: Record<string, LeagueStatLine>,
+): HTMLElement {
+  const grid = document.createElement('div')
+  grid.className = 'profile-league-stats'
+  const entries = Object.entries(leagueStats)
+
+  if (entries.length === 0) {
+    const empty = document.createElement('p')
+    empty.textContent = 'No league stats recorded yet.'
+    grid.appendChild(empty)
+    return grid
+  }
+
+  for (const [id, stats] of entries) {
+    const card = document.createElement('article')
+    const heading = document.createElement('div')
+    const title = document.createElement('strong')
+    title.textContent = stats.leagueName
+    heading.append(
+      title,
+      createSpincoreBadge(id.toUpperCase(), 'blue'),
+    )
+    const record = document.createElement('p')
+    record.textContent =
+      `${stats.matchesPlayed} matches / ${stats.wins}-${stats.losses} / ` +
+      `${stats.goals} goals / ${stats.bankShotGoals} bank goals`
+    const championships = createSpincoreBadge(
+      `${stats.championships} CHAMPIONSHIPS`,
+      stats.championships > 0 ? 'gold' : 'navy',
+    )
+    card.append(heading, record, championships)
+    grid.appendChild(card)
+  }
+
+  return grid
 }

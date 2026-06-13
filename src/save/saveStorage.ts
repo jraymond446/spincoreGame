@@ -11,13 +11,21 @@ export function loadSave(): SaveGame | null {
       return null
     }
 
-    const save = validateSave(JSON.parse(stored))
+    const parsed: unknown = JSON.parse(stored)
+    const save = validateSave(parsed)
 
     if (!save) {
       console.warn(
         '[Save Load Error]',
         new Error('Stored save did not pass validation.'),
       )
+    } else if (
+      typeof parsed === 'object' &&
+      parsed !== null &&
+      'version' in parsed &&
+      parsed.version !== save.version
+    ) {
+      window.localStorage.setItem(saveGameKey, JSON.stringify(save))
     }
 
     return save
@@ -67,4 +75,3 @@ export function updateSave(
   mutator(draft)
   return saveGame(draft)
 }
-

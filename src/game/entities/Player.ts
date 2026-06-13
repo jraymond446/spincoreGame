@@ -124,6 +124,7 @@ export class Player {
         this.role,
         rosterEntry.stickStyle,
         rosterEntry.visualPreset,
+        rosterEntry.visualProfile,
       ),
     })
     this.syncVisuals()

@@ -85,6 +85,17 @@ export type PlayerAttributes = {
   toughness: number
 }
 
+export type PlayerVisualProfileOverride = {
+  hairStyle?: 'crop' | 'spikes' | 'swoop' | 'tuft' | 'bob'
+  hairColor?: number
+  skinColor?: number
+  skinShadeColor?: number
+  shirtColor?: number
+  shirtShadeColor?: number
+  trimColor?: number
+  shortsColor?: number
+}
+
 export type PlayerDefenseTendencies = {
   truckAggression: number
   slashAggression: number
@@ -104,6 +115,7 @@ export type PlayerRosterEntry = {
   displayName?: string
   jerseyNumber?: number
   visualPreset?: string
+  visualProfile?: PlayerVisualProfileOverride
   teamId: string
   teamSide: TeamSide
   role: PlayerRole

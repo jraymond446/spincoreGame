@@ -1,12 +1,13 @@
 import type {
   PlayerArchetype,
-  PlayerAttributes,
   PlayerPlayStyle,
   PlayerRosterEntry,
-  StickStyle,
 } from '../game/data/matchTypes'
 import type { OpponentTeam } from '../game/data/opponentTeams'
 import { getEffectivePlayerAttributes } from '../equipment/equipmentEffects'
+import { getStickType } from '../equipment/stickTypes'
+import { mapCreatedPlayerAttributesToMatchAttributes } from '../player/playerAttributeAdapter'
+import { mapCosmeticsToMatchVisual } from '../player/playerCosmetics'
 import type { SaveGame } from '../save/saveTypes'
 
 export type MatchRosterOverrides = {
@@ -41,22 +42,23 @@ export function applyMatchRosterOverrides(
         teammate.controllerType = 'ai'
       }
 
+      const stick = getStickType(player.selectedStickId)
       entry.controllerType = 'human'
       entry.role = player.primaryRole
       entry.archetypeId = player.primaryRole
       entry.handedness = player.handedness
-      entry.playStyle = playStyleForRole(player.primaryRole)
-      entry.stickStyle = stickStyleForRole(player.primaryRole)
+      entry.playStyle = playStyleForArchetype(player.archetype)
+      entry.stickStyle = stick.visualStyle
       entry.displayName = player.name
       entry.jerseyNumber = player.jerseyNumber
-      entry.visualPreset = player.visualPreset
+      entry.visualProfile = mapCosmeticsToMatchVisual(player.cosmetics)
       teamAPlayerId = entry.id
       archetypes.set(entry.id, {
         id: player.primaryRole,
         role: player.primaryRole,
         defaultHandedness: player.handedness,
         defaultPlayStyle: entry.playStyle,
-        attributes: toRuntimeAttributes(
+        attributes: mapCreatedPlayerAttributesToMatchAttributes(
           getEffectivePlayerAttributes(save),
         ),
       })
@@ -98,53 +100,19 @@ export function applyMatchRosterOverrides(
   }
 }
 
-function toRuntimeAttributes(
-  attributes: SaveGame['player']['attributes'],
-): PlayerAttributes {
-  return {
-    speed: runtimeValue(attributes.speed),
-    control: runtimeValue(attributes.control),
-    passing: runtimeValue(attributes.passing),
-    shooting: runtimeValue(attributes.shooting),
-    defense: runtimeValue(attributes.defense),
-    power: runtimeValue(attributes.power),
-    accuracy: runtimeValue(attributes.accuracy),
-    reaction: runtimeValue(attributes.reaction),
-    ballHandling: runtimeValue(attributes.ballHandling),
-    toughness: runtimeValue(attributes.toughness),
-  }
-}
-
-function runtimeValue(value: number): number {
-  return Math.min(1.19, Math.max(0.21, 0.2 + value / 100))
-}
-
-function playStyleForRole(
-  role: SaveGame['player']['primaryRole'],
+function playStyleForArchetype(
+  archetype: SaveGame['player']['archetype'],
 ): PlayerPlayStyle {
-  switch (role) {
+  switch (archetype) {
     case 'keeper':
       return 'tight'
     case 'support':
       return 'creative'
+    case 'technician':
+      return 'technical'
     case 'brute':
       return 'disruptive'
     default:
       return 'aggressive'
   }
 }
-
-function stickStyleForRole(
-  role: SaveGame['player']['primaryRole'],
-): StickStyle {
-  switch (role) {
-    case 'keeper':
-    case 'support':
-      return 'cradle'
-    case 'brute':
-      return 'hammer'
-    default:
-      return 'hook'
-  }
-}
-

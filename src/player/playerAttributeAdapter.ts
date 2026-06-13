@@ -1,0 +1,43 @@
+import type { PlayerAttributes } from '../game/data/matchTypes'
+import type { CreatedPlayerAttributes } from '../save/saveTypes'
+
+export function mapCreatedPlayerAttributesToMatchAttributes(
+  attributes: CreatedPlayerAttributes,
+): PlayerAttributes {
+  return {
+    speed: runtimeValue(attributes.speed),
+    reaction: runtimeValue(attributes.reaction),
+    power: runtimeValue(attributes.shotPower),
+    shooting: runtimeValue(
+      average(attributes.shotPower, attributes.shotAccuracy),
+    ),
+    accuracy: runtimeValue(
+      average(attributes.shotAccuracy, attributes.shotSpin),
+    ),
+    control: runtimeValue(
+      average(attributes.reaction, attributes.shotSpin),
+    ),
+    passing: runtimeValue(
+      average(attributes.shotAccuracy, attributes.reaction),
+    ),
+    defense: runtimeValue(
+      average(attributes.toughness, attributes.reaction),
+    ),
+    ballHandling: runtimeValue(
+      average(
+        attributes.toughness,
+        attributes.reaction,
+        attributes.shotSpin,
+      ),
+    ),
+    toughness: runtimeValue(attributes.toughness),
+  }
+}
+
+function average(...values: number[]): number {
+  return values.reduce((sum, value) => sum + value, 0) / values.length
+}
+
+function runtimeValue(value: number): number {
+  return Math.min(1.19, Math.max(0.21, 0.2 + value / 100))
+}

@@ -87,7 +87,9 @@ export class AppShell {
       createCreatePlayerScreen({
         onCreate: (values) => {
           const player = createCreatedPlayer(values)
-          const saved = saveGame(createNewSave(player))
+          const saved = saveGame(
+            createNewSave(player, values.unspentStartingPoints),
+          )
 
           if (!saved) {
             return
@@ -338,6 +340,11 @@ export class AppShell {
     const slot = `${item.type}Id` as EquipmentSlot
     const draft = structuredClone(save)
     draft.equipment.equipped[slot] = item.id
+
+    if (item.type === 'stick') {
+      draft.player.selectedStickId = item.id
+    }
+
     const saved = saveGame(draft)
 
     if (saved) {

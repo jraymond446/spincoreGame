@@ -1,38 +1,152 @@
+import { getStickType, migrateStickId } from '../equipment/stickTypes'
+import {
+  defaultPlayerCosmetics,
+  roleForArchetype,
+} from './defaultSave'
 import type {
   CreatedPlayer,
+  CreatedPlayerArchetype,
   CreatedPlayerAttributes,
-  PlayerAttributeKey,
-  PlayerVisualPreset,
+  LeagueStatLine,
+  PlayerAccentColor,
+  PlayerCosmetics,
+  PlayerHairColor,
+  PlayerHairStyle,
+  PlayerShirtColor,
+  PlayerSkinTone,
+  PlayerStatLine,
   SaveGame,
+  SeasonStats,
 } from './saveTypes'
-import { playerAttributeKeys } from './saveTypes'
+import {
+  playerArchetypeKeys,
+  playerAttributeKeys,
+} from './saveTypes'
 
 const roles = ['keeper', 'striker', 'support', 'brute'] as const
 const handedness = ['left', 'right'] as const
-const visualPresets: PlayerVisualPreset[] = [
-  'circuitBlue',
-  'solarGold',
-  'neonRose',
-  'deepCourt',
+const skinTones: PlayerSkinTone[] = [
+  'light',
+  'tan',
+  'medium',
+  'brown',
+  'dark',
 ]
+const hairStyles: PlayerHairStyle[] = [
+  'short',
+  'messy',
+  'curly',
+  'buzz',
+  'ponytail',
+  'cap',
+  'bald',
+]
+const hairColors: PlayerHairColor[] = [
+  'black',
+  'brown',
+  'blonde',
+  'red',
+  'gray',
+  'blue',
+  'pink',
+]
+const shirtColors: PlayerShirtColor[] = [
+  'cyan',
+  'blue',
+  'red',
+  'pink',
+  'yellow',
+  'green',
+  'purple',
+  'black',
+  'white',
+]
+const accentColors: PlayerAccentColor[] = [
+  'gold',
+  'cyan',
+  'pink',
+  'navy',
+  'orange',
+  'lime',
+]
+
+type LegacyAttributes = Record<string, unknown>
+type LegacyVisualPreset =
+  | 'circuitBlue'
+  | 'solarGold'
+  | 'neonRose'
+  | 'deepCourt'
 
 export function migrateSave(raw: unknown): unknown {
   if (!isRecord(raw)) {
     return raw
   }
 
-  if (raw.version === 1) {
+  if (raw.version === 2) {
     return raw
   }
 
-  return raw
+  if (raw.version !== 1) {
+    return raw
+  }
+
+  const player = record(raw.player)
+  const oldStats = record(raw.stats)
+  const league = record(raw.league)
+  const leagueRecord = record(league.record)
+  const equipment = record(raw.equipment)
+  const equipped = record(equipment.equipped)
+  const selectedStickId = migrateStickId(equipped.stickId)
+  const stats = migrateLegacyStats(oldStats, leagueRecord)
+
+  return {
+    ...raw,
+    version: 2,
+    player: {
+      ...player,
+      archetype: legacyArchetype(player.primaryRole),
+      cosmetics: cosmeticsFromLegacyPreset(player.visualPreset),
+      attributes: migrateLegacyAttributes(record(player.attributes)),
+      selectedStickId,
+    },
+    equipment: {
+      ...equipment,
+      equipped: {
+        ...equipped,
+        stickId: selectedStickId,
+      },
+      inventory: [
+        ...new Set([
+          ...stringArray(equipment.inventory).map(migrateStickId),
+          selectedStickId,
+        ]),
+      ],
+    },
+    seasonStats: {
+      seasonId: 'rookie-season-1',
+      ...stats,
+    },
+    stats,
+    leagueStats: {
+      'local-circuit': {
+        leagueName: 'Local Circuit',
+        matchesPlayed: stats.matchesPlayed,
+        wins: stats.wins,
+        losses: stats.losses,
+        goals: stats.goals,
+        assists: stats.assists,
+        bankShotGoals: stats.bankShotGoals,
+        championships: 0,
+      },
+    },
+  }
 }
 
 export function validateSave(raw: unknown): SaveGame | null {
   try {
     const migrated = migrateSave(raw)
 
-    if (!isRecord(migrated) || migrated.version !== 1) {
+    if (!isRecord(migrated) || migrated.version !== 2) {
       throw new Error('Unsupported or missing save version.')
     }
 
@@ -48,15 +162,19 @@ export function validateSave(raw: unknown): SaveGame | null {
     const equipped = record(equipment.equipped)
     const league = record(migrated.league)
     const leagueRecord = record(league.record)
-    const stats = record(migrated.stats)
     const settings = record(migrated.settings)
     const timestamp = new Date().toISOString()
+    const selectedStickId = getStickType(player.selectedStickId).id
+    const inventory = stringArray(equipment.inventory).map(migrateStickId)
 
     return {
-      version: 1,
+      version: 2,
       createdAt: dateString(migrated.createdAt, timestamp),
       updatedAt: dateString(migrated.updatedAt, timestamp),
-      player,
+      player: {
+        ...player,
+        selectedStickId,
+      },
       wallet: {
         money: integer(wallet.money, 0, 999_999_999, 0),
       },
@@ -72,11 +190,11 @@ export function validateSave(raw: unknown): SaveGame | null {
       },
       equipment: {
         equipped: {
-          stickId: nullableString(equipped.stickId),
+          stickId: selectedStickId,
           shieldId: nullableString(equipped.shieldId),
           shoesId: nullableString(equipped.shoesId),
         },
-        inventory: stringArray(equipment.inventory),
+        inventory: [...new Set([...inventory, selectedStickId])],
       },
       league: {
         currentLeagueId: nullableString(league.currentLeagueId),
@@ -86,16 +204,9 @@ export function validateSave(raw: unknown): SaveGame | null {
           losses: integer(leagueRecord.losses, 0, 999_999, 0),
         },
       },
-      stats: {
-        matchesPlayed: integer(stats.matchesPlayed, 0, 999_999, 0),
-        goals: integer(stats.goals, 0, 999_999, 0),
-        assists: integer(stats.assists, 0, 999_999, 0),
-        shots: integer(stats.shots, 0, 999_999, 0),
-        bankShotGoals: integer(stats.bankShotGoals, 0, 999_999, 0),
-        steals: integer(stats.steals, 0, 999_999, 0),
-        saves: integer(stats.saves, 0, 999_999, 0),
-        turnovers: integer(stats.turnovers, 0, 999_999, 0),
-      },
+      seasonStats: validateSeasonStats(migrated.seasonStats),
+      stats: validatePlayerStats(migrated.stats),
+      leagueStats: validateLeagueStats(migrated.leagueStats),
       settings: {
         createdPlayerComplete:
           typeof settings.createdPlayerComplete === 'boolean'
@@ -118,13 +229,13 @@ function validatePlayer(raw: unknown): CreatedPlayer | null {
     typeof raw.name === 'string'
       ? raw.name.trim().slice(0, 24)
       : ''
-  const role = roles.find((candidate) => candidate === raw.primaryRole)
   const hand = handedness.find((candidate) => candidate === raw.handedness)
-  const visualPreset = visualPresets.find(
-    (candidate) => candidate === raw.visualPreset,
-  )
+  const archetype =
+    playerArchetypeKeys.find(
+      (candidate) => candidate === raw.archetype,
+    ) ?? legacyArchetype(raw.primaryRole)
 
-  if (!name || !role || !hand) {
+  if (!name || !hand) {
     return null
   }
 
@@ -136,9 +247,11 @@ function validatePlayer(raw: unknown): CreatedPlayer | null {
     name,
     jerseyNumber: integer(raw.jerseyNumber, 0, 99, 0),
     handedness: hand,
-    primaryRole: role,
-    visualPreset: visualPreset ?? 'circuitBlue',
+    primaryRole: roleForArchetype(archetype),
+    archetype,
+    cosmetics: validateCosmetics(raw.cosmetics),
     attributes: validateAttributes(raw.attributes),
+    selectedStickId: migrateStickId(raw.selectedStickId),
   }
 }
 
@@ -151,6 +264,166 @@ function validateAttributes(raw: unknown): CreatedPlayerAttributes {
   }
 
   return attributes
+}
+
+function validateCosmetics(raw: unknown): PlayerCosmetics {
+  const values = record(raw)
+  return {
+    skinTone:
+      skinTones.find((value) => value === values.skinTone) ??
+      defaultPlayerCosmetics.skinTone,
+    hairStyle:
+      hairStyles.find((value) => value === values.hairStyle) ??
+      defaultPlayerCosmetics.hairStyle,
+    hairColor:
+      hairColors.find((value) => value === values.hairColor) ??
+      defaultPlayerCosmetics.hairColor,
+    shirtColor:
+      shirtColors.find((value) => value === values.shirtColor) ??
+      defaultPlayerCosmetics.shirtColor,
+    accentColor:
+      accentColors.find((value) => value === values.accentColor) ??
+      defaultPlayerCosmetics.accentColor,
+    shortsColor:
+      shirtColors.find((value) => value === values.shortsColor) ??
+      defaultPlayerCosmetics.shortsColor,
+  }
+}
+
+function validatePlayerStats(raw: unknown): PlayerStatLine {
+  const stats = record(raw)
+  return {
+    matchesPlayed: stat(stats.matchesPlayed),
+    wins: stat(stats.wins),
+    losses: stat(stats.losses),
+    goals: stat(stats.goals),
+    assists: stat(stats.assists),
+    shots: stat(stats.shots),
+    bankShotGoals: stat(stats.bankShotGoals),
+    saves: stat(stats.saves),
+    steals: stat(stats.steals),
+    turnovers: stat(stats.turnovers),
+    hitsTaken: stat(stats.hitsTaken),
+    slashes: stat(stats.slashes),
+    successfulGathers: stat(stats.successfulGathers),
+    fumbles: stat(stats.fumbles),
+  }
+}
+
+function validateSeasonStats(raw: unknown): SeasonStats {
+  const values = record(raw)
+  return {
+    seasonId:
+      typeof values.seasonId === 'string' && values.seasonId.trim()
+        ? values.seasonId.trim().slice(0, 80)
+        : 'rookie-season-1',
+    ...validatePlayerStats(values),
+  }
+}
+
+function validateLeagueStats(raw: unknown): Record<string, LeagueStatLine> {
+  if (!isRecord(raw)) {
+    return {}
+  }
+
+  const result: Record<string, LeagueStatLine> = {}
+
+  for (const [id, value] of Object.entries(raw)) {
+    const stats = record(value)
+    result[id.slice(0, 80)] = {
+      leagueName:
+        typeof stats.leagueName === 'string' && stats.leagueName.trim()
+          ? stats.leagueName.trim().slice(0, 80)
+          : id,
+      matchesPlayed: stat(stats.matchesPlayed),
+      wins: stat(stats.wins),
+      losses: stat(stats.losses),
+      goals: stat(stats.goals),
+      assists: stat(stats.assists),
+      bankShotGoals: stat(stats.bankShotGoals),
+      championships: stat(stats.championships),
+    }
+  }
+
+  return result
+}
+
+function migrateLegacyAttributes(
+  old: LegacyAttributes,
+): CreatedPlayerAttributes {
+  return {
+    speed: legacyAttribute(old.speed),
+    reaction: legacyAttribute(old.reaction),
+    shotPower: averageLegacy(old.power, old.shooting),
+    shotAccuracy: averageLegacy(
+      old.accuracy,
+      old.shooting,
+      old.passing,
+    ),
+    shotSpin: averageLegacy(old.control, old.accuracy),
+    toughness: averageLegacy(
+      old.toughness,
+      old.defense,
+      old.ballHandling,
+    ),
+  }
+}
+
+function migrateLegacyStats(
+  stats: Record<string, unknown>,
+  recordValue: Record<string, unknown>,
+): PlayerStatLine {
+  return {
+    ...validatePlayerStats(stats),
+    wins: stat(recordValue.wins),
+    losses: stat(recordValue.losses),
+  }
+}
+
+function cosmeticsFromLegacyPreset(raw: unknown): PlayerCosmetics {
+  switch (raw as LegacyVisualPreset) {
+    case 'solarGold':
+      return {
+        ...defaultPlayerCosmetics,
+        hairStyle: 'short',
+        hairColor: 'blonde',
+        shirtColor: 'yellow',
+      }
+    case 'neonRose':
+      return {
+        ...defaultPlayerCosmetics,
+        hairStyle: 'messy',
+        hairColor: 'pink',
+        shirtColor: 'pink',
+      }
+    case 'deepCourt':
+      return {
+        ...defaultPlayerCosmetics,
+        hairStyle: 'buzz',
+        shirtColor: 'black',
+        accentColor: 'cyan',
+      }
+    default:
+      return defaultPlayerCosmetics
+  }
+}
+
+function legacyArchetype(raw: unknown): CreatedPlayerArchetype {
+  return roles.find((role) => role === raw) ?? 'striker'
+}
+
+function averageLegacy(...values: unknown[]): number {
+  return clampAttribute(
+    values.reduce<number>(
+      (sum, value) => sum + legacyAttribute(value),
+      0,
+    ) /
+      values.length,
+  )
+}
+
+function legacyAttribute(value: unknown): number {
+  return integer(value, 1, 99, 50)
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -172,6 +445,10 @@ function integer(
   return Number.isFinite(numeric)
     ? Math.round(Math.min(maximum, Math.max(minimum, numeric)))
     : fallback
+}
+
+function stat(value: unknown): number {
+  return integer(value, 0, 999_999, 0)
 }
 
 function nullableString(value: unknown): string | null {
@@ -206,11 +483,6 @@ function dateString(value: unknown, fallback: string): string {
   return fallback
 }
 
-export function clampAttribute(
-  key: PlayerAttributeKey,
-  value: number,
-): number {
-  void key
+export function clampAttribute(value: number): number {
   return Math.min(99, Math.max(1, Math.round(value)))
 }
-

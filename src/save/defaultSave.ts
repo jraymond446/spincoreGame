@@ -1,73 +1,90 @@
+import { defaultPlayerCosmetics } from '../player/playerCosmetics'
 import type {
   CreatedPlayer,
+  CreatedPlayerArchetype,
   CreatedPlayerAttributes,
   PlayerAttributeKey,
-  PlayerVisualPreset,
+  PlayerCosmetics,
+  PlayerStatLine,
   SaveGame,
 } from './saveTypes'
 
 const roleAdjustments: Record<
-  CreatedPlayer['primaryRole'],
+  CreatedPlayerArchetype,
   Partial<Record<PlayerAttributeKey, number>>
 > = {
   striker: {
-    shooting: 10,
     speed: 5,
-    accuracy: 5,
-    defense: -5,
-    passing: -5,
+    shotPower: 8,
+    shotAccuracy: 7,
+    toughness: -5,
+    reaction: -2,
   },
   support: {
-    passing: 10,
-    control: 5,
-    ballHandling: 5,
-    power: -5,
-    shooting: -5,
+    reaction: 7,
+    shotAccuracy: 5,
+    shotSpin: 8,
+    shotPower: -5,
+    toughness: -3,
   },
   brute: {
-    power: 10,
     toughness: 10,
-    defense: 5,
-    passing: -5,
-    accuracy: -5,
+    shotPower: 6,
+    speed: -4,
+    shotAccuracy: -5,
+    shotSpin: -3,
+  },
+  technician: {
+    shotSpin: 10,
+    shotAccuracy: 6,
+    reaction: 4,
+    toughness: -6,
+    shotPower: -4,
   },
   keeper: {
     reaction: 10,
-    defense: 10,
-    toughness: 5,
-    shooting: -10,
+    toughness: 8,
+    shotPower: 3,
+    speed: -5,
+    shotSpin: -5,
   },
 }
 
 export function createStartingAttributes(
-  role: CreatedPlayer['primaryRole'],
+  archetype: CreatedPlayerArchetype,
 ): CreatedPlayerAttributes {
   const attributes: CreatedPlayerAttributes = {
     speed: 50,
-    control: 50,
-    passing: 50,
-    shooting: 50,
-    defense: 50,
-    power: 50,
-    accuracy: 50,
     reaction: 50,
-    ballHandling: 50,
+    shotPower: 50,
+    shotAccuracy: 50,
+    shotSpin: 50,
     toughness: 50,
   }
 
-  for (const [key, adjustment] of Object.entries(roleAdjustments[role])) {
+  for (const [key, adjustment] of Object.entries(
+    roleAdjustments[archetype],
+  )) {
     attributes[key as PlayerAttributeKey] += adjustment ?? 0
   }
 
   return attributes
 }
 
+export function roleForArchetype(
+  archetype: CreatedPlayerArchetype,
+): CreatedPlayer['primaryRole'] {
+  return archetype === 'technician' ? 'support' : archetype
+}
+
 export function createCreatedPlayer(input: {
   name: string
   jerseyNumber: number
   handedness: CreatedPlayer['handedness']
-  primaryRole: CreatedPlayer['primaryRole']
-  visualPreset: PlayerVisualPreset
+  archetype: CreatedPlayerArchetype
+  cosmetics: PlayerCosmetics
+  attributes: CreatedPlayerAttributes
+  selectedStickId: string
 }): CreatedPlayer {
   return {
     id:
@@ -77,17 +94,42 @@ export function createCreatedPlayer(input: {
     name: input.name.trim(),
     jerseyNumber: input.jerseyNumber,
     handedness: input.handedness,
-    primaryRole: input.primaryRole,
-    visualPreset: input.visualPreset,
-    attributes: createStartingAttributes(input.primaryRole),
+    primaryRole: roleForArchetype(input.archetype),
+    archetype: input.archetype,
+    cosmetics: structuredClone(input.cosmetics),
+    attributes: structuredClone(input.attributes),
+    selectedStickId: input.selectedStickId,
   }
 }
 
-export function createNewSave(player: CreatedPlayer): SaveGame {
+export function createEmptyPlayerStats(): PlayerStatLine {
+  return {
+    matchesPlayed: 0,
+    wins: 0,
+    losses: 0,
+    goals: 0,
+    assists: 0,
+    shots: 0,
+    bankShotGoals: 0,
+    saves: 0,
+    steals: 0,
+    turnovers: 0,
+    hitsTaken: 0,
+    slashes: 0,
+    successfulGathers: 0,
+    fumbles: 0,
+  }
+}
+
+export function createNewSave(
+  player: CreatedPlayer,
+  unspentStartingPoints = 0,
+): SaveGame {
   const timestamp = new Date().toISOString()
+  const careerStats = createEmptyPlayerStats()
 
   return {
-    version: 1,
+    version: 2,
     createdAt: timestamp,
     updatedAt: timestamp,
     player: structuredClone(player),
@@ -97,15 +139,15 @@ export function createNewSave(player: CreatedPlayer): SaveGame {
     progression: {
       xp: 0,
       level: 1,
-      unspentAttributePoints: 5,
+      unspentAttributePoints: Math.max(0, unspentStartingPoints),
     },
     equipment: {
       equipped: {
-        stickId: 'backyard-cesta',
+        stickId: player.selectedStickId,
         shieldId: null,
         shoesId: null,
       },
-      inventory: ['backyard-cesta'],
+      inventory: [player.selectedStickId],
     },
     league: {
       currentLeagueId: 'local-circuit',
@@ -115,15 +157,22 @@ export function createNewSave(player: CreatedPlayer): SaveGame {
         losses: 0,
       },
     },
-    stats: {
-      matchesPlayed: 0,
-      goals: 0,
-      assists: 0,
-      shots: 0,
-      bankShotGoals: 0,
-      steals: 0,
-      saves: 0,
-      turnovers: 0,
+    seasonStats: {
+      seasonId: 'rookie-season-1',
+      ...structuredClone(careerStats),
+    },
+    stats: careerStats,
+    leagueStats: {
+      'local-circuit': {
+        leagueName: 'Local Circuit',
+        matchesPlayed: 0,
+        wins: 0,
+        losses: 0,
+        goals: 0,
+        assists: 0,
+        bankShotGoals: 0,
+        championships: 0,
+      },
     },
     settings: {
       createdPlayerComplete: true,
@@ -131,3 +180,4 @@ export function createNewSave(player: CreatedPlayer): SaveGame {
   }
 }
 
+export { defaultPlayerCosmetics }

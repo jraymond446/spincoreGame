@@ -8,8 +8,13 @@ export {
 export { createSpincoreEquipmentCard } from './SpincoreEquipmentCard'
 export { createSpincoreHeader } from './SpincoreHeader'
 export { createSpincorePanel } from './SpincorePanel'
+export {
+  createSpincorePlayerPreview,
+  type PlayerPreviewData,
+} from './SpincorePlayerPreview'
 export { createSpincoreScreenFrame } from './SpincoreScreenFrame'
 export { createSpincoreStatBar } from './SpincoreStatBar'
+export { createSpincoreStickCard } from './SpincoreStickCard'
 export { createSpincoreTeamCard } from './SpincoreTeamCard'
 
 export function createSpincoreMetric(
