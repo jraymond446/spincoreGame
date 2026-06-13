@@ -1,5 +1,6 @@
 import { arenaConfig } from './arenaConfig'
 import { visualStyleConfig } from './visualStyleConfig'
+import type { TeamSide } from '../data/matchTypes'
 
 export type GoalGateConfig = {
   id: string
@@ -10,17 +11,19 @@ export type GoalGateConfig = {
   planeColor: number
   postColor: number
   flashColor: number
+  defendingTeam: TeamSide
+  scoringTeam: TeamSide
 }
 
 export const goalConfig = {
   goalPostRadius: 8,
   goalPostRestitution: 0.82,
   goalPostFriction: 0.02,
-  scoringPlaneTolerance: 5,
-  scoringCooldownMs: 500,
+  scoringPlaneTolerance: 6,
+  scoringCooldownMs: 1000,
   useSweptGoalDetection: true,
   disableGoalMagnetScoring: true,
-  goalWarpDebugEnabled: true,
+  goalDetectionDebugEnabled: false,
   maxGoalCrossingStep: 140,
 }
 
@@ -37,12 +40,16 @@ export const topGoalConfig: GoalGateConfig = {
   ...sharedGoalConfig,
   id: 'top-goal',
   y: arenaConfig.center.y - arenaConfig.height / 2 + 300,
+  defendingTeam: 'B',
+  scoringTeam: 'A',
 }
 
 export const bottomGoalConfig: GoalGateConfig = {
   ...sharedGoalConfig,
   id: 'bottom-goal',
   y: arenaConfig.center.y + arenaConfig.height / 2 - 300,
+  defendingTeam: 'A',
+  scoringTeam: 'B',
 }
 
 export const goalConfigs = [topGoalConfig, bottomGoalConfig] as const

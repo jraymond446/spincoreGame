@@ -17,6 +17,7 @@ import type {
   StickInteractionSystem,
 } from './StickInteractionSystem'
 import {
+  getOwnGoalSafetyPowerScale,
   isNearOwnGoal,
   sanitizeClearDirection,
   type ClearSafetyResult,
@@ -787,9 +788,11 @@ export class DefenseSystem {
         )
         this.lastClearSafety = safe
         this.lastClearSafetyPoint = { ...core.position }
+        const safeSpeed =
+          speed * getOwnGoalSafetyPowerScale(safe)
         core.setVelocity({
-          x: safe.direction.x * speed,
-          y: safe.direction.y * speed,
+          x: safe.direction.x * safeSpeed,
+          y: safe.direction.y * safeSpeed,
         })
       } else {
         core.setVelocity(nextVelocity)

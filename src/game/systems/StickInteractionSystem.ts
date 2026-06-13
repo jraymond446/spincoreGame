@@ -25,7 +25,10 @@ import {
   type KeeperClearSafetyResult,
 } from './KeeperClearSafetySystem'
 import { KeeperShieldSystem } from './KeeperShieldSystem'
-import { isNearOwnGoal } from './ClearSafetySystem'
+import {
+  getOwnGoalSafetyPowerScale,
+  isNearOwnGoal,
+} from './ClearSafetySystem'
 
 export type CorePossessionState =
   | 'FREE'
@@ -1661,12 +1664,23 @@ export class StickInteractionSystem {
 
   private beginRelease(carrier: Player, direction: Point): void {
     const intendedDirection = normalized(direction)
+    const aiOwnGoalSafetyActive =
+      carrier.controllerType === 'ai' &&
+      isNearOwnGoal(carrier.position, carrier.teamSide)
+    const releaseSafetyActive =
+      carrier.role === 'keeper' || aiOwnGoalSafetyActive
     const releaseAimDirection =
-      carrier.role === 'keeper'
+      releaseSafetyActive
         ? this.keeperClearSafety.sanitize(
             intendedDirection,
             carrier.teamSide,
             carrier.position,
+            {
+              awayBias:
+                carrier.role === 'keeper'
+                  ? clearSafetyConfig.keeperShieldAwayBias
+                  : clearSafetyConfig.defenderStickAwayBias,
+            },
           ).direction
         : intendedDirection
     let releaseImpulseDirection =
@@ -1683,6 +1697,20 @@ export class StickInteractionSystem {
     }
 
     releaseImpulseDirection = normalized(releaseImpulseDirection)
+
+    if (releaseSafetyActive) {
+      releaseImpulseDirection = this.keeperClearSafety.sanitize(
+        releaseImpulseDirection,
+        carrier.teamSide,
+        carrier.position,
+        {
+          awayBias:
+            carrier.role === 'keeper'
+              ? clearSafetyConfig.keeperShieldAwayBias
+              : clearSafetyConfig.defenderStickAwayBias,
+        },
+      ).direction
+    }
     const aimAngle = Math.atan2(
       releaseAimDirection.y,
       releaseAimDirection.x,
@@ -2013,9 +2041,11 @@ export class StickInteractionSystem {
           reason: 'nearGoalDeflection',
         },
       )
+      const safeSpeed =
+        speed * getOwnGoalSafetyPowerScale(safe)
       core.setVelocity({
-        x: safe.direction.x * speed,
-        y: safe.direction.y * speed,
+        x: safe.direction.x * safeSpeed,
+        y: safe.direction.y * safeSpeed,
       })
       return
     }

@@ -78,17 +78,24 @@ export function sanitizeClearDirection(
   const away = getKeeperHomeDirection(side)
   const candidate = normalized(direction, away)
   const awayDot = dot(candidate, away)
+  const goal = getOwnGoal(side)
+  const insideStrictRadius =
+    !origin ||
+    Math.hypot(origin.x - goal.x, origin.y - goal.y) <=
+      clearSafetyConfig.nearOwnGoalSafetyRadius
   const pathIntersectsOwnGoal =
     Boolean(origin) &&
+    insideStrictRadius &&
     clearSafetyConfig.ownGoalClearPathCheckEnabled &&
     intersectsOwnGoalPlane(origin!, candidate, side)
   const dangerAngle = Math.acos(
     Phaser.Math.Clamp(dot(candidate, away), -1, 1),
   )
   const inDangerCone =
-    dangerAngle >
-      Math.PI - clearSafetyConfig.ownGoalDangerConeRadians ||
-    awayDot < clearSafetyConfig.ownGoalClearMinAwayDot
+    insideStrictRadius &&
+    (dangerAngle >
+        Math.PI - clearSafetyConfig.ownGoalDangerConeRadians ||
+      awayDot < clearSafetyConfig.ownGoalClearMinAwayDot)
   const needsCorrection =
     clearSafetyConfig.ownGoalPreventionEnabled &&
     (inDangerCone ||
@@ -110,7 +117,6 @@ export function sanitizeClearDirection(
     }
   }
 
-  const goal = getOwnGoal(side)
   const source = origin ?? goal
   const sideSign = source.x < goal.x ? -1 : 1
   const lateral = { x: sideSign, y: 0 }
@@ -151,6 +157,14 @@ export function sanitizeClearDirection(
   }
 }
 
+export function getOwnGoalSafetyPowerScale(
+  result: Pick<ClearSafetyResult, 'corrected'>,
+): number {
+  return result.corrected
+    ? clearSafetyConfig.ownGoalPanicClearPowerScale
+    : 1
+}
+
 export function isNearOwnGoal(
   point: Point,
   side: TeamSide,
@@ -176,7 +190,10 @@ function intersectsOwnGoalPlane(
 
   const travel = (goal.y - origin.y) / direction.y
 
-  if (travel <= 0) {
+  if (
+    travel <= 0 ||
+    travel > clearSafetyConfig.ownGoalProjectionDistance
+  ) {
     return false
   }
 

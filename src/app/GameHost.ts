@@ -93,6 +93,16 @@ export class GameHost {
         onResetCore: () => {
           window.dispatchEvent(new CustomEvent(labEvents.resetCore))
         },
+        onSimulateGoalTop: () => {
+          window.dispatchEvent(
+            new CustomEvent(labEvents.simulateGoalTop),
+          )
+        },
+        onSimulateGoalBottom: () => {
+          window.dispatchEvent(
+            new CustomEvent(labEvents.simulateGoalBottom),
+          )
+        },
       })
     }
 

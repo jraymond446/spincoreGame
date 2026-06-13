@@ -53,8 +53,9 @@ export type LabFieldTuning = {
   keeperZoneBoundaryBuffer: number
   keeperZonePushStrength: number
   scoringPlaneTolerance: number
+  goalScoreCooldownMs: number
   useSweptGoalDetection: boolean
-  goalWarpDebugEnabled: boolean
+  goalDetectionDebugEnabled: boolean
 }
 
 export type LabWallTuning = {
@@ -342,6 +343,7 @@ export type LabClearSafetyTuning = {
   ownGoalClearPathCheckEnabled: boolean
   ownGoalDangerConeRadians: number
   ownGoalClearMinAwayDot: number
+  ownGoalProjectionDistance: number
   safeClearSideBias: number
   safeClearMidfieldBias: number
   safeClearTeammateBias: number
@@ -352,6 +354,7 @@ export type LabClearSafetyTuning = {
   keeperShieldAwayBias: number
   defenderStickAwayBias: number
   nearOwnGoalSafetyRadius: number
+  ownGoalPanicClearPowerScale: number
 }
 
 export type LabTacticalGuideTuning = {

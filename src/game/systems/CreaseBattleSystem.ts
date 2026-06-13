@@ -10,7 +10,10 @@ import type { TeamSide } from '../data/matchTypes'
 import type { Core } from '../entities/Core'
 import type { Player } from '../entities/Player'
 import { getKeeperHomeDirection } from '../rules/KeeperGeometry'
-import { sanitizeClearDirection } from './ClearSafetySystem'
+import {
+  getOwnGoalSafetyPowerScale,
+  sanitizeClearDirection,
+} from './ClearSafetySystem'
 import type { StickInteractionEvent } from './StickInteractionSystem'
 
 export type CreaseBattleDebugState = {
@@ -206,16 +209,20 @@ export class CreaseBattleSystem {
           1.25,
         )
       : 1
+    const safePowerMultiplier =
+      getOwnGoalSafetyPowerScale(safe)
 
     core.setVelocity({
       x:
         safe.direction.x *
         creaseBattleConfig.creaseBattleClearImpulse *
-        clearPowerMultiplier,
+        clearPowerMultiplier *
+        safePowerMultiplier,
       y:
         safe.direction.y *
         creaseBattleConfig.creaseBattleClearImpulse *
-        clearPowerMultiplier,
+        clearPowerMultiplier *
+        safePowerMultiplier,
     })
     this.clearDirection = { ...safe.direction }
     this.triggerDisplayMs = 650

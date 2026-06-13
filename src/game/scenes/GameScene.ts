@@ -205,6 +205,14 @@ export class GameScene extends Phaser.Scene {
       window.addEventListener(labEvents.apply, this.applyLabChanges)
       window.addEventListener(labEvents.resetMatch, this.resetMatch)
       window.addEventListener(labEvents.resetCore, this.resetCore)
+      window.addEventListener(
+        labEvents.simulateGoalTop,
+        this.simulateTopGoal,
+      )
+      window.addEventListener(
+        labEvents.simulateGoalBottom,
+        this.simulateBottomGoal,
+      )
     }
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off('resize', this.layoutViewport, this)
@@ -733,7 +741,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private scoreGoal(goal: GoalGate, crossing: GoalCrossing): void {
-    const scoringSide: TeamSide = goal.id === 'top-goal' ? 'A' : 'B'
+    const scoringSide: TeamSide = goal.scoringTeam
     const newScore = this.matchState.score[scoringSide] + 1
 
     const scorerId = this.matchStatsTracker.recordGoal(scoringSide)
@@ -905,6 +913,66 @@ export class GameScene extends Phaser.Scene {
     for (const rule of this.goalRules.values()) {
       rule.reset(coreConfig.spawn)
     }
+  }
+
+  private simulateTopGoal = (): void => {
+    this.simulateGoalCrossing('top-goal')
+  }
+
+  private simulateBottomGoal = (): void => {
+    this.simulateGoalCrossing('bottom-goal')
+  }
+
+  private simulateGoalCrossing(goalId: string): void {
+    const goal = this.goals.find((candidate) => candidate.id === goalId)
+
+    if (!goal) {
+      console.warn('[Goal Simulation] Goal not available.', { goalId })
+      return
+    }
+
+    if (
+      this.matchState.winner ||
+      this.matchState.score[goal.scoringTeam] >=
+        this.matchState.firstTo - 1
+    ) {
+      this.matchState = structuredClone(initialMatchState)
+      this.matchStatsTracker.reset()
+      this.matchCompletionEmitted = false
+    }
+
+    this.matchFlowSystem.reset()
+    const direction = goalId === 'top-goal' ? -1 : 1
+    const start = {
+      x: (goal.scoringPlaneStart.x + goal.scoringPlaneEnd.x) * 0.5,
+      y: goal.scoringPlaneStart.y - direction * 18,
+    }
+    const end = {
+      x: start.x,
+      y: goal.scoringPlaneStart.y + direction * 18,
+    }
+
+    this.core.setPosition(start)
+    this.core.setVelocity({ x: 0, y: 0 })
+    for (const rule of this.goalRules.values()) {
+      rule.reset(start, true)
+    }
+
+    const crossing = this.goalRules
+      .get(goal.id)
+      ?.check(end, goal, 16, end)
+
+    this.core.setPosition(end)
+    if (!crossing) {
+      console.error('[Goal Simulation] Expected crossing was rejected.', {
+        goalId,
+        start,
+        end,
+      })
+      return
+    }
+
+    this.scoreGoal(goal, crossing)
   }
 
   private toggleDebug = (): void => {

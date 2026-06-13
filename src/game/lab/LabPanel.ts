@@ -22,6 +22,8 @@ type LabPanelActions = {
   onResetSaved: () => void
   onResetMatch: () => void
   onResetCore: () => void
+  onSimulateGoalTop: () => void
+  onSimulateGoalBottom: () => void
 }
 
 type SelectOption = {
@@ -387,6 +389,16 @@ export class LabPanel {
         this.status = 'Core reset'
         this.render()
       }),
+      this.button('Test Top Goal', 'lab-secondary-button', () => {
+        this.actions.onSimulateGoalTop()
+        this.status = 'Top goal simulation sent'
+        this.render()
+      }),
+      this.button('Test Bottom Goal', 'lab-secondary-button', () => {
+        this.actions.onSimulateGoalBottom()
+        this.status = 'Bottom goal simulation sent'
+        this.render()
+      }),
     )
     content.appendChild(actions)
 
@@ -704,6 +716,15 @@ export class LabPanel {
           this.markDraftChanged()
         },
       ),
+      this.createRange(
+        'Goal score cooldown ms',
+        field.goalScoreCooldownMs,
+        { min: 250, max: 2000, step: 50 },
+        (value) => {
+          field.goalScoreCooldownMs = value
+          this.markDraftChanged()
+        },
+      ),
       this.createCheckbox(
         'Swept goal detection',
         field.useSweptGoalDetection,
@@ -713,10 +734,10 @@ export class LabPanel {
         },
       ),
       this.createCheckbox(
-        'Goal warp diagnostics',
-        field.goalWarpDebugEnabled,
+        'Goal detection diagnostics',
+        field.goalDetectionDebugEnabled,
         (value) => {
-          field.goalWarpDebugEnabled = value
+          field.goalDetectionDebugEnabled = value
           this.markDraftChanged()
         },
       ),
@@ -1722,6 +1743,15 @@ export class LabPanel {
         },
       ),
       this.createRange(
+        'Own-goal projection distance',
+        safety.ownGoalProjectionDistance,
+        { min: 80, max: 500, step: 10 },
+        (value) => {
+          safety.ownGoalProjectionDistance = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
         'Safe clear side bias',
         safety.safeClearSideBias,
         { min: 0, max: 1, step: 0.05, digits: 2 },
@@ -1764,6 +1794,15 @@ export class LabPanel {
         { min: 120, max: 420, step: 10 },
         (value) => {
           safety.nearOwnGoalSafetyRadius = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Panic clear power scale',
+        safety.ownGoalPanicClearPowerScale,
+        { min: 0.4, max: 1, step: 0.05, digits: 2 },
+        (value) => {
+          safety.ownGoalPanicClearPowerScale = value
           this.markDraftChanged()
         },
       ),

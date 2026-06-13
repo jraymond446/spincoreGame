@@ -13,6 +13,7 @@ import type { Player } from '../entities/Player'
 import { getKeeperHomeDirection } from '../rules/KeeperGeometry'
 import { normalizeSafe } from '../utils/vectorSafety'
 import { KeeperClearSafetySystem } from './KeeperClearSafetySystem'
+import { getOwnGoalSafetyPowerScale } from './ClearSafetySystem'
 
 export type KeeperShieldDebugState = {
   center: Point
@@ -118,7 +119,9 @@ export class KeeperShieldSystem {
         reason: 'nearGoalDeflection',
       },
     )
-    const speed = Math.max(force, Math.hypot(nextVelocity.x, nextVelocity.y))
+    const speed =
+      Math.max(force, Math.hypot(nextVelocity.x, nextVelocity.y)) *
+      getOwnGoalSafetyPowerScale(finalSafety)
 
     core.setVelocity({
       x: finalSafety.direction.x * speed,

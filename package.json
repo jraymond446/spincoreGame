@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "test:goals": "node --experimental-strip-types src/game/rules/GoalCrossing.test.ts",
     "preview": "vite preview"
   },
   "devDependencies": {

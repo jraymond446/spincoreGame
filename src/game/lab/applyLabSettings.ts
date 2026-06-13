@@ -118,8 +118,9 @@ export function applyLabSettings(state: LabTuningState): void {
     goalPostRadius: field.goalPostRadius,
     goalPostRestitution: field.goalPostRestitution,
     scoringPlaneTolerance: field.scoringPlaneTolerance,
+    scoringCooldownMs: field.goalScoreCooldownMs,
     useSweptGoalDetection: field.useSweptGoalDetection,
-    goalWarpDebugEnabled: field.goalWarpDebugEnabled,
+    goalDetectionDebugEnabled: field.goalDetectionDebugEnabled,
   })
   Object.assign(topGoalConfig, {
     y: topY,

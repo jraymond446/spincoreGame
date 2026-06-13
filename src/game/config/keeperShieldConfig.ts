@@ -10,7 +10,7 @@ export const keeperShieldConfig = {
   keeperShieldClearForce: 8,
   keeperShieldTrapTimeMs: 300,
   keeperShieldMaxDeflectAngle: 1.15,
-  keeperShieldOwnGoalSafetyBias: 0.95,
+  keeperShieldOwnGoalSafetyBias: 0.92,
   keeperShieldForwardOffset: 31,
   keeperShieldSideOffset: 7,
   keeperShieldCanTrap: false,

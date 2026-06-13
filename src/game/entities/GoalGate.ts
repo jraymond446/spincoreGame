@@ -6,6 +6,7 @@ import {
 import { coreConfig } from '../config/entityConfig'
 import { visualStyleConfig } from '../config/visualStyleConfig'
 import type { Point } from '../data/geometry'
+import type { TeamSide } from '../data/matchTypes'
 
 export class GoalGate {
   readonly id: string
@@ -15,6 +16,8 @@ export class GoalGate {
   readonly scoringPlaneEnd: Point
   readonly normal: Point
   readonly postBodies: MatterJS.BodyType[]
+  readonly defendingTeam: TeamSide
+  readonly scoringTeam: TeamSide
 
   private config: GoalGateConfig
   private graphics: Phaser.GameObjects.Graphics
@@ -24,6 +27,8 @@ export class GoalGate {
   constructor(scene: Phaser.Scene, config: GoalGateConfig) {
     this.config = config
     this.id = config.id
+    this.defendingTeam = config.defendingTeam
+    this.scoringTeam = config.scoringTeam
     this.graphics = scene.add.graphics()
     this.planeStart =
       config.orientation === 'horizontal'
@@ -47,9 +52,7 @@ export class GoalGate {
           }
     const scoringInset = Math.max(
       0,
-      goalConfig.goalPostRadius +
-        coreConfig.radius -
-        goalConfig.scoringPlaneTolerance,
+      goalConfig.goalPostRadius + coreConfig.radius,
     )
     this.scoringPlaneStart =
       config.orientation === 'horizontal'

@@ -1,6 +1,10 @@
 import type { GoalGate } from '../entities/GoalGate'
 import type { Point } from '../data/geometry'
 import { goalConfig } from '../config/goalConfig'
+import {
+  evaluateGoalCrossing,
+  type GoalCrossingRejectedReason,
+} from './GoalCrossing'
 
 export type GoalCrossing = {
   directionSign: -1 | 1
@@ -34,98 +38,59 @@ export class GoalRule {
     )
     const previousPosition = { ...this.previousPosition }
     this.previousPosition = { ...currentPosition }
+    const goalPlane = gate.scoringPlaneStart.y
+    const nearGoalPlane =
+      Math.min(
+        Math.abs(previousPosition.y - goalPlane),
+        Math.abs(currentPosition.y - goalPlane),
+      ) <= 30
 
     if (this.scoringCooldownMsRemaining > 0) {
-      return null
-    }
-
-    const goalPlane = gate.scoringPlaneStart.y
-    const expectedDirection: -1 | 1 =
-      gate.id === 'top-goal' ? -1 : 1
-    const crossedPlane =
-      expectedDirection === -1
-        ? previousPosition.y > goalPlane &&
-          currentPosition.y <= goalPlane
-        : previousPosition.y < goalPlane &&
-          currentPosition.y >= goalPlane
-    const crossedWrongDirection =
-      expectedDirection === -1
-        ? previousPosition.y < goalPlane &&
-          currentPosition.y >= goalPlane
-        : previousPosition.y > goalPlane &&
-          currentPosition.y <= goalPlane
-
-    if (!crossedPlane) {
-      if (crossedWrongDirection) {
-        this.logInvalidCandidate(
+      if (nearGoalPlane) {
+        this.logDetection(
           gate,
           previousPosition,
           currentPosition,
           renderedPosition,
+          false,
           null,
-          'wrong-direction',
+          false,
+          'goalCooldown',
         )
       }
       return null
     }
 
-    const stepDistance = Math.hypot(
-      currentPosition.x - previousPosition.x,
-      currentPosition.y - previousPosition.y,
-    )
+    const evaluation = evaluateGoalCrossing({
+      previousPosition,
+      currentPosition,
+      planeY: goalPlane,
+      minX: gate.scoringPlaneStart.x,
+      maxX: gate.scoringPlaneEnd.x,
+      tolerance: goalConfig.scoringPlaneTolerance,
+      useSweptDetection: goalConfig.useSweptGoalDetection,
+    })
 
-    if (stepDistance > goalConfig.maxGoalCrossingStep) {
-      this.logInvalidCandidate(
-        gate,
-        previousPosition,
-        currentPosition,
-        renderedPosition,
-        null,
-        'implausible-position-step',
-      )
+    if (evaluation.rejectedReason) {
+      if (nearGoalPlane || evaluation.crossedPlane) {
+        this.logDetection(
+          gate,
+          previousPosition,
+          currentPosition,
+          renderedPosition,
+          evaluation.crossedPlane,
+          evaluation.crossingX,
+          evaluation.withinPosts,
+          evaluation.rejectedReason,
+        )
+      }
       return null
     }
 
-    const deltaY = currentPosition.y - previousPosition.y
-
-    if (Math.abs(deltaY) < 0.0001) {
-      return null
-    }
-
-    const progress = Math.min(
-      1,
-      Math.max(0, (goalPlane - previousPosition.y) / deltaY),
-    )
-    const crossingX = goalConfig.useSweptGoalDetection
-      ? previousPosition.x +
-        (currentPosition.x - previousPosition.x) * progress
-      : currentPosition.x
-    const openingMin = Math.min(
-      gate.scoringPlaneStart.x,
-      gate.scoringPlaneEnd.x,
-    )
-    const openingMax = Math.max(
-      gate.scoringPlaneStart.x,
-      gate.scoringPlaneEnd.x,
-    )
-    const withinPosts =
-      crossingX >= openingMin && crossingX <= openingMax
-
-    if (!withinPosts) {
-      this.logInvalidCandidate(
-        gate,
-        previousPosition,
-        currentPosition,
-        renderedPosition,
-        crossingX,
-        'outside-posts',
-      )
-      return null
-    }
-
+    const crossingX = evaluation.crossingX!
     this.scoringCooldownMsRemaining = goalConfig.scoringCooldownMs
     const crossing: GoalCrossing = {
-      directionSign: expectedDirection,
+      directionSign: evaluation.directionSign as -1 | 1,
       impactPoint: {
         x: crossingX,
         y: goalPlane,
@@ -141,20 +106,16 @@ export class GoalRule {
         : 'discrete-plane-crossing',
     }
 
-    if (goalConfig.goalWarpDebugEnabled) {
-      console.info('[Goal Scored]', {
-        goalId: gate.id,
-        previousCorePosition: crossing.previousPosition,
-        currentCorePosition: crossing.currentPosition,
-        renderedCorePosition: crossing.renderedPosition,
-        physicsCorePosition: crossing.currentPosition,
-        goalPlane,
-        crossingX,
-        withinPosts,
-        scoringTolerance: crossing.scoringTolerance,
-        goalReason: crossing.goalReason,
-      })
-    }
+    this.logDetection(
+      gate,
+      previousPosition,
+      currentPosition,
+      renderedPosition,
+      true,
+      crossingX,
+      true,
+      null,
+    )
 
     return crossing
   }
@@ -167,32 +128,49 @@ export class GoalRule {
     }
   }
 
-  private logInvalidCandidate(
+  private logDetection(
     gate: GoalGate,
     previousPosition: Point,
     currentPosition: Point,
     renderedPosition: Point,
+    crossedPlane: boolean,
     crossingX: number | null,
+    withinPosts: boolean,
     reason:
-      | 'wrong-direction'
-      | 'outside-posts'
-      | 'implausible-position-step',
+      | GoalCrossingRejectedReason
+      | 'goalCooldown'
+      | null,
   ): void {
-    if (!goalConfig.goalWarpDebugEnabled) {
+    if (!goalConfig.goalDetectionDebugEnabled) {
       return
     }
 
-    console.info('[Invalid Goal Candidate]', {
-      goalId: gate.id,
-      previousCorePosition: previousPosition,
-      currentCorePosition: currentPosition,
-      renderedCorePosition: renderedPosition,
-      physicsCorePosition: currentPosition,
-      goalPlane: gate.scoringPlaneStart.y,
-      crossingX,
-      withinPosts: false,
-      scoringTolerance: goalConfig.scoringPlaneTolerance,
-      goalReason: reason,
-    })
+    console.info(
+      reason ? '[Goal Detection Rejected]' : '[Goal Scored]',
+      {
+        goalId: gate.id,
+        defendingTeam: gate.defendingTeam,
+        scoringTeam: gate.scoringTeam,
+        previousCorePosition: previousPosition,
+        currentCorePosition: currentPosition,
+        renderedCorePosition: renderedPosition,
+        physicsCorePosition: currentPosition,
+        goalPlane: gate.scoringPlaneStart.y,
+        crossedPlane,
+        crossingX,
+        withinPosts,
+        scoringTolerance: goalConfig.scoringPlaneTolerance,
+        rejectedReason: reason,
+        positionStep: Math.hypot(
+          currentPosition.x - previousPosition.x,
+          currentPosition.y - previousPosition.y,
+        ),
+        positionStepExceededDiagnostic:
+          Math.hypot(
+            currentPosition.x - previousPosition.x,
+            currentPosition.y - previousPosition.y,
+          ) > goalConfig.maxGoalCrossingStep,
+      },
+    )
   }
 }
