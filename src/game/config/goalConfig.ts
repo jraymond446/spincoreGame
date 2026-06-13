@@ -18,7 +18,11 @@ export const goalConfig = {
   goalPostFriction: 0.02,
   scoringPlaneTolerance: 5,
   scoringCooldownMs: 500,
-} as const
+  useSweptGoalDetection: true,
+  disableGoalMagnetScoring: true,
+  goalWarpDebugEnabled: true,
+  maxGoalCrossingStep: 140,
+}
 
 const sharedGoalConfig = {
   orientation: 'horizontal',

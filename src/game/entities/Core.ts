@@ -65,6 +65,13 @@ export class Core {
     }
   }
 
+  get renderedPosition(): Point {
+    return {
+      x: this.shell.x,
+      y: this.shell.y,
+    }
+  }
+
   update(): void {
     const position = this.position
     const velocity = this.body.velocity

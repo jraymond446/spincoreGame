@@ -704,6 +704,22 @@ export class LabPanel {
           this.markDraftChanged()
         },
       ),
+      this.createCheckbox(
+        'Swept goal detection',
+        field.useSweptGoalDetection,
+        (value) => {
+          field.useSweptGoalDetection = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createCheckbox(
+        'Goal warp diagnostics',
+        field.goalWarpDebugEnabled,
+        (value) => {
+          field.goalWarpDebugEnabled = value
+          this.markDraftChanged()
+        },
+      ),
     )
 
     return this.createSection('Field / Object Tuning', content)
@@ -846,6 +862,14 @@ export class LabPanel {
       ['Clear center bias', 'keeperClearTowardCenterBias', { min: 0.1, max: 1, step: 0.05, digits: 2 }],
       ['Orbit smoothing', 'keeperOrbitSmoothing', { min: 0.5, max: 8, step: 0.1, digits: 1 }],
       ['Max lateral speed', 'keeperMaxLateralSpeed', { min: 2, max: 9, step: 0.1, digits: 1 }],
+      ['Movement speed multiplier', 'keeperMoveSpeedMultiplier', { min: 0.2, max: 1.2, step: 0.02, digits: 2 }],
+      ['Acceleration multiplier', 'keeperAccelerationMultiplier', { min: 0.2, max: 1.2, step: 0.02, digits: 2 }],
+      ['Turn rate multiplier', 'keeperTurnRateMultiplier', { min: 0.2, max: 1.2, step: 0.02, digits: 2 }],
+      ['Reaction delay ms', 'keeperReactionDelayMs', { min: 0, max: 500, step: 10 }],
+      ['Prediction strength', 'keeperPredictionStrength', { min: 0, max: 1, step: 0.02, digits: 2 }],
+      ['Post-save recovery ms', 'keeperPostSaveRecoveryMs', { min: 0, max: 900, step: 25 }],
+      ['Front/back recovery', 'keeperFrontBackRecoveryMultiplier', { min: 0.1, max: 1, step: 0.02, digits: 2 }],
+      ['Reposition delay ms', 'keeperRepositionDelayMs', { min: 0, max: 500, step: 10 }],
       ['Human bias strength', 'keeperHumanBiasStrength', { min: 0, max: 1, step: 0.05, digits: 2 }],
       ['Human lateral bias', 'keeperHumanLateralBiasStrength', { min: 0, max: 1, step: 0.05, digits: 2 }],
       ['Human depth bias', 'keeperHumanDepthBiasStrength', { min: 0, max: 1, step: 0.05, digits: 2 }],
@@ -2109,13 +2133,33 @@ export class LabPanel {
           this.markDraftChanged()
         },
       ),
+      this.createCheckbox(
+        'Charging carriers can be slashed',
+        defense.chargingStealEnabled,
+        (value) => {
+          defense.chargingStealEnabled = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createCheckbox(
+        'Slash interrupts charge',
+        defense.slashCanInterruptCharge,
+        (value) => {
+          defense.slashCanInterruptCharge = value
+          this.markDraftChanged()
+        },
+      ),
     )
     const controls: Array<
       [
         string,
         Exclude<
           keyof LabTuningState['defense'],
-          'truckEnabled' | 'slashEnabled' | 'truckOffBallSpeedBoostAllowed'
+          | 'truckEnabled'
+          | 'slashEnabled'
+          | 'truckOffBallSpeedBoostAllowed'
+          | 'chargingStealEnabled'
+          | 'slashCanInterruptCharge'
         >,
         RangeOptions,
       ]
@@ -2146,6 +2190,13 @@ export class LabPanel {
       ['Slash range', 'slashRange', { min: 60, max: 180, step: 2 }],
       ['Slash fumble pressure', 'slashFumblePressure', { min: 0.05, max: 1, step: 0.02, digits: 2 }],
       ['Slash overcharge multiplier', 'slashOverchargeMultiplier', { min: 0.5, max: 3, step: 0.05, digits: 2 }],
+      ['Charging slash vulnerability', 'chargingSlashVulnerability', { min: 0.2, max: 3, step: 0.05, digits: 2 }],
+      ['Overcharged slash vulnerability', 'overchargedSlashVulnerability', { min: 0.2, max: 4, step: 0.05, digits: 2 }],
+      ['Stable slash vulnerability', 'stableSlashVulnerability', { min: 0.2, max: 2, step: 0.05, digits: 2 }],
+      ['Release windup vulnerability', 'releaseWindupSlashVulnerability', { min: 0.2, max: 3, step: 0.05, digits: 2 }],
+      ['Release frame protection ms', 'releaseFrameProtectionMs', { min: 0, max: 120, step: 5 }],
+      ['Charge slash fumble chance', 'slashChargeFumbleBaseChance', { min: 0, max: 1, step: 0.02, digits: 2 }],
+      ['Overcharge slash fumble chance', 'slashOverchargeFumbleBaseChance', { min: 0, max: 1, step: 0.02, digits: 2 }],
       ['Free Core slash impulse', 'slashFreeCoreImpulse', { min: 0.5, max: 10, step: 0.1, digits: 1 }],
       ['Slash body impulse', 'slashBodyImpulse', { min: 0, max: 1, step: 0.05, digits: 2 }],
       ['Support slash precision', 'supportSlashPrecisionMultiplier', { min: 0.6, max: 1.8, step: 0.05, digits: 2 }],
@@ -2176,6 +2227,41 @@ export class LabPanel {
     const content = document.createElement('div')
     content.className = 'lab-range-list'
     content.append(
+      this.createCheckbox(
+        'Enable match intro',
+        matchFlow.enableMatchIntro,
+        (value) => {
+          matchFlow.enableMatchIntro = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Match intro ms',
+        matchFlow.matchIntroMs,
+        { min: 0, max: 3000, step: 50 },
+        (value) => {
+          matchFlow.matchIntroMs = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Opening countdown start',
+        matchFlow.initialCountdownStart,
+        { min: 1, max: 5, step: 1 },
+        (value) => {
+          matchFlow.initialCountdownStart = value
+          this.markDraftChanged()
+        },
+      ),
+      this.createRange(
+        'Opening countdown step ms',
+        matchFlow.initialCountdownStepMs,
+        { min: 250, max: 1500, step: 50 },
+        (value) => {
+          matchFlow.initialCountdownStepMs = value
+          this.markDraftChanged()
+        },
+      ),
       this.createCheckbox(
         'Enable goal celebration',
         matchFlow.enableGoalCelebration,

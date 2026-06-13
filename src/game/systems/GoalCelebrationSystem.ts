@@ -30,6 +30,7 @@ export class GoalCelebrationSystem {
 
   showGoal(side: TeamSide, point: Point): void {
     this.root.hidden = false
+    this.root.classList.remove('is-intro')
     this.root.classList.add('is-goal')
     this.title.textContent = 'GOAL!'
     this.subtitle.textContent = `TEAM ${side} SCORES`
@@ -43,9 +44,17 @@ export class GoalCelebrationSystem {
 
   showCountdown(label: string): void {
     this.root.hidden = false
-    this.root.classList.remove('is-goal')
+    this.root.classList.remove('is-goal', 'is-intro')
     this.title.textContent = label
     this.subtitle.textContent = label === 'GO' ? 'PLAY' : 'FACE OFF'
+  }
+
+  showIntro(title: string, subtitle: string): void {
+    this.root.hidden = false
+    this.root.classList.remove('is-goal')
+    this.root.classList.add('is-intro')
+    this.title.textContent = title
+    this.subtitle.textContent = subtitle
   }
 
   update(deltaMs: number): void {
@@ -74,7 +83,7 @@ export class GoalCelebrationSystem {
 
   hide(): void {
     this.root.hidden = true
-    this.root.classList.remove('is-goal')
+    this.root.classList.remove('is-goal', 'is-intro')
     this.graphics.clear()
     this.effectPoint = null
     this.textRemainingMs = 0

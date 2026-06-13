@@ -53,6 +53,8 @@ export type LabFieldTuning = {
   keeperZoneBoundaryBuffer: number
   keeperZonePushStrength: number
   scoringPlaneTolerance: number
+  useSweptGoalDetection: boolean
+  goalWarpDebugEnabled: boolean
 }
 
 export type LabWallTuning = {
@@ -107,6 +109,14 @@ export type LabKeeperTuning = {
   keeperClearTowardCenterBias: number
   keeperOrbitSmoothing: number
   keeperMaxLateralSpeed: number
+  keeperMoveSpeedMultiplier: number
+  keeperAccelerationMultiplier: number
+  keeperTurnRateMultiplier: number
+  keeperReactionDelayMs: number
+  keeperPredictionStrength: number
+  keeperPostSaveRecoveryMs: number
+  keeperFrontBackRecoveryMultiplier: number
+  keeperRepositionDelayMs: number
   keeperHumanBiasEnabled: boolean
   keeperHumanBiasStrength: number
   keeperHumanLateralBiasStrength: number
@@ -400,6 +410,15 @@ export type LabDefenseTuning = {
   slashRange: number
   slashFumblePressure: number
   slashOverchargeMultiplier: number
+  chargingSlashVulnerability: number
+  overchargedSlashVulnerability: number
+  stableSlashVulnerability: number
+  releaseWindupSlashVulnerability: number
+  releaseFrameProtectionMs: number
+  chargingStealEnabled: boolean
+  slashCanInterruptCharge: boolean
+  slashChargeFumbleBaseChance: number
+  slashOverchargeFumbleBaseChance: number
   slashFreeCoreImpulse: number
   slashBodyImpulse: number
   supportSlashPrecisionMultiplier: number
@@ -414,6 +433,10 @@ export type LabDefenseTuning = {
 }
 
 export type LabMatchFlowTuning = {
+  enableMatchIntro: boolean
+  matchIntroMs: number
+  initialCountdownStart: number
+  initialCountdownStepMs: number
   enableGoalCelebration: boolean
   goalCelebrationMs: number
   goalFlashDurationMs: number

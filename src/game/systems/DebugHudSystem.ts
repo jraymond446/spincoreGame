@@ -18,7 +18,10 @@ import type {
   StickInteractionResult,
 } from './StickInteractionSystem'
 import type { InputMode } from './PlayerInputController'
-import type { DefensiveActionState } from './DefenseSystem'
+import type {
+  DefensiveActionState,
+  SlashChargeDebug,
+} from './DefenseSystem'
 import type { MatchFlowState } from './MatchFlowSystem'
 import type {
   KeeperLegalState,
@@ -95,6 +98,7 @@ type DebugHudState = {
   }
   fumblePressure: number
   fumblePressureNormalized: number
+  slashCharge: SlashChargeDebug | null
   wallBounce: WallBounceDebugState
   wallCarry: WallCarryDebugState
   clearSafety: ClearSafetyResult | null
@@ -281,6 +285,10 @@ export class DebugHudSystem {
       `TRUCK CD ${Math.ceil(state.defenseCooldowns.truckMs)}ms\n` +
       `SLASH CD ${Math.ceil(state.defenseCooldowns.slashMs)}ms\n` +
       `FUMBLE   ${state.fumblePressure.toFixed(2)} / ${state.fumblePressureNormalized.toFixed(2)}\n` +
+      `S HIT    ${state.slashCharge?.slashHitCarrier ? 'CARRIER' : state.slashCharge?.slashHitCore ? 'CORE' : '-'} / ${state.slashCharge?.carrierPossessionState ?? '-'}\n` +
+      `S CHARGE ${state.slashCharge?.slashAppliedToCharging ? 'YES' : 'NO'} @ ${Math.round(state.slashCharge?.chargingTimeMs ?? 0)}ms\n` +
+      `S PRESS  ${(state.slashCharge?.fumblePressureBefore ?? 0).toFixed(2)} > ${(state.slashCharge?.fumblePressureAfter ?? 0).toFixed(2)} / V ${(state.slashCharge?.vulnerabilityMultiplier ?? 0).toFixed(2)}\n` +
+      `S DENY   ${state.slashCharge?.stealDeniedReason ?? '-'}\n` +
       `WALL HIT ${state.wallBounce.lastCollision}\n` +
       `SAFETY   ${state.wallBounce.safetyBounceTriggered ? 'TRIGGERED' : 'IDLE'}\n` +
       `BANK     ${state.wallBounce.recentBankShot ? 'RECENT' : 'NONE'}\n` +

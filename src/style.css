@@ -2495,6 +2495,7 @@ button.spincore-stick-card:hover {
 .match-flow-overlay {
   position: absolute;
   inset: 0;
+  z-index: 10;
   display: grid;
   align-content: center;
   justify-items: center;
@@ -2535,6 +2536,263 @@ button.spincore-stick-card:hover {
 
 .match-flow-overlay.is-goal .match-flow-title {
   animation: goal-title-pulse 420ms ease-out both;
+}
+
+.match-flow-overlay.is-intro .match-flow-title {
+  max-width: min(780px, calc(100vw - 36px));
+  padding: 16px 24px 19px;
+  font-size: clamp(30px, 6.5vh, 68px);
+  line-height: 1;
+  animation: match-intro-arrive 460ms cubic-bezier(0.2, 0.9, 0.25, 1) both;
+}
+
+.match-flow-overlay.is-intro .match-flow-subtitle {
+  animation: match-intro-arrive 460ms 80ms cubic-bezier(0.2, 0.9, 0.25, 1) both;
+}
+
+@keyframes match-intro-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.94);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.match-result-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  box-sizing: border-box;
+  place-items: center;
+  overflow: auto;
+  padding:
+    calc(24px + var(--safe-area-inset-top))
+    calc(18px + var(--safe-area-inset-right))
+    calc(24px + var(--safe-area-inset-bottom))
+    calc(18px + var(--safe-area-inset-left));
+  background:
+    radial-gradient(circle at 50% 12%, rgba(103, 244, 255, 0.2), transparent 38%),
+    rgba(9, 31, 56, 0.88);
+  pointer-events: auto;
+  animation: match-result-fade 320ms ease-out both;
+}
+
+.match-result-overlay.is-loss {
+  background:
+    radial-gradient(circle at 50% 12%, rgba(228, 88, 112, 0.2), transparent 38%),
+    rgba(9, 31, 56, 0.9);
+}
+
+.match-result-card {
+  display: grid;
+  grid-template-columns: minmax(230px, 0.72fr) minmax(360px, 1.28fr);
+  width: min(930px, 100%);
+  overflow: hidden;
+  border: 5px solid #091f38;
+  border-radius: 12px;
+  background: #fff8df;
+  box-shadow: 0 12px 0 rgba(9, 31, 56, 0.54);
+}
+
+.match-result-character {
+  position: relative;
+  display: grid;
+  align-content: center;
+  padding: 20px;
+  background:
+    repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.045) 0 5px, transparent 5px 14px),
+    #2d938e;
+}
+
+.match-result-character .player-builder-preview {
+  width: 100%;
+  box-shadow: none;
+}
+
+.match-result-character .player-builder-arena {
+  min-height: 320px;
+}
+
+.match-result-character .player-builder-preview-footer {
+  display: none;
+}
+
+.match-result-character.is-celebrating .player-builder-figure {
+  animation: result-celebrate 820ms cubic-bezier(0.2, 0.9, 0.25, 1) infinite alternate;
+}
+
+.match-result-character.is-disappointed .player-builder-figure {
+  transform: translateY(15px) rotate(-3deg);
+  filter: saturate(0.72) drop-shadow(0 7px 0 rgba(9, 31, 56, 0.24));
+}
+
+.match-result-mood {
+  justify-self: center;
+  margin-top: 14px;
+  padding: 7px 12px;
+  border: 3px solid #091f38;
+  border-radius: 5px;
+  color: #091f38;
+  background: #f2c84b;
+  box-shadow: 0 4px 0 #091f38;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+}
+
+.match-result-fallback-character {
+  display: grid;
+  width: 180px;
+  height: 180px;
+  place-items: center;
+  justify-self: center;
+  border: 6px solid #091f38;
+  border-radius: 50%;
+  color: #fff8df;
+  background: #e45870;
+  font-size: 78px;
+  font-weight: 950;
+}
+
+.match-result-summary {
+  display: grid;
+  align-content: center;
+  gap: 17px;
+  padding: clamp(24px, 5vw, 46px);
+}
+
+.match-result-eyebrow {
+  color: #e45870;
+  font-size: 12px;
+  font-weight: 950;
+  letter-spacing: 0.16em;
+}
+
+.match-result-copy h1 {
+  margin: 4px 0 8px;
+  color: #16324f;
+  font-size: clamp(34px, 5vw, 60px);
+  font-weight: 950;
+  line-height: 0.94;
+}
+
+.match-result-final {
+  color: #536d7d;
+  font-size: 16px;
+  font-weight: 850;
+}
+
+.match-result-team-stats {
+  display: grid;
+  gap: 8px;
+}
+
+.match-result-team-line {
+  padding: 10px 12px;
+  border: 3px solid #16324f;
+  border-radius: 6px;
+  background: #e8f6f5;
+}
+
+.match-result-team-line.is-team-b {
+  background: #fbe8e7;
+}
+
+.match-result-team-line > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: #16324f;
+}
+
+.match-result-team-line b {
+  color: #e45870;
+  font-size: 25px;
+}
+
+.match-result-team-line p {
+  margin-top: 3px;
+  color: #536d7d;
+  font-size: 10px;
+  font-weight: 850;
+}
+
+.match-result-rewards {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.match-result-rewards > div {
+  display: grid;
+  min-height: 67px;
+  place-content: center;
+  padding: 7px;
+  border: 2px solid #16324f;
+  border-radius: 5px;
+  text-align: center;
+  background: #f2c84b;
+}
+
+.match-result-rewards strong {
+  color: #16324f;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.match-result-rewards span {
+  margin-top: 4px;
+  color: #536d7d;
+  font-size: 8px;
+  font-weight: 950;
+  letter-spacing: 0.05em;
+}
+
+.match-result-return {
+  width: 100%;
+}
+
+@keyframes result-celebrate {
+  from {
+    transform: translateY(8px) rotate(-3deg);
+  }
+
+  to {
+    transform: translateY(-15px) rotate(4deg) scale(1.03);
+  }
+}
+
+@keyframes match-result-fade {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@media (max-width: 720px) {
+  .match-result-card {
+    grid-template-columns: 1fr;
+  }
+
+  .match-result-character {
+    display: none;
+  }
+
+  .match-result-summary {
+    padding: 24px 18px;
+  }
+
+  .match-result-rewards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @keyframes goal-title-pulse {

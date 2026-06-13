@@ -16,6 +16,14 @@ export const keeperConfig = {
   keeperClearTowardCenterBias: 0.6,
   keeperOrbitSmoothing: 3.4,
   keeperMaxLateralSpeed: 5.6,
+  keeperMoveSpeedMultiplier: 0.68,
+  keeperAccelerationMultiplier: 0.72,
+  keeperTurnRateMultiplier: 0.75,
+  keeperReactionDelayMs: 120,
+  keeperPredictionStrength: 0.65,
+  keeperPostSaveRecoveryMs: 250,
+  keeperFrontBackRecoveryMultiplier: 0.65,
+  keeperRepositionDelayMs: 120,
   keeperHumanBiasEnabled: true,
   keeperHumanBiasStrength: 0.25,
   keeperHumanLateralBiasStrength: 0.35,
@@ -31,7 +39,7 @@ export const keeperConfig = {
     legalColor: 0xf8fdff,
     textColor: '#fff8df',
   },
-} as const
+}
 
 export function getKeeperTargetRatio(style: PlayerPlayStyle): number {
   if (style === 'tight') {

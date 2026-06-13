@@ -30,6 +30,15 @@ export const defenseConfig = {
   slashRange: 84,
   slashFumblePressure: 0.32,
   slashOverchargeMultiplier: 1.75,
+  chargingSlashVulnerability: 1.45,
+  overchargedSlashVulnerability: 2.1,
+  stableSlashVulnerability: 0.75,
+  releaseWindupSlashVulnerability: 1.2,
+  releaseFrameProtectionMs: 70,
+  chargingStealEnabled: true,
+  slashCanInterruptCharge: true,
+  slashChargeFumbleBaseChance: 0.45,
+  slashOverchargeFumbleBaseChance: 0.7,
   slashFreeCoreImpulse: 3.2,
   slashBodyImpulse: 0.25,
   supportSlashPrecisionMultiplier: 1.25,
@@ -50,4 +59,4 @@ export const defenseConfig = {
     fumbleColor: 0xffe07a,
     rangeAlpha: 0.28,
   },
-} as const
+}

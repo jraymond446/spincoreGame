@@ -210,6 +210,7 @@ export class AISystem {
       carrierId,
       controlledPlayerId,
       humanKeeperBias,
+      deltaMs,
     )
     this.decisionTimerMs -= deltaMs
     if (this.decisionTimerMs <= 0) {
@@ -242,6 +243,10 @@ export class AISystem {
 
   getKeeperDebugState(side: TeamSide): KeeperAIDebugState | null {
     return this.keeperAI.getDebugState(side)
+  }
+
+  recordKeeperSave(side: TeamSide): void {
+    this.keeperAI.recordSave(side)
   }
 
   getTeamStrategy(side: TeamSide): TeamStrategy {
@@ -465,6 +470,7 @@ export class AISystem {
     this.looseGathererBySide = {}
     this.looseGatherAnchors.clear()
     this.teamShape.reset()
+    this.keeperAI.reset()
   }
 
   private clearActiveShot(): void {
@@ -479,6 +485,7 @@ export class AISystem {
     carrierId: string | null,
     controlledPlayerId: string,
     humanKeeperBias: Point,
+    deltaMs: number,
   ): void {
     const carrier =
       players.find((player) => player.id === carrierId) ?? null
@@ -505,7 +512,7 @@ export class AISystem {
         player.teamSide === 'A'
           ? humanKeeperBias
           : { x: 0, y: 0 }
-      const intent = this.keeperAI.decide(context, bias)
+      const intent = this.keeperAI.decide(context, bias, deltaMs)
 
       this.intents.set(player.id, intent)
       player.setAIState(intent.aiState)

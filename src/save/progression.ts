@@ -92,14 +92,23 @@ export function recordMatchRewards(
     }
   }
 
-  const xp =
-    10 + (result?.won ? 20 : 0) + goals * 5 + bankShotGoals * 3
-  const money = 5 + (result?.won ? 15 : 0)
+  const rewards = calculateMatchRewards(result)
+  const { xp, money } = rewards
   awardXp(save, xp)
   awardMoney(save, money)
+  return rewards
+}
+
+export function calculateMatchRewards(
+  result: MatchResultRewardInput | null,
+): MatchRewardBreakdown {
+  const goals = Math.max(0, result?.goals ?? 0)
+  const bankShotGoals = Math.max(0, result?.bankShotGoals ?? 0)
+
   return {
-    xp,
-    money,
+    xp:
+      10 + (result?.won ? 20 : 0) + goals * 5 + bankShotGoals * 3,
+    money: 5 + (result?.won ? 15 : 0),
     completed: Boolean(result),
     won: result?.won ?? false,
     goals,

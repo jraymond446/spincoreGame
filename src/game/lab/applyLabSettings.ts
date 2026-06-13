@@ -118,6 +118,8 @@ export function applyLabSettings(state: LabTuningState): void {
     goalPostRadius: field.goalPostRadius,
     goalPostRestitution: field.goalPostRestitution,
     scoringPlaneTolerance: field.scoringPlaneTolerance,
+    useSweptGoalDetection: field.useSweptGoalDetection,
+    goalWarpDebugEnabled: field.goalWarpDebugEnabled,
   })
   Object.assign(topGoalConfig, {
     y: topY,
@@ -164,6 +166,22 @@ export function applyLabSettings(state: LabTuningState): void {
       state.keeper.keeperOrbitSmoothing,
     keeperMaxLateralSpeed:
       state.keeper.keeperMaxLateralSpeed,
+    keeperMoveSpeedMultiplier:
+      state.keeper.keeperMoveSpeedMultiplier,
+    keeperAccelerationMultiplier:
+      state.keeper.keeperAccelerationMultiplier,
+    keeperTurnRateMultiplier:
+      state.keeper.keeperTurnRateMultiplier,
+    keeperReactionDelayMs:
+      state.keeper.keeperReactionDelayMs,
+    keeperPredictionStrength:
+      state.keeper.keeperPredictionStrength,
+    keeperPostSaveRecoveryMs:
+      state.keeper.keeperPostSaveRecoveryMs,
+    keeperFrontBackRecoveryMultiplier:
+      state.keeper.keeperFrontBackRecoveryMultiplier,
+    keeperRepositionDelayMs:
+      state.keeper.keeperRepositionDelayMs,
     keeperHumanBiasEnabled:
       state.keeper.keeperHumanBiasEnabled,
     keeperHumanBiasStrength:

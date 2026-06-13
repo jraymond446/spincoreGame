@@ -450,6 +450,59 @@ export class StickInteractionSystem {
     return true
   }
 
+  interruptCharge(targetPlayerId: string): boolean {
+    if (
+      this.carrierId !== targetPlayerId ||
+      (this.coreState !== 'CRADLED_CHARGING' &&
+        this.coreState !== 'CRADLED_OVERCHARGED')
+    ) {
+      return false
+    }
+
+    this.pendingRelease = null
+    this.releaseGraphics.clear()
+    this.cradleElapsedMs = Math.max(
+      0,
+      stickConfig.stableCradleMs * 0.35,
+    )
+    this.coreState = 'CRADLED_STABLE'
+    this.setActionState(targetPlayerId, 'CRADLED_STABLE')
+    return true
+  }
+
+  isReleaseProtected(
+    targetPlayerId: string,
+    protectionMs: number,
+  ): boolean {
+    const pending = this.pendingRelease
+
+    if (
+      !pending ||
+      pending.playerId !== targetPlayerId ||
+      pending.released
+    ) {
+      return false
+    }
+
+    const releaseAtMs = Math.min(
+      20,
+      Math.max(0, stickConfig.releaseWindupMs),
+    )
+    const protectedWindowMs = Math.min(
+      protectionMs,
+      Math.max(8, releaseAtMs * 0.5),
+    )
+
+    return releaseAtMs - pending.elapsedMs <= protectedWindowMs
+  }
+
+  isReleaseWindup(targetPlayerId: string): boolean {
+    return (
+      this.pendingRelease?.playerId === targetPlayerId &&
+      !this.pendingRelease.released
+    )
+  }
+
   toggleDebug(): boolean {
     this.setDebugEnabled(!this.debugEnabled)
     return this.debugEnabled

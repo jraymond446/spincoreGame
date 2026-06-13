@@ -50,6 +50,11 @@ export class KeeperAISystem {
   private readonly labels = new Map<TeamSide, Phaser.GameObjects.Text>()
   private readonly debugStates = new Map<TeamSide, KeeperAIDebugState>()
   private readonly nextSwingAt = new Map<string, number>()
+  private readonly motionRuntimes = new Map<string, KeeperMotionRuntime>()
+  private readonly postSaveRecoveryUntil: Record<TeamSide, number> = {
+    A: 0,
+    B: 0,
+  }
   private readonly clearSafety = new KeeperClearSafetySystem()
   private debugEnabled = false
 
@@ -61,10 +66,16 @@ export class KeeperAISystem {
   decide(
     context: AIDecisionContext,
     humanBias: Point,
+    deltaMs: number,
   ): PlayerControlIntent {
     const { player, core, attackGoal, ownGoal } = context
     const threat = predictThreat(context)
-    const target = this.getTarget(context, threat, humanBias)
+    const requestedTarget = this.getTarget(context, threat, humanBias)
+    const target = this.getReactionDelayedTarget(
+      player.id,
+      requestedTarget,
+      deltaMs,
+    )
     const rawClearDirection = getKeeperClearDirection(
       core.position,
       ownGoal,
@@ -83,7 +94,17 @@ export class KeeperAISystem {
       x: player.position.x + clearResult.direction.x * 360,
       y: player.position.y + clearResult.direction.y * 360,
     }
-    const moveVector = this.getOrbitMovement(player.position, target, player.teamSide)
+    const desiredMovement = this.getOrbitMovement(
+      player.position,
+      target,
+      player.teamSide,
+    )
+    const moveVector = this.tuneMovement(
+      player.id,
+      desiredMovement,
+      player.teamSide,
+      deltaMs,
+    )
     const farFromGoal =
       distance(core.position, ownGoal) >
       keeperAreaConfig.keeperZoneRadius * 3.6
@@ -103,8 +124,13 @@ export class KeeperAISystem {
         farFromGoal
           ? keeperConfig.keeperReturnHomeSpeed
           : reactionSpeed,
-      ),
-      0.25,
+      ) *
+        keeperConfig.keeperMoveSpeedMultiplier *
+        (this.scene.time.now <
+        this.postSaveRecoveryUntil[player.teamSide]
+          ? 0.45
+          : 1),
+      0.12,
       1.35,
     )
 
@@ -283,6 +309,18 @@ export class KeeperAISystem {
       : null
   }
 
+  recordSave(side: TeamSide): void {
+    this.postSaveRecoveryUntil[side] =
+      this.scene.time.now + keeperConfig.keeperPostSaveRecoveryMs
+  }
+
+  reset(): void {
+    this.motionRuntimes.clear()
+    this.nextSwingAt.clear()
+    this.postSaveRecoveryUntil.A = 0
+    this.postSaveRecoveryUntil.B = 0
+  }
+
   private getTarget(
     context: AIDecisionContext,
     threat: KeeperThreat,
@@ -362,6 +400,145 @@ export class KeeperAISystem {
     }
   }
 
+  private getReactionDelayedTarget(
+    playerId: string,
+    requestedTarget: Point,
+    deltaMs: number,
+  ): Point {
+    const runtime = this.getMotionRuntime(playerId, requestedTarget)
+    runtime.targetRefreshMs = Math.max(
+      0,
+      runtime.targetRefreshMs - deltaMs,
+    )
+
+    if (runtime.targetRefreshMs === 0) {
+      runtime.target = { ...requestedTarget }
+      runtime.targetRefreshMs = keeperConfig.keeperReactionDelayMs
+    }
+
+    return { ...runtime.target }
+  }
+
+  private tuneMovement(
+    playerId: string,
+    desired: Point,
+    side: TeamSide,
+    deltaMs: number,
+  ): Point {
+    const runtime = this.getMotionRuntime(playerId, desired)
+    const desiredLength = Math.hypot(desired.x, desired.y)
+    const previousLength = Math.hypot(
+      runtime.movement.x,
+      runtime.movement.y,
+    )
+    const reversing =
+      desiredLength > 0.1 &&
+      previousLength > 0.1 &&
+      dot(
+        normalized(desired, { x: 0, y: 0 }),
+        normalized(runtime.movement, { x: 0, y: 0 }),
+      ) < -0.35
+
+    runtime.repositionDelayMs = Math.max(
+      0,
+      runtime.repositionDelayMs - deltaMs,
+    )
+
+    if (reversing && runtime.repositionDelayMs === 0) {
+      runtime.repositionDelayMs =
+        keeperConfig.keeperRepositionDelayMs
+    }
+
+    if (runtime.repositionDelayMs > 0) {
+      runtime.movement = {
+        x: runtime.movement.x * 0.72,
+        y: runtime.movement.y * 0.72,
+      }
+      return { ...runtime.movement }
+    }
+
+    const deltaSeconds = Math.max(0, deltaMs / 1000)
+    const accelerationBlend =
+      1 -
+      Math.exp(
+        -8 *
+          keeperConfig.keeperAccelerationMultiplier *
+          deltaSeconds,
+      )
+    let turnedDesired = desired
+
+    if (desiredLength > 0.1 && previousLength > 0.1) {
+      const previousAngle = Math.atan2(
+        runtime.movement.y,
+        runtime.movement.x,
+      )
+      const desiredAngle = Math.atan2(desired.y, desired.x)
+      const maximumTurn =
+        Math.PI *
+        2.4 *
+        keeperConfig.keeperTurnRateMultiplier *
+        deltaSeconds
+      const angle =
+        previousAngle +
+        Phaser.Math.Clamp(
+          Phaser.Math.Angle.Wrap(desiredAngle - previousAngle),
+          -maximumTurn,
+          maximumTurn,
+        )
+      turnedDesired = {
+        x: Math.cos(angle) * desiredLength,
+        y: Math.sin(angle) * desiredLength,
+      }
+    }
+
+    const next = {
+      x: Phaser.Math.Linear(
+        runtime.movement.x,
+        turnedDesired.x,
+        accelerationBlend,
+      ),
+      y: Phaser.Math.Linear(
+        runtime.movement.y,
+        turnedDesired.y,
+        accelerationBlend,
+      ),
+    }
+    const fieldward = getKeeperHomeDirection(side)
+    const normalizedNext = normalized(next, { x: 0, y: 0 })
+    const frontBackAmount = Math.abs(dot(normalizedNext, fieldward))
+    const frontBackMultiplier = Phaser.Math.Linear(
+      1,
+      keeperConfig.keeperFrontBackRecoveryMultiplier,
+      frontBackAmount,
+    )
+
+    runtime.movement = {
+      x: next.x * frontBackMultiplier,
+      y: next.y * frontBackMultiplier,
+    }
+    return { ...runtime.movement }
+  }
+
+  private getMotionRuntime(
+    playerId: string,
+    target: Point,
+  ): KeeperMotionRuntime {
+    const existing = this.motionRuntimes.get(playerId)
+
+    if (existing) {
+      return existing
+    }
+
+    const runtime: KeeperMotionRuntime = {
+      movement: { x: 0, y: 0 },
+      target: { ...target },
+      targetRefreshMs: keeperConfig.keeperReactionDelayMs,
+      repositionDelayMs: 0,
+    }
+    this.motionRuntimes.set(playerId, runtime)
+    return runtime
+  }
+
   private recordDebug(
     context: AIDecisionContext,
     target: Point,
@@ -413,14 +590,25 @@ type KeeperThreat = {
   focus: Point
 }
 
+type KeeperMotionRuntime = {
+  movement: Point
+  target: Point
+  targetRefreshMs: number
+  repositionDelayMs: number
+}
+
 function predictThreat(context: AIDecisionContext): KeeperThreat {
   const { core, ownGoal, player } = context
   const velocity = core.velocity
   const frames =
     keeperConfig.keeperThreatLookaheadMs / (1000 / 60)
   const predicted = {
-    x: core.position.x + velocity.x * frames,
-    y: core.position.y + velocity.y * frames,
+    x:
+      core.position.x +
+      velocity.x * frames * keeperConfig.keeperPredictionStrength,
+    y:
+      core.position.y +
+      velocity.y * frames * keeperConfig.keeperPredictionStrength,
   }
   const goal = goalConfigs.find((candidate) =>
     player.teamSide === 'A'
@@ -435,7 +623,11 @@ function predictThreat(context: AIDecisionContext): KeeperThreat {
       : (ownGoal.y - core.position.y) / velocity.y
   const crossingX =
     Number.isFinite(travelFrames) && travelFrames >= 0
-      ? core.position.x + velocity.x * travelFrames
+      ? Phaser.Math.Linear(
+          core.position.x,
+          core.position.x + velocity.x * travelFrames,
+          keeperConfig.keeperPredictionStrength,
+        )
       : predicted.x
   const insidePosts = goal
     ? Math.abs(crossingX - goal.x) <= goal.length / 2
@@ -474,6 +666,10 @@ function normalized(vector: Point, fallback: Point): Point {
 
 function distance(a: Point, b: Point): number {
   return Math.hypot(a.x - b.x, a.y - b.y)
+}
+
+function dot(a: Point, b: Point): number {
+  return a.x * b.x + a.y * b.y
 }
 
 function getKeeperClearDirection(

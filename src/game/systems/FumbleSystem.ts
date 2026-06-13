@@ -38,6 +38,7 @@ export class FumbleSystem {
     source: FumblePressureSource,
     coreState: CorePossessionState,
     carrier: Player,
+    phaseMultiplierOverride?: number,
   ): boolean {
     const handling = Phaser.Math.Clamp(
       carrier.attributes.ballHandling,
@@ -55,14 +56,19 @@ export class FumbleSystem {
           Phaser.Math.Linear(1.15, 0.75, handling)
         : Phaser.Math.Linear(1.2, 0.65, handling)
     const phaseMultiplier =
-      coreState === 'CRADLED_OVERCHARGED'
-        ? defenseConfig.overchargeFumbleVulnerability *
-          (source === 'truck'
-            ? defenseConfig.truckOverchargeMultiplier
-            : defenseConfig.slashOverchargeMultiplier)
+      phaseMultiplierOverride ??
+      (coreState === 'CRADLED_OVERCHARGED'
+        ? source === 'slash'
+          ? defenseConfig.overchargedSlashVulnerability
+          : defenseConfig.overchargeFumbleVulnerability *
+            defenseConfig.truckOverchargeMultiplier
         : coreState === 'CRADLED_CHARGING'
-          ? defenseConfig.chargingFumbleResistance
-          : defenseConfig.stableCradleFumbleResistance
+          ? source === 'slash'
+            ? defenseConfig.chargingSlashVulnerability
+            : defenseConfig.chargingFumbleResistance
+          : source === 'slash'
+            ? defenseConfig.stableSlashVulnerability
+            : defenseConfig.stableCradleFumbleResistance)
     const roleBonus =
       attackerRole === 'brute' && source === 'truck'
         ? defenseConfig.bruteFumbleBonus

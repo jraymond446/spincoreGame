@@ -12,7 +12,10 @@ import type { Core } from '../entities/Core'
 import type { Player } from '../entities/Player'
 import type { DefensiveVisualState } from '../rendering/AnimationState'
 import type { FumbleSystem } from './FumbleSystem'
-import type { StickInteractionSystem } from './StickInteractionSystem'
+import type {
+  CorePossessionState,
+  StickInteractionSystem,
+} from './StickInteractionSystem'
 import {
   isNearOwnGoal,
   sanitizeClearDirection,
@@ -44,6 +47,18 @@ export type DefenseTargetDebug = {
   action: 'TRUCK' | 'SLASH'
   toughness: number
   ballHandling: number
+}
+
+export type SlashChargeDebug = {
+  carrierPossessionState: CorePossessionState
+  chargingTimeMs: number
+  slashHitCarrier: boolean
+  slashHitCore: boolean
+  slashAppliedToCharging: boolean
+  fumblePressureBefore: number
+  fumblePressureAfter: number
+  vulnerabilityMultiplier: number
+  stealDeniedReason: string | null
 }
 
 type DefenseRuntime = {
@@ -79,6 +94,7 @@ export class DefenseSystem {
   private lastTargetDebug: DefenseTargetDebug | null = null
   private lastClearSafety: ClearSafetyResult | null = null
   private lastClearSafetyPoint: Point | null = null
+  private lastSlashChargeDebug: SlashChargeDebug | null = null
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene
@@ -226,6 +242,7 @@ export class DefenseSystem {
     this.lastTargetDebug = null
     this.lastClearSafety = null
     this.lastClearSafetyPoint = null
+    this.lastSlashChargeDebug = null
     this.graphics.clear()
   }
 
@@ -269,6 +286,12 @@ export class DefenseSystem {
 
   getTargetDebug(): DefenseTargetDebug | null {
     return this.lastTargetDebug ? { ...this.lastTargetDebug } : null
+  }
+
+  getSlashChargeDebug(): SlashChargeDebug | null {
+    return this.lastSlashChargeDebug
+      ? { ...this.lastSlashChargeDebug }
+      : null
   }
 
   private getRuntime(playerId: string): DefenseRuntime {
@@ -579,6 +602,57 @@ export class DefenseSystem {
     this.addBurst(hitPoint, 'slash')
 
     if (carrier && carrier.teamSide !== attacker.teamSide) {
+      const possessionState = stickSystem.getState()
+      const charging =
+        possessionState === 'CRADLED_CHARGING' ||
+        possessionState === 'CRADLED_OVERCHARGED'
+      const releaseWindup = stickSystem.isReleaseWindup(carrier.id)
+      const fumblePressureBefore = fumbleSystem.getPressure()
+      const chargingTimeMs = stickSystem.getCradleElapsedMs()
+      const vulnerabilityMultiplier =
+        releaseWindup
+          ? defenseConfig.releaseWindupSlashVulnerability
+          : possessionState === 'CRADLED_OVERCHARGED'
+          ? defenseConfig.overchargedSlashVulnerability
+          : possessionState === 'CRADLED_CHARGING'
+            ? defenseConfig.chargingSlashVulnerability
+            : defenseConfig.stableSlashVulnerability
+
+      if (
+        stickSystem.isReleaseProtected(
+          carrier.id,
+          defenseConfig.releaseFrameProtectionMs,
+        )
+      ) {
+        this.recordSlashChargeDebug({
+          carrierPossessionState: possessionState,
+          chargingTimeMs,
+          slashHitCarrier: true,
+          slashHitCore: hitPoint === targetPoints[0],
+          slashAppliedToCharging: false,
+          fumblePressureBefore,
+          fumblePressureAfter: fumblePressureBefore,
+          vulnerabilityMultiplier,
+          stealDeniedReason: 'releaseProtected',
+        })
+        return
+      }
+
+      if (charging && !defenseConfig.chargingStealEnabled) {
+        this.recordSlashChargeDebug({
+          carrierPossessionState: possessionState,
+          chargingTimeMs,
+          slashHitCarrier: true,
+          slashHitCore: hitPoint === targetPoints[0],
+          slashAppliedToCharging: false,
+          fumblePressureBefore,
+          fumblePressureAfter: fumblePressureBefore,
+          vulnerabilityMultiplier,
+          stealDeniedReason: 'chargingStealDisabled',
+        })
+        return
+      }
+
       const roleMultiplier =
         attacker.role === 'support'
           ? defenseConfig.supportSlashPrecisionMultiplier
@@ -595,13 +669,69 @@ export class DefenseSystem {
         attacker.defenseTendencies.fumblePressurePreference *
         stylePressureMultiplier(attacker)
       this.recordTargetDebug(attacker, carrier, 'SLASH')
-      const shouldFumble = fumbleSystem.addPressure(
+      const pressureFumble = fumbleSystem.addPressure(
         pressure,
         attacker.role,
         'slash',
-        stickSystem.getState(),
+        possessionState,
         carrier,
+        releaseWindup
+          ? defenseConfig.releaseWindupSlashVulnerability
+          : undefined,
       )
+      const baseFumbleChance =
+        possessionState === 'CRADLED_OVERCHARGED'
+          ? defenseConfig.slashOverchargeFumbleBaseChance
+          : possessionState === 'CRADLED_CHARGING'
+            ? defenseConfig.slashChargeFumbleBaseChance
+            : 0
+      const carrierResistance = Phaser.Math.Linear(
+        1.15,
+        0.65,
+        Phaser.Math.Clamp(
+          (carrier.attributes.toughness +
+            carrier.attributes.ballHandling) *
+            0.5,
+          0,
+          1,
+        ),
+      )
+      const chanceFumble =
+        baseFumbleChance > 0 &&
+        Math.random() <
+          Phaser.Math.Clamp(
+            baseFumbleChance *
+              Phaser.Math.Linear(
+                0.72,
+                1.12,
+                Phaser.Math.Clamp(attacker.attributes.defense, 0, 1),
+              ) *
+              carrierResistance *
+              roleMultiplier,
+            0,
+            0.95,
+          )
+      const shouldFumble = pressureFumble || chanceFumble
+
+      if (
+        charging &&
+        defenseConfig.slashCanInterruptCharge &&
+        !shouldFumble
+      ) {
+        stickSystem.interruptCharge(carrier.id)
+      }
+
+      this.recordSlashChargeDebug({
+        carrierPossessionState: possessionState,
+        chargingTimeMs,
+        slashHitCarrier: true,
+        slashHitCore: hitPoint === targetPoints[0],
+        slashAppliedToCharging: charging,
+        fumblePressureBefore,
+        fumblePressureAfter: fumbleSystem.getPressure(),
+        vulnerabilityMultiplier,
+        stealDeniedReason: null,
+      })
 
       if (
         shouldFumble &&
@@ -695,6 +825,13 @@ export class DefenseSystem {
   ): void {
     if (attacker.id === this.focusPlayerId) {
       this.lastTargetDebug = targetDebug(target, action)
+    }
+  }
+
+  private recordSlashChargeDebug(debug: SlashChargeDebug): void {
+    this.lastSlashChargeDebug = debug
+    if (this.debugEnabled) {
+      console.info('[Slash Charge Interaction]', debug)
     }
   }
 

@@ -176,6 +176,7 @@ export class GameScene extends Phaser.Scene {
       {
         onResetFormation: this.preparePostGoalReset,
         onResumePlay: this.resumeAfterCountdown,
+        onMatchComplete: this.emitMatchCompletion,
       },
     )
     this.matchStatsTracker = new MatchStatsTracker()
@@ -191,6 +192,12 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.createHud(hudRoot)
+    if (this.gameMode === 'match3v3') {
+      this.matchFlowSystem.startMatch(
+        `${this.teamSystem.getTeam('A').name} VS ${this.teamSystem.getTeam('B').name}`,
+        `FIRST TO ${this.matchState.firstTo}`,
+      )
+    }
     this.layoutViewport()
     this.scale.on('resize', this.layoutViewport, this)
     if (!this.labEventsBound) {
@@ -356,6 +363,7 @@ export class GameScene extends Phaser.Scene {
 
     if (savedSide) {
       this.matchStatsTracker.recordSave(savedSide)
+      this.aiSystem.recordKeeperSave(savedSide)
       this.aiSystem.recordSave(savedSide)
       statsChanged = true
     } else if (
@@ -412,7 +420,12 @@ export class GameScene extends Phaser.Scene {
     for (const goal of this.goals) {
       const crossing = this.goalRules
         .get(goal.id)
-        ?.check(this.core.position, goal, delta)
+        ?.check(
+          this.core.position,
+          goal,
+          delta,
+          this.core.renderedPosition,
+        )
 
       if (crossing) {
         this.scoreGoal(goal, crossing)
@@ -744,15 +757,20 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    if (newScore >= this.matchState.firstTo) {
+    const completesMatch = newScore >= this.matchState.firstTo
+
+    if (completesMatch) {
       this.matchState.winner = scoringSide
     }
 
     goal.flash(matchFlowConfig.goalFlashDurationMs)
     this.beginGoalSequence()
-    this.matchFlowSystem.scoreGoal(scoringSide, crossing.impactPoint)
+    this.matchFlowSystem.scoreGoal(
+      scoringSide,
+      crossing.impactPoint,
+      completesMatch,
+    )
     this.updateHud()
-    this.emitMatchCompletion()
   }
 
   private emitMatchCompletion(): void {
@@ -772,6 +790,11 @@ export class GameScene extends Phaser.Scene {
       score: { ...this.matchState.score },
       playerGoals: this.playerGoals,
       playerBankShotGoals: this.playerBankShotGoals,
+      stats: this.matchStatsTracker.getSnapshot(),
+      teamNames: {
+        A: this.teamSystem.getTeam('A').name,
+        B: this.teamSystem.getTeam('B').name,
+      },
     }
     window.dispatchEvent(
       new CustomEvent<MatchCompletionDetail>(
@@ -1122,6 +1145,7 @@ export class GameScene extends Phaser.Scene {
       fumblePressure: this.fumbleSystem.getPressure(),
       fumblePressureNormalized:
         this.fumbleSystem.getNormalizedPressure(),
+      slashCharge: this.defenseSystem.getSlashChargeDebug(),
       wallBounce: this.wallBounceSystem.getDebugState(),
       wallCarry: this.wallCarryPressureSystem.getDebugState(),
       clearSafety:
