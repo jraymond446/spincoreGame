@@ -2,6 +2,10 @@ import { equipmentCatalog } from '../equipment/equipmentCatalog'
 import type { EquipmentItem } from '../equipment/equipmentTypes'
 import { opponentTeams } from '../game/data/opponentTeams'
 import { defaultLeagues } from '../league/defaultLeagues'
+import {
+  createMatchResult,
+  type MatchResult,
+} from '../match/MatchResult'
 import type { MatchLaunchConfig } from '../match/MatchLaunchConfig'
 import {
   createCreatedPlayer,
@@ -13,10 +17,7 @@ import {
   saveGame,
   updateSave,
 } from '../save/saveStorage'
-import {
-  recordMatchRewards,
-  type MatchRewardBreakdown,
-} from '../save/progression'
+import { recordMatchResult } from '../save/progression'
 import type {
   EquipmentSlot,
   PlayerAttributeKey,
@@ -29,7 +30,7 @@ import { GameHost } from './GameHost'
 import { createLeagueHubScreen } from './LeagueHubScreen'
 import { createMainMenu } from './MainMenu'
 import type { RewardNotice } from './MainMenu'
-import type { MatchExitSummary } from './GameHost'
+import { createMatchResultsScreen } from './MatchResultsScreen'
 import { createPlayerProfileScreen } from './PlayerProfileScreen'
 import { createSettingsScreen } from './SettingsScreen'
 import { createStoreScreen } from './StoreScreen'
@@ -143,6 +144,7 @@ export class AppShell {
         save,
         onBack: () => this.renderMainMenu(),
         onPlay: () => this.startMatch('exhibition'),
+        onStore: () => this.renderStore(),
         onSpendPoint: (key) => this.spendAttributePoint(key),
       }),
     )
@@ -150,18 +152,24 @@ export class AppShell {
 
   private renderLeagueHub(): void {
     const save = this.requireSave()
+
+    if (!save) {
+      return
+    }
+
     const league =
       defaultLeagues.find(
-        (candidate) => candidate.id === save?.league.currentLeagueId,
+        (candidate) => candidate.id === save.league.currentLeagueId,
       ) ?? defaultLeagues[0]
+    const nextOpponentId =
+      league?.teams[save.league.rookieCircuit.currentOpponentIndex]
+        ?.opponentTeamId
     const nextOpponent =
       opponentTeams.find(
-        (candidate) =>
-          candidate.id ===
-          league?.schedule.find((match) => !match.played)?.opponentTeamId,
-      ) ?? opponentTeams[0]
+        (candidate) => candidate.id === nextOpponentId,
+      ) ?? null
 
-    if (!save || !league || !nextOpponent) {
+    if (!league) {
       this.renderMainMenu()
       return
     }
@@ -174,8 +182,12 @@ export class AppShell {
         nextOpponent,
         onBack: () => this.renderMainMenu(),
         onPlayNext: () => {
+          if (!nextOpponent) {
+            return
+          }
+
           this.selectedOpponentId = nextOpponent.id
-          this.startMatch('league')
+          this.startMatch('league', nextOpponent.id)
         },
       }),
     )
@@ -210,11 +222,14 @@ export class AppShell {
     )
   }
 
-  private startMatch(mode: MatchLaunchConfig['mode']): void {
+  private startMatch(
+    mode: MatchLaunchConfig['mode'],
+    opponentId = this.selectedOpponentId,
+  ): void {
     const save = this.save
     const opponent =
       opponentTeams.find(
-        (candidate) => candidate.id === this.selectedOpponentId,
+        (candidate) => candidate.id === opponentId,
       ) ?? opponentTeams[0]
     const launch: MatchLaunchConfig = {
       mode,
@@ -231,62 +246,94 @@ export class AppShell {
     this.gameHost = new GameHost({
       root: this.root,
       launch,
-      onExit: (summary) => {
+      onExit: () => {
         this.gameHost?.destroy()
         this.gameHost = null
 
         if (mode === 'lab') {
           this.save = loadSave()
-        } else {
-          this.applyMatchRewards(summary)
         }
 
         this.renderMainMenu()
       },
+      onCompleted: (completion) => {
+        window.setTimeout(() => {
+          this.completeMatch(completion, launch)
+        }, 0)
+      },
     })
   }
 
-  private applyMatchRewards(summary: MatchExitSummary): void {
-    const current = this.save ?? loadSave()
-
-    if (!current) {
+  private completeMatch(
+    completion: Parameters<typeof createMatchResult>[0],
+    launch: MatchLaunchConfig,
+  ): void {
+    if (this.screen !== 'match' || launch.mode === 'lab') {
       return
     }
 
+    this.gameHost?.destroy()
+    this.gameHost = null
+    const current = this.save ?? loadSave()
+
+    if (!current) {
+      this.renderCreatePlayer()
+      return
+    }
+
+    const result = createMatchResult(completion, launch)
     const draft = structuredClone(current)
-    const result = summary.result
-    const rewards: MatchRewardBreakdown = recordMatchRewards(
-      draft,
-      result
-        ? {
-            won: result.winner === 'A',
-            goals: result.playerGoals,
-            bankShotGoals: result.playerBankShotGoals,
-          }
-        : null,
-    )
+    result.rewards = recordMatchResult(draft, result)
     const saved = saveGame(draft)
 
     if (!saved) {
       this.save = loadSave()
+    } else {
+      this.save = saved
+    }
+
+    this.rewardNotice = {
+      title: result.won ? 'Match won' : 'Match complete',
+      xp: result.rewards.xp,
+      money: result.rewards.money,
+      details:
+        `Final score ${result.playerTeamScore}-${result.opponentTeamScore}. ` +
+        `${result.playerStats.goals} goals, ` +
+        `${result.playerStats.bankShotGoals} bank goals.`,
+    }
+    this.renderMatchResults(result, launch)
+  }
+
+  private renderMatchResults(
+    result: MatchResult,
+    launch: MatchLaunchConfig,
+  ): void {
+    const save = this.requireSave()
+
+    if (!save) {
       return
     }
 
-    this.save = saved
-    const score = summary.result?.score
-    this.rewardNotice = {
-      title: rewards.completed
-        ? rewards.won
-          ? 'Match won'
-          : 'Match complete'
-        : 'Exhibition run logged',
-      xp: rewards.xp,
-      money: rewards.money,
-      details: score
-        ? `Final score ${score.A}-${score.B}. ` +
-          `${rewards.goals} goals, ${rewards.bankShotGoals} bank goals.`
-        : 'Participation rewards banked. Results were not recorded.',
-    }
+    this.screen = 'matchResults'
+    this.show(
+      createMatchResultsScreen({
+        result,
+        player: save.player,
+        onContinue: () => {
+          if (result.mode === 'league') {
+            this.renderLeagueHub()
+          } else {
+            this.renderMainMenu()
+          }
+        },
+        onRematch: () => {
+          this.selectedOpponentId = result.opponentTeamId
+          this.startMatch(launch.mode, result.opponentTeamId)
+        },
+        onMainMenu: () => this.renderMainMenu(),
+        onPlayerProfile: () => this.renderPlayerProfile(),
+      }),
+    )
   }
 
   private spendAttributePoint(key: PlayerAttributeKey): void {

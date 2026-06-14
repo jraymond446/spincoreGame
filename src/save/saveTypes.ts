@@ -124,7 +124,7 @@ export type LeagueStatLine = Pick<
 export type EquipmentSlot = 'stickId' | 'shieldId' | 'shoesId'
 
 export type SaveGame = {
-  version: 2
+  version: 3
   createdAt: string
   updatedAt: string
   player: CreatedPlayer
@@ -146,6 +146,11 @@ export type SaveGame = {
     record: {
       wins: number
       losses: number
+    }
+    rookieCircuit: {
+      currentOpponentIndex: number
+      defeatedOpponentTeamIds: string[]
+      completed: boolean
     }
   }
   seasonStats: SeasonStats

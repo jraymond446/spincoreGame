@@ -16,7 +16,9 @@ export function getEffectivePlayerAttributes(
   ].filter(
     (id): id is string => Boolean(id),
   )
-  const stick = getStickType(save.player.selectedStickId)
+  const stick = getStickType(
+    save.equipment.equipped.stickId ?? save.player.selectedStickId,
+  )
 
   for (const key of playerAttributeKeys) {
     attributes[key] = Math.min(

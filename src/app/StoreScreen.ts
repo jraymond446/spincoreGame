@@ -18,10 +18,10 @@ export function createStoreScreen(options: {
   onEquip: (item: EquipmentItem) => void
 }): HTMLElement {
   const { root, body, header } = createSpincoreScreenFrame({
-    eyebrow: 'EQUIPMENT DEPOT',
-    title: 'Circuit Store',
+    eyebrow: 'EQUIPMENT DEPOT / STARTER STOCK',
+    title: 'Stick Store',
     subtitle:
-      'Tune the edges of your build with gear that feeds directly into match attributes.',
+      'Buy a stick once, equip it freely, and take its modifiers into the next match.',
   })
   const balance = document.createElement('div')
   balance.className = 'store-header-balance'

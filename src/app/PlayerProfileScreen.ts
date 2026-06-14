@@ -1,5 +1,6 @@
 import { getEffectivePlayerAttributes } from '../equipment/equipmentEffects'
 import { getStickType } from '../equipment/stickTypes'
+import { xpToNextLevel } from '../save/progression'
 import type {
   LeagueStatLine,
   PlayerAttributeKey,
@@ -26,6 +27,7 @@ export function createPlayerProfileScreen(options: {
   save: SaveGame
   onBack: () => void
   onPlay: () => void
+  onStore: () => void
   onSpendPoint: (key: PlayerAttributeKey) => void
 }): HTMLElement {
   const { save } = options
@@ -65,6 +67,22 @@ export function createPlayerProfileScreen(options: {
     ),
   )
   identityPanel.content.append(preview.element, summary)
+  const xpTarget = xpToNextLevel(save.progression.level)
+  const xpProgress = document.createElement('div')
+  xpProgress.className = 'profile-xp-progress'
+  const xpLabel = document.createElement('div')
+  const xpTitle = document.createElement('strong')
+  xpTitle.textContent = `Level ${save.progression.level} progress`
+  const xpValue = document.createElement('span')
+  xpValue.textContent = `${save.progression.xp} / ${xpTarget} XP`
+  xpLabel.append(xpTitle, xpValue)
+  const xpTrack = document.createElement('div')
+  const xpFill = document.createElement('i')
+  xpFill.style.width =
+    `${Math.min(100, save.progression.xp / xpTarget * 100)}%`
+  xpTrack.appendChild(xpFill)
+  xpProgress.append(xpLabel, xpTrack)
+  identityPanel.content.appendChild(xpProgress)
 
   const buildColumn = document.createElement('div')
   buildColumn.className = 'player-profile-build-column'
@@ -100,16 +118,17 @@ export function createPlayerProfileScreen(options: {
     title: 'Stick Attributes',
     copy: 'Stick modifiers are included in the effective ratings above.',
   })
-  const stick = getStickType(save.player.selectedStickId)
+  const stick = getStickType(
+    save.equipment.equipped.stickId ?? save.player.selectedStickId,
+  )
   stickPanel.content.appendChild(
     createSpincoreStickCard(stick, { detailed: true }),
   )
   stickPanel.actions.append(
-    createSpincoreButton('Manage Equipment', () => {}, {
-      tone: 'quiet',
-      disabled: true,
+    createSpincoreButton('Manage Equipment', options.onStore, {
+      tone: 'secondary',
     }),
-    createSpincoreBadge('STORE LINK COMING SOON', 'navy'),
+    createSpincoreBadge('STICK MODIFIERS ACTIVE', 'mint'),
   )
   buildColumn.append(attributesPanel.panel, stickPanel.panel)
   profileGrid.append(identityPanel.panel, buildColumn)

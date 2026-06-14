@@ -28,6 +28,10 @@ import {
   matchEvents,
   type MatchCompletionDetail,
 } from '../../match/MatchEvents'
+import {
+  createEmptyMatchPlayerStats,
+  type MatchPlayerStats,
+} from '../../match/MatchResult'
 import { ArenaDressing } from '../rendering/ArenaDressing'
 import { ScoreboardOverlay } from '../rendering/ScoreboardOverlay'
 import { preloadVisualAssetOverrides } from '../rendering/VisualAssetOverrides'
@@ -104,8 +108,7 @@ export class GameScene extends Phaser.Scene {
   private gameMode: GameMode = gameplayConfig.defaultMode
   private currentInputIntent = 'IDLE'
   private labEventsBound = false
-  private playerGoals = 0
-  private playerBankShotGoals = 0
+  private playerStats: MatchPlayerStats = createEmptyMatchPlayerStats()
   private matchCompletionEmitted = false
 
   constructor() {
@@ -116,8 +119,7 @@ export class GameScene extends Phaser.Scene {
     this.gameMode = data?.gameMode ?? getLabState().mode
     this.matchState = structuredClone(initialMatchState)
     this.debugEnabled = false
-    this.playerGoals = 0
-    this.playerBankShotGoals = 0
+    this.playerStats = createEmptyMatchPlayerStats()
     this.matchCompletionEmitted = false
   }
 
@@ -331,6 +333,28 @@ export class GameScene extends Phaser.Scene {
     )
     const interactionEvent =
       this.stickInteractionSystem.consumeInteractionEvent()
+    const createdPlayer =
+      getMatchLaunchConfig().useCreatedPlayer
+        ? players.find(
+            (player) =>
+              player.teamSide === 'A' &&
+              player.controllerType === 'human',
+          )
+        : null
+
+    if (
+      interactionEvent &&
+      interactionEvent.playerId === createdPlayer?.id
+    ) {
+      if (interactionEvent.result === 'release') {
+        this.playerStats.shots += 1
+      } else if (interactionEvent.result === 'cradle') {
+        this.playerStats.successfulGathers += 1
+      } else if (interactionEvent.result === 'fumble') {
+        this.playerStats.fumbles += 1
+        this.playerStats.turnovers += 1
+      }
+    }
 
     if (interactionEvent?.result === 'release') {
       const releasingPlayer = players.find(
@@ -373,6 +397,14 @@ export class GameScene extends Phaser.Scene {
       this.matchStatsTracker.recordSave(savedSide)
       this.aiSystem.recordKeeperSave(savedSide)
       this.aiSystem.recordSave(savedSide)
+
+      if (
+        savedSide === 'A' &&
+        interactionEvent?.playerId === createdPlayer?.id
+      ) {
+        this.playerStats.saves += 1
+      }
+
       statsChanged = true
     } else if (
       interactionEvent &&
@@ -744,13 +776,20 @@ export class GameScene extends Phaser.Scene {
     const scoringSide: TeamSide = goal.scoringTeam
     const newScore = this.matchState.score[scoringSide] + 1
 
-    const scorerId = this.matchStatsTracker.recordGoal(scoringSide)
+    const attribution = this.matchStatsTracker.recordGoal(scoringSide)
     this.aiSystem.recordGoal(scoringSide)
     this.matchState.score[scoringSide] = newScore
     this.matchState.lastScorer = scoringSide
 
-    const scorer = scorerId
-      ? this.teamSystem.players.find((player) => player.id === scorerId)
+    const scorer = attribution.scorerId
+      ? this.teamSystem.players.find(
+          (player) => player.id === attribution.scorerId,
+        )
+      : null
+    const assister = attribution.assistId
+      ? this.teamSystem.players.find(
+          (player) => player.id === attribution.assistId,
+        )
       : null
     const createdPlayerScored =
       scoringSide === 'A' &&
@@ -758,11 +797,19 @@ export class GameScene extends Phaser.Scene {
       getMatchLaunchConfig().useCreatedPlayer
 
     if (createdPlayerScored) {
-      this.playerGoals += 1
+      this.playerStats.goals += 1
 
       if (this.wallBounceSystem.getDebugState().recentBankShot) {
-        this.playerBankShotGoals += 1
+        this.playerStats.bankShotGoals += 1
       }
+    }
+
+    if (
+      scoringSide === 'A' &&
+      assister?.controllerType === 'human' &&
+      getMatchLaunchConfig().useCreatedPlayer
+    ) {
+      this.playerStats.assists += 1
     }
 
     const completesMatch = newScore >= this.matchState.firstTo
@@ -796,8 +843,9 @@ export class GameScene extends Phaser.Scene {
     const detail: MatchCompletionDetail = {
       winner: this.matchState.winner,
       score: { ...this.matchState.score },
-      playerGoals: this.playerGoals,
-      playerBankShotGoals: this.playerBankShotGoals,
+      playerGoals: this.playerStats.goals,
+      playerBankShotGoals: this.playerStats.bankShotGoals,
+      playerStats: { ...this.playerStats },
       stats: this.matchStatsTracker.getSnapshot(),
       teamNames: {
         A: this.teamSystem.getTeam('A').name,

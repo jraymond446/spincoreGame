@@ -7,4 +7,4 @@ export type AppScreen =
   | 'store'
   | 'settings'
   | 'match'
-
+  | 'matchResults'

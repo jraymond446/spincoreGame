@@ -35,7 +35,10 @@ export function createSpincoreEquipmentCard(options: {
   } else {
     for (const [key, value] of modifierEntries) {
       modifiers.appendChild(
-        createSpincoreBadge(`+${value} ${titleCase(key)}`, 'mint'),
+        createSpincoreBadge(
+          `${value > 0 ? '+' : ''}${value} ${titleCase(key)}`,
+          value > 0 ? 'mint' : 'rose',
+        ),
       )
     }
   }

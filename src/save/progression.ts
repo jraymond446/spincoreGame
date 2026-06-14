@@ -1,33 +1,38 @@
+import type {
+  MatchResult,
+  MatchRewardItem,
+  MatchRewards,
+} from '../match/MatchResult'
+import { defaultLeagues } from '../league/defaultLeagues.ts'
 import type { SaveGame } from './saveTypes'
 
-export type MatchResultRewardInput = {
-  won: boolean
-  goals: number
-  assists?: number
-  shots?: number
-  bankShotGoals?: number
-  steals?: number
-  saves?: number
-  turnovers?: number
+export type LevelAward = {
+  levelsGained: number
+  previousLevel: number
+  newLevel: number
 }
 
-export type MatchRewardBreakdown = {
-  xp: number
-  money: number
-  completed: boolean
-  won: boolean
-  goals: number
-  bankShotGoals: number
+export function xpToNextLevel(level: number): number {
+  return 100 + Math.max(0, Math.round(level) - 1) * 50
 }
 
-export function awardXp(save: SaveGame, amount: number): void {
+export function awardXp(save: SaveGame, amount: number): LevelAward {
+  const previousLevel = save.progression.level
   save.progression.xp += Math.max(0, Math.round(amount))
-  const nextLevel = 1 + Math.floor(save.progression.xp / 100)
 
-  if (nextLevel > save.progression.level) {
-    save.progression.unspentAttributePoints +=
-      nextLevel - save.progression.level
-    save.progression.level = nextLevel
+  while (
+    save.progression.xp >=
+    xpToNextLevel(save.progression.level)
+  ) {
+    save.progression.xp -= xpToNextLevel(save.progression.level)
+    save.progression.level += 1
+    save.progression.unspentAttributePoints += 1
+  }
+
+  return {
+    levelsGained: save.progression.level - previousLevel,
+    previousLevel,
+    newLevel: save.progression.level,
   }
 }
 
@@ -35,83 +40,160 @@ export function awardMoney(save: SaveGame, amount: number): void {
   save.wallet.money += Math.max(0, Math.round(amount))
 }
 
-export function addMatchStats(
-  save: SaveGame,
-  result: MatchResultRewardInput,
-): void {
-  recordMatchRewards(save, result)
-}
-
-export function recordMatchRewards(
-  save: SaveGame,
-  result: MatchResultRewardInput | null,
-): MatchRewardBreakdown {
-  const trackedLines = [save.stats, save.seasonStats]
-  const leagueId = save.league.currentLeagueId
-  const leagueStats = leagueId ? save.leagueStats[leagueId] : null
-
-  for (const stats of trackedLines) {
-    stats.matchesPlayed += 1
-  }
-  if (leagueStats) {
-    leagueStats.matchesPlayed += 1
-  }
-  const goals = Math.max(0, result?.goals ?? 0)
-  const bankShotGoals = Math.max(0, result?.bankShotGoals ?? 0)
-
-  if (result) {
-    for (const stats of trackedLines) {
-      stats.goals += goals
-      stats.assists += Math.max(0, result.assists ?? 0)
-      stats.shots += Math.max(0, result.shots ?? 0)
-      stats.bankShotGoals += bankShotGoals
-      stats.steals += Math.max(0, result.steals ?? 0)
-      stats.saves += Math.max(0, result.saves ?? 0)
-      stats.turnovers += Math.max(0, result.turnovers ?? 0)
-    }
-    if (leagueStats) {
-      leagueStats.goals += goals
-      leagueStats.assists += Math.max(0, result.assists ?? 0)
-      leagueStats.bankShotGoals += bankShotGoals
-    }
-
-    if (result.won) {
-      save.league.record.wins += 1
-      save.stats.wins += 1
-      save.seasonStats.wins += 1
-      if (leagueStats) {
-        leagueStats.wins += 1
-      }
-    } else {
-      save.league.record.losses += 1
-      save.stats.losses += 1
-      save.seasonStats.losses += 1
-      if (leagueStats) {
-        leagueStats.losses += 1
-      }
-    }
-  }
-
-  const rewards = calculateMatchRewards(result)
-  const { xp, money } = rewards
-  awardXp(save, xp)
-  awardMoney(save, money)
-  return rewards
-}
-
 export function calculateMatchRewards(
-  result: MatchResultRewardInput | null,
-): MatchRewardBreakdown {
-  const goals = Math.max(0, result?.goals ?? 0)
-  const bankShotGoals = Math.max(0, result?.bankShotGoals ?? 0)
+  result: Pick<MatchResult, 'won' | 'playerStats'>,
+): MatchRewards {
+  const stats = result.playerStats
+  const breakdown: MatchRewardItem[] = [
+    { label: 'Match played', xp: 10, money: 5 },
+    result.won
+      ? { label: 'Victory bonus', xp: 25, money: 20 }
+      : { label: 'Match completion', xp: 5, money: 5 },
+  ]
+
+  addPerformanceReward(
+    breakdown,
+    'Goals',
+    Math.max(0, stats.goals) * 5,
+  )
+  addPerformanceReward(
+    breakdown,
+    'Assists',
+    Math.max(0, stats.assists) * 4,
+  )
+  addPerformanceReward(
+    breakdown,
+    'Bank-shot bonus',
+    Math.max(0, stats.bankShotGoals) * 5,
+  )
+  addPerformanceReward(
+    breakdown,
+    'Steals',
+    Math.max(0, stats.steals) * 2,
+  )
+  addPerformanceReward(
+    breakdown,
+    'Saves',
+    Math.max(0, stats.saves) * 2,
+  )
+  addPerformanceReward(
+    breakdown,
+    'Gather control',
+    Math.min(10, Math.floor(Math.max(0, stats.successfulGathers) / 3)),
+  )
 
   return {
-    xp:
-      10 + (result?.won ? 20 : 0) + goals * 5 + bankShotGoals * 3,
-    money: 5 + (result?.won ? 15 : 0),
-    completed: Boolean(result),
-    won: result?.won ?? false,
-    goals,
-    bankShotGoals,
+    xp: breakdown.reduce((total, item) => total + item.xp, 0),
+    money: breakdown.reduce((total, item) => total + item.money, 0),
+    breakdown,
+    levelsGained: 0,
+    newLevel: 0,
+  }
+}
+
+export function recordMatchResult(
+  save: SaveGame,
+  result: MatchResult,
+): MatchRewards {
+  const rewards = calculateMatchRewards(result)
+  const trackedLines = [save.stats, save.seasonStats]
+  const leagueStats =
+    result.mode === 'league'
+      ? save.leagueStats[save.league.currentLeagueId ?? '']
+      : null
+  const stats = result.playerStats
+
+  for (const line of trackedLines) {
+    line.matchesPlayed += 1
+    line.goals += stats.goals
+    line.assists += stats.assists
+    line.shots += stats.shots
+    line.bankShotGoals += stats.bankShotGoals
+    line.steals += stats.steals
+    line.saves += stats.saves
+    line.turnovers += stats.turnovers
+    line.successfulGathers += stats.successfulGathers
+    line.fumbles += stats.fumbles
+
+    if (result.won) {
+      line.wins += 1
+    } else {
+      line.losses += 1
+    }
+  }
+
+  if (leagueStats) {
+    leagueStats.matchesPlayed += 1
+    leagueStats.goals += stats.goals
+    leagueStats.assists += stats.assists
+    leagueStats.bankShotGoals += stats.bankShotGoals
+
+    if (result.won) {
+      leagueStats.wins += 1
+    } else {
+      leagueStats.losses += 1
+    }
+  }
+
+  if (result.mode === 'league') {
+    if (result.won) {
+      save.league.record.wins += 1
+      advanceRookieCircuit(save, result.opponentTeamId)
+    } else {
+      save.league.record.losses += 1
+    }
+  }
+
+  const levelAward = awardXp(save, rewards.xp)
+  awardMoney(save, rewards.money)
+  return {
+    ...rewards,
+    levelsGained: levelAward.levelsGained,
+    newLevel: levelAward.newLevel,
+  }
+}
+
+function addPerformanceReward(
+  breakdown: MatchRewardItem[],
+  label: string,
+  xp: number,
+): void {
+  if (xp > 0) {
+    breakdown.push({ label, xp, money: 0 })
+  }
+}
+
+function advanceRookieCircuit(
+  save: SaveGame,
+  opponentTeamId: string,
+): void {
+  const progress = save.league.rookieCircuit
+  const league = defaultLeagues.find(
+    (candidate) => candidate.id === 'rookie_circuit',
+  )
+  const currentOpponent =
+    league?.teams[progress.currentOpponentIndex]?.opponentTeamId
+
+  if (
+    progress.completed ||
+    !currentOpponent ||
+    currentOpponent !== opponentTeamId
+  ) {
+    return
+  }
+
+  if (!progress.defeatedOpponentTeamIds.includes(opponentTeamId)) {
+    progress.defeatedOpponentTeamIds.push(opponentTeamId)
+  }
+
+  progress.currentOpponentIndex += 1
+  progress.completed =
+    progress.currentOpponentIndex >= (league?.teams.length ?? 5)
+
+  if (progress.completed && league) {
+    const stats = save.leagueStats[league.id]
+    if (stats) {
+      stats.championships = Math.max(1, stats.championships)
+    }
   }
 }

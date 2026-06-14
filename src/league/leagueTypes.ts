@@ -10,7 +10,7 @@ export type ScheduleMatch = {
   played: boolean
 }
 
-export type MatchResult = {
+export type LeagueMatchResult = {
   matchId: string
   won: boolean
   scoreFor: number
@@ -30,4 +30,3 @@ export type League = {
   standings: LeagueStanding[]
   schedule: ScheduleMatch[]
 }
-

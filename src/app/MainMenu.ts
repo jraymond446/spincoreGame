@@ -1,4 +1,5 @@
 import type { OpponentTeam } from '../game/data/opponentTeams'
+import { xpToNextLevel } from '../save/progression'
 import type { SaveGame } from '../save/saveTypes'
 import {
   createPlayerIdentityCard,
@@ -33,14 +34,17 @@ export function createMainMenu(options: {
   onResetSave: () => void
 }): HTMLElement {
   const { root, body, header } = createSpincoreScreenFrame({
-    eyebrow: 'LOCAL CIRCUIT / ROOKIE DIVISION',
+    eyebrow: 'ROOKIE CIRCUIT / CREATED PLAYER',
     title: 'SPINCORE',
     subtitle: 'Build your player. Own the walls. Climb the circuit.',
   })
   const headerMetrics = document.createElement('div')
   headerMetrics.className = 'spincore-header-metrics'
   headerMetrics.append(
-    createSpincoreMetric('XP', options.save.progression.xp),
+    createSpincoreMetric(
+      'XP',
+      `${options.save.progression.xp}/${xpToNextLevel(options.save.progression.level)}`,
+    ),
     createSpincoreMetric('Funds', `$${options.save.wallet.money}`, true),
     createSpincoreMetric(
       'Record',
@@ -116,7 +120,7 @@ export function createMainMenu(options: {
   )
   const league = createSpincoreCard(
     'League',
-    'Track your Local Circuit record and preview the road upward.',
+    'Beat five clubs in sequence and claim the Rookie Circuit.',
   )
   league.actions.append(
     createSpincoreButton('League Hub', options.onLeague),

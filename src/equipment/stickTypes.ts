@@ -37,7 +37,7 @@ export const stickTypes: StickType[] = [
       releaseSpeedModifier: 0,
       fumbleResistanceModifier: 1,
     },
-    attributeModifiers: { reaction: 2, shotAccuracy: 1 },
+    attributeModifiers: { shotAccuracy: 1 },
     summaryModifiers: [
       { label: 'Gather', value: 2 },
       { label: 'Shot Accuracy', value: 1 },
@@ -50,7 +50,7 @@ export const stickTypes: StickType[] = [
     visualStyle: 'hammer',
     modifiers: {
       powerModifier: 6,
-      accuracyModifier: -4,
+      accuracyModifier: -3,
       spinModifier: 0,
       gatherModifier: -2,
       releaseSpeedModifier: -1,
@@ -58,13 +58,11 @@ export const stickTypes: StickType[] = [
     },
     attributeModifiers: {
       shotPower: 6,
-      shotAccuracy: -4,
-      reaction: -2,
-      toughness: 2,
+      shotAccuracy: -3,
     },
     summaryModifiers: [
       { label: 'Shot Power', value: 6 },
-      { label: 'Shot Accuracy', value: -4 },
+      { label: 'Shot Accuracy', value: -3 },
       { label: 'Gather', value: -2 },
     ],
   },
@@ -82,13 +80,12 @@ export const stickTypes: StickType[] = [
       fumbleResistanceModifier: 4,
     },
     attributeModifiers: {
-      reaction: 4,
+      reaction: 3,
       shotPower: -3,
-      toughness: 4,
     },
     summaryModifiers: [
       { label: 'Gather', value: 6 },
-      { label: 'Reaction', value: 4 },
+      { label: 'Reaction', value: 3 },
       { label: 'Shot Power', value: -3 },
     ],
   },
@@ -107,12 +104,13 @@ export const stickTypes: StickType[] = [
     },
     attributeModifiers: {
       shotSpin: 8,
-      toughness: -3,
+      shotAccuracy: 2,
+      toughness: -2,
     },
     summaryModifiers: [
       { label: 'Shot Spin', value: 8 },
-      { label: 'Bank Assist', value: 3 },
-      { label: 'Fumble Resistance', value: -3 },
+      { label: 'Shot Accuracy', value: 2 },
+      { label: 'Toughness', value: -2 },
     ],
   },
   {
@@ -121,23 +119,23 @@ export const stickTypes: StickType[] = [
     description: 'Fast handling and quick releases.',
     visualStyle: 'whip',
     modifiers: {
-      powerModifier: -4,
+      powerModifier: -3,
       accuracyModifier: 0,
       spinModifier: 2,
       gatherModifier: 2,
-      releaseSpeedModifier: 5,
+      releaseSpeedModifier: 3,
       fumbleResistanceModifier: 0,
     },
     attributeModifiers: {
-      speed: 5,
+      speed: 3,
       reaction: 3,
-      shotPower: -4,
+      shotPower: -3,
     },
     summaryModifiers: [
-      { label: 'Speed', value: 5 },
-      { label: 'Release Speed', value: 5 },
+      { label: 'Speed', value: 3 },
+      { label: 'Release Speed', value: 3 },
       { label: 'Reaction', value: 3 },
-      { label: 'Shot Power', value: -4 },
+      { label: 'Shot Power', value: -3 },
     ],
   },
 ]

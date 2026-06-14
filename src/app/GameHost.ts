@@ -23,15 +23,6 @@ import {
   matchEvents,
   type MatchCompletionDetail,
 } from '../match/MatchEvents'
-import { calculateMatchRewards } from '../save/progression'
-import {
-  createSpincoreButton,
-  createSpincorePlayerPreview,
-} from '../ui'
-
-export type MatchExitSummary = {
-  result: MatchCompletionDetail | null
-}
 
 export class GameHost {
   private readonly root: HTMLElement
@@ -41,20 +32,20 @@ export class GameHost {
   private game: Phaser.Game | null = null
   private labPanel: LabPanel | null = null
   private destroyed = false
-  private matchResult: MatchCompletionDetail | null = null
   private readonly exitButton: HTMLButtonElement
-  private readonly launch: MatchLaunchConfig
-  private readonly onExit: (summary: MatchExitSummary) => void
-  private resultOverlay: HTMLElement | null = null
+  private readonly onExit: () => void
+  private readonly onCompleted: (result: MatchCompletionDetail) => void
+  private completionHandled = false
 
   constructor(options: {
     root: HTMLElement
     launch: MatchLaunchConfig
-    onExit: (summary: MatchExitSummary) => void
+    onExit: () => void
+    onCompleted: (result: MatchCompletionDetail) => void
   }) {
     this.root = options.root
-    this.launch = structuredClone(options.launch)
     this.onExit = options.onExit
+    this.onCompleted = options.onCompleted
     this.root.replaceChildren()
     setMatchLaunchConfig(options.launch)
     this.prepareLabState(options.launch.mode === 'lab')
@@ -173,20 +164,18 @@ export class GameHost {
   }
 
   private handleMatchCompleted = (event: Event): void => {
+    if (this.completionHandled) {
+      return
+    }
+
+    this.completionHandled = true
     const customEvent = event as CustomEvent<MatchCompletionDetail>
-    this.matchResult = structuredClone(customEvent.detail)
     this.exitButton.hidden = true
-    this.resultOverlay?.remove()
-    this.resultOverlay = createMatchResultOverlay({
-      result: this.matchResult,
-      launch: this.launch,
-      onExit: this.exitMatch,
-    })
-    this.gameRoot.parentElement?.appendChild(this.resultOverlay)
+    this.onCompleted(structuredClone(customEvent.detail))
   }
 
   private exitMatch = (): void => {
-    this.onExit({ result: this.matchResult })
+    this.onExit()
   }
 
   private syncViewport = (): void => {
@@ -219,132 +208,4 @@ export class GameHost {
       Math.max(1, Math.round(bounds.height)),
     )
   }
-}
-
-export function createMatchResultOverlay(options: {
-  result: MatchCompletionDetail
-  launch: MatchLaunchConfig
-  onExit: () => void
-}): HTMLElement {
-  const { result, launch } = options
-  const won = result.winner === 'A'
-  const rewards = calculateMatchRewards({
-    won,
-    goals: result.playerGoals,
-    bankShotGoals: result.playerBankShotGoals,
-  })
-  const overlay = document.createElement('section')
-  overlay.className =
-    `match-result-overlay ${won ? 'is-win' : 'is-loss'}`
-  overlay.setAttribute('role', 'dialog')
-  overlay.setAttribute('aria-modal', 'true')
-  overlay.setAttribute('aria-label', 'Match results')
-
-  const card = document.createElement('div')
-  card.className = 'match-result-card'
-  const copy = document.createElement('div')
-  copy.className = 'match-result-copy'
-  const eyebrow = document.createElement('span')
-  eyebrow.className = 'match-result-eyebrow'
-  eyebrow.textContent = won ? 'CIRCUIT VICTORY' : 'FINAL WHISTLE'
-  const title = document.createElement('h1')
-  title.textContent = won ? 'YOU OWNED THE CORE' : 'TOUGH LOSS'
-  const finalScore = document.createElement('p')
-  finalScore.className = 'match-result-final'
-  finalScore.textContent =
-    `${result.teamNames.A} ${result.score.A} - ` +
-    `${result.score.B} ${result.teamNames.B}`
-  copy.append(eyebrow, title, finalScore)
-
-  const teamStats = document.createElement('div')
-  teamStats.className = 'match-result-team-stats'
-  teamStats.append(
-    createResultTeamLine('A', result),
-    createResultTeamLine('B', result),
-  )
-
-  const rewardStrip = document.createElement('div')
-  rewardStrip.className = 'match-result-rewards'
-  rewardStrip.append(
-    createResultMetric(`+${rewards.xp}`, 'XP GAINED'),
-    createResultMetric(`+$${rewards.money}`, 'CREDITS'),
-    createResultMetric(
-      result.playerGoals,
-      result.playerGoals === 1 ? 'YOUR GOAL' : 'YOUR GOALS',
-    ),
-    createResultMetric(result.playerBankShotGoals, 'BANK GOALS'),
-  )
-
-  const returnButton = createSpincoreButton(
-    'Back to Main Menu',
-    options.onExit,
-    { tone: 'primary' },
-  )
-  returnButton.classList.add('match-result-return')
-
-  const player = launch.saveGameSnapshot?.player
-  const character = document.createElement('div')
-  character.className =
-    `match-result-character ${won ? 'is-celebrating' : 'is-disappointed'}`
-  const mood = document.createElement('strong')
-  mood.className = 'match-result-mood'
-  mood.textContent = won ? 'VICTORY POSE' : 'RUN IT BACK'
-
-  if (player) {
-    const preview = createSpincorePlayerPreview({
-      name: player.name,
-      jerseyNumber: player.jerseyNumber,
-      handedness: player.handedness,
-      archetype: player.archetype,
-      cosmetics: player.cosmetics,
-      selectedStickId: player.selectedStickId,
-    })
-    character.append(preview.element, mood)
-  } else {
-    const fallback = document.createElement('div')
-    fallback.className = 'match-result-fallback-character'
-    fallback.textContent = won ? '!' : '...'
-    character.append(fallback, mood)
-  }
-
-  const summary = document.createElement('div')
-  summary.className = 'match-result-summary'
-  summary.append(copy, teamStats, rewardStrip, returnButton)
-  card.append(character, summary)
-  overlay.appendChild(card)
-  return overlay
-}
-
-function createResultTeamLine(
-  side: 'A' | 'B',
-  result: MatchCompletionDetail,
-): HTMLElement {
-  const stats = result.stats[side]
-  const line = document.createElement('article')
-  line.className = `match-result-team-line is-team-${side.toLowerCase()}`
-  const heading = document.createElement('div')
-  const name = document.createElement('strong')
-  name.textContent = result.teamNames[side]
-  const score = document.createElement('b')
-  score.textContent = String(result.score[side])
-  heading.append(name, score)
-  const detail = document.createElement('p')
-  detail.textContent =
-    `${stats.assists} AST  /  ${stats.checks} CHECKS  /  ` +
-    `${stats.saves} SAVES`
-  line.append(heading, detail)
-  return line
-}
-
-function createResultMetric(
-  value: string | number,
-  label: string,
-): HTMLElement {
-  const metric = document.createElement('div')
-  const strong = document.createElement('strong')
-  strong.textContent = String(value)
-  const span = document.createElement('span')
-  span.textContent = label
-  metric.append(strong, span)
-  return metric
 }

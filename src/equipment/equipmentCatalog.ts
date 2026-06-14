@@ -7,8 +7,18 @@ export const equipmentCatalog: EquipmentItem[] = [
       id: stick.id,
       name: stick.name,
       type: 'stick',
-      rarity: 'starter',
-      price: 0,
+      rarity:
+        stick.id === 'balanced-cesta'
+          ? 'starter'
+          : stick.id === 'power-bat' || stick.id === 'control-hook'
+            ? 'common'
+            : 'rare',
+      price:
+        stick.id === 'balanced-cesta'
+          ? 0
+          : stick.id === 'power-bat' || stick.id === 'control-hook'
+            ? 75
+            : 100,
       modifiers: stick.attributeModifiers,
       description: stick.description,
     }),

@@ -82,71 +82,77 @@ export function migrateSave(raw: unknown): unknown {
     return raw
   }
 
+  if (raw.version === 3) {
+    return raw
+  }
+
+  let versionTwo: Record<string, unknown>
+
   if (raw.version === 2) {
+    versionTwo = raw
+  } else if (raw.version === 1) {
+    const player = record(raw.player)
+    const oldStats = record(raw.stats)
+    const league = record(raw.league)
+    const leagueRecord = record(league.record)
+    const equipment = record(raw.equipment)
+    const equipped = record(equipment.equipped)
+    const selectedStickId = migrateStickId(equipped.stickId)
+    const stats = migrateLegacyStats(oldStats, leagueRecord)
+
+    versionTwo = {
+      ...raw,
+      version: 2,
+      player: {
+        ...player,
+        archetype: legacyArchetype(player.primaryRole),
+        cosmetics: cosmeticsFromLegacyPreset(player.visualPreset),
+        attributes: migrateLegacyAttributes(record(player.attributes)),
+        selectedStickId,
+      },
+      equipment: {
+        ...equipment,
+        equipped: {
+          ...equipped,
+          stickId: selectedStickId,
+        },
+        inventory: [
+          ...new Set([
+            ...stringArray(equipment.inventory).map(migrateStickId),
+            selectedStickId,
+          ]),
+        ],
+      },
+      seasonStats: {
+        seasonId: 'rookie-season-1',
+        ...stats,
+      },
+      stats,
+      leagueStats: {
+        'local-circuit': {
+          leagueName: 'Local Circuit',
+          matchesPlayed: stats.matchesPlayed,
+          wins: stats.wins,
+          losses: stats.losses,
+          goals: stats.goals,
+          assists: stats.assists,
+          bankShotGoals: stats.bankShotGoals,
+          championships: 0,
+        },
+      },
+    }
+  } else {
     return raw
   }
 
-  if (raw.version !== 1) {
-    return raw
-  }
-
-  const player = record(raw.player)
-  const oldStats = record(raw.stats)
-  const league = record(raw.league)
-  const leagueRecord = record(league.record)
-  const equipment = record(raw.equipment)
-  const equipped = record(equipment.equipped)
-  const selectedStickId = migrateStickId(equipped.stickId)
-  const stats = migrateLegacyStats(oldStats, leagueRecord)
-
-  return {
-    ...raw,
-    version: 2,
-    player: {
-      ...player,
-      archetype: legacyArchetype(player.primaryRole),
-      cosmetics: cosmeticsFromLegacyPreset(player.visualPreset),
-      attributes: migrateLegacyAttributes(record(player.attributes)),
-      selectedStickId,
-    },
-    equipment: {
-      ...equipment,
-      equipped: {
-        ...equipped,
-        stickId: selectedStickId,
-      },
-      inventory: [
-        ...new Set([
-          ...stringArray(equipment.inventory).map(migrateStickId),
-          selectedStickId,
-        ]),
-      ],
-    },
-    seasonStats: {
-      seasonId: 'rookie-season-1',
-      ...stats,
-    },
-    stats,
-    leagueStats: {
-      'local-circuit': {
-        leagueName: 'Local Circuit',
-        matchesPlayed: stats.matchesPlayed,
-        wins: stats.wins,
-        losses: stats.losses,
-        goals: stats.goals,
-        assists: stats.assists,
-        bankShotGoals: stats.bankShotGoals,
-        championships: 0,
-      },
-    },
-  }
+  return migrateVersionTwoSave(versionTwo)
 }
 
 export function validateSave(raw: unknown): SaveGame | null {
   try {
     const migrated = migrateSave(raw)
 
-    if (!isRecord(migrated) || migrated.version !== 2) {
+    if (!isRecord(migrated) || migrated.version !== 3) {
       throw new Error('Unsupported or missing save version.')
     }
 
@@ -162,13 +168,44 @@ export function validateSave(raw: unknown): SaveGame | null {
     const equipped = record(equipment.equipped)
     const league = record(migrated.league)
     const leagueRecord = record(league.record)
+    const rookieCircuit = record(league.rookieCircuit)
     const settings = record(migrated.settings)
     const timestamp = new Date().toISOString()
-    const selectedStickId = getStickType(player.selectedStickId).id
+    const selectedStickId = getStickType(
+      migrateStickId(equipped.stickId ?? player.selectedStickId),
+    ).id
     const inventory = stringArray(equipment.inventory).map(migrateStickId)
+    const leagueStats = validateLeagueStats(migrated.leagueStats)
+    const currentLeagueId = normalizeLeagueId(league.currentLeagueId)
+    const defeatedOpponentTeamIds = stringArray(
+      rookieCircuit.defeatedOpponentTeamIds,
+    ).slice(0, 5)
+    const currentOpponentIndex = integer(
+      rookieCircuit.currentOpponentIndex,
+      0,
+      5,
+      Math.min(5, defeatedOpponentTeamIds.length),
+    )
+    const rookieStats =
+      leagueStats.rookie_circuit ??
+      leagueStats['local-circuit'] ?? {
+        leagueName: 'Rookie Circuit',
+        matchesPlayed: 0,
+        wins: 0,
+        losses: 0,
+        goals: 0,
+        assists: 0,
+        bankShotGoals: 0,
+        championships: 0,
+      }
+    delete leagueStats['local-circuit']
+    leagueStats.rookie_circuit = {
+      ...rookieStats,
+      leagueName: 'Rookie Circuit',
+    }
 
     return {
-      version: 2,
+      version: 3,
       createdAt: dateString(migrated.createdAt, timestamp),
       updatedAt: dateString(migrated.updatedAt, timestamp),
       player: {
@@ -197,16 +234,28 @@ export function validateSave(raw: unknown): SaveGame | null {
         inventory: [...new Set([...inventory, selectedStickId])],
       },
       league: {
-        currentLeagueId: nullableString(league.currentLeagueId),
-        unlockedLeagueIds: stringArray(league.unlockedLeagueIds),
+        currentLeagueId,
+        unlockedLeagueIds: [
+          ...new Set([
+            'rookie_circuit',
+            ...stringArray(league.unlockedLeagueIds).map(normalizeLeagueId),
+          ]),
+        ],
         record: {
           wins: integer(leagueRecord.wins, 0, 999_999, 0),
           losses: integer(leagueRecord.losses, 0, 999_999, 0),
         },
+        rookieCircuit: {
+          currentOpponentIndex,
+          defeatedOpponentTeamIds,
+          completed:
+            rookieCircuit.completed === true ||
+            currentOpponentIndex >= 5,
+        },
       },
       seasonStats: validateSeasonStats(migrated.seasonStats),
       stats: validatePlayerStats(migrated.stats),
-      leagueStats: validateLeagueStats(migrated.leagueStats),
+      leagueStats,
       settings: {
         createdPlayerComplete:
           typeof settings.createdPlayerComplete === 'boolean'
@@ -217,6 +266,52 @@ export function validateSave(raw: unknown): SaveGame | null {
   } catch (error) {
     console.warn('[Save Validation Error]', error)
     return null
+  }
+}
+
+function migrateVersionTwoSave(
+  raw: Record<string, unknown>,
+): Record<string, unknown> {
+  const progression = record(raw.progression)
+  const oldLevel = integer(progression.level, 1, 999, 1)
+  const oldXp = integer(progression.xp, 0, 999_999_999, 0)
+  const league = record(raw.league)
+  const leagueStats = record(raw.leagueStats)
+  const rookieStats =
+    leagueStats.rookie_circuit ??
+    leagueStats['local-circuit']
+
+  return {
+    ...raw,
+    version: 3,
+    progression: {
+      ...progression,
+      xp: oldLevel > 1 ? oldXp % 100 : oldXp,
+      level: oldLevel,
+    },
+    league: {
+      ...league,
+      currentLeagueId: normalizeLeagueId(league.currentLeagueId),
+      unlockedLeagueIds: stringArray(league.unlockedLeagueIds).map(
+        normalizeLeagueId,
+      ),
+      rookieCircuit: {
+        currentOpponentIndex: 0,
+        defeatedOpponentTeamIds: [],
+        completed: false,
+      },
+    },
+    leagueStats: {
+      ...leagueStats,
+      ...(rookieStats
+        ? {
+            rookie_circuit: {
+              ...record(rookieStats),
+              leagueName: 'Rookie Circuit',
+            },
+          }
+        : {}),
+    },
   }
 }
 
@@ -455,6 +550,13 @@ function nullableString(value: unknown): string | null {
   return typeof value === 'string' && value.trim()
     ? value.trim().slice(0, 100)
     : null
+}
+
+function normalizeLeagueId(value: unknown): string {
+  const id = nullableString(value)
+  return id === 'local-circuit' || id === null
+    ? 'rookie_circuit'
+    : id
 }
 
 function stringArray(value: unknown): string[] {

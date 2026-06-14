@@ -8,6 +8,10 @@ export type MatchStatLine = {
 }
 
 export type MatchStats = Record<TeamSide, MatchStatLine>
+export type GoalAttribution = {
+  scorerId: string | null
+  assistId: string | null
+}
 
 export class MatchStatsTracker {
   private stats: MatchStats = createEmptyStats()
@@ -65,20 +69,25 @@ export class MatchStatsTracker {
     this.stats[side].saves += 1
   }
 
-  recordGoal(side: TeamSide): string | null {
+  recordGoal(side: TeamSide): GoalAttribution {
     const lastCarrier = this.lastCarrierByTeam[side]
     const previousCarrier = this.previousCarrierByTeam[side]
-
-    if (
+    const assistId =
       lastCarrier &&
       previousCarrier &&
       lastCarrier !== previousCarrier
-    ) {
+        ? previousCarrier
+        : null
+
+    if (assistId) {
       this.stats[side].assists += 1
     }
 
     this.clearPossessionChain()
-    return lastCarrier
+    return {
+      scorerId: lastCarrier,
+      assistId,
+    }
   }
 
   reset(): void {

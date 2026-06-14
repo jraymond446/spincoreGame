@@ -129,7 +129,7 @@ export function createNewSave(
   const careerStats = createEmptyPlayerStats()
 
   return {
-    version: 2,
+    version: 3,
     createdAt: timestamp,
     updatedAt: timestamp,
     player: structuredClone(player),
@@ -150,11 +150,16 @@ export function createNewSave(
       inventory: [player.selectedStickId],
     },
     league: {
-      currentLeagueId: 'local-circuit',
-      unlockedLeagueIds: ['local-circuit'],
+      currentLeagueId: 'rookie_circuit',
+      unlockedLeagueIds: ['rookie_circuit'],
       record: {
         wins: 0,
         losses: 0,
+      },
+      rookieCircuit: {
+        currentOpponentIndex: 0,
+        defeatedOpponentTeamIds: [],
+        completed: false,
       },
     },
     seasonStats: {
@@ -163,8 +168,8 @@ export function createNewSave(
     },
     stats: careerStats,
     leagueStats: {
-      'local-circuit': {
-        leagueName: 'Local Circuit',
+      rookie_circuit: {
+        leagueName: 'Rookie Circuit',
         matchesPlayed: 0,
         wins: 0,
         losses: 0,

@@ -13,12 +13,12 @@ import {
 export function createLeagueHubScreen(options: {
   save: SaveGame
   league: League
-  nextOpponent: OpponentTeam
+  nextOpponent: OpponentTeam | null
   onBack: () => void
   onPlayNext: () => void
 }): HTMLElement {
   const { root, body } = createSpincoreScreenFrame({
-    eyebrow: 'LEAGUE HUB / ROOKIE DIVISION',
+    eyebrow: 'LEAGUE HUB / ROOKIE CIRCUIT',
     title: options.league.name,
     subtitle: options.league.description,
   })
@@ -30,29 +30,43 @@ export function createLeagueHubScreen(options: {
       `${options.save.league.record.wins}-${options.save.league.record.losses}`,
       true,
     ),
-    createSpincoreMetric('Matches', options.save.stats.matchesPlayed),
-    createSpincoreMetric('Division', 'Rookie'),
+    createSpincoreMetric(
+      'Opponents Beaten',
+      `${options.save.league.rookieCircuit.defeatedOpponentTeamIds.length}/5`,
+    ),
+    createSpincoreMetric(
+      'Status',
+      options.save.league.rookieCircuit.completed ? 'Complete' : 'Active',
+    ),
   )
 
   const nextPanel = createSpincorePanel({
-    eyebrow: 'NEXT FIXTURE',
-    title: 'Local Circuit Match',
+    eyebrow: options.nextOpponent ? 'NEXT FIXTURE' : 'CIRCUIT COMPLETE',
+    title: options.nextOpponent ? 'Rookie Circuit Match' : 'Rookie Champion',
     copy:
-      'The Rookie division is open. Win, earn rewards, and build the foundation of your career.',
+      options.nextOpponent
+        ? 'Beat each club in sequence to claim the Rookie Circuit.'
+        : 'All five Rookie Circuit opponents have been defeated.',
     tone: 'featured',
   })
-  nextPanel.content.appendChild(
-    createSpincoreTeamCard({
-      team: options.nextOpponent,
-      selected: true,
-      compact: true,
-    }),
-  )
-  nextPanel.actions.append(
-    createSpincoreButton('Play Next Match', options.onPlayNext, {
-      tone: 'primary',
-    }),
-  )
+  if (options.nextOpponent) {
+    nextPanel.content.appendChild(
+      createSpincoreTeamCard({
+        team: options.nextOpponent,
+        selected: true,
+        compact: true,
+      }),
+    )
+    nextPanel.actions.append(
+      createSpincoreButton('Play Next Match', options.onPlayNext, {
+        tone: 'primary',
+      }),
+    )
+  } else {
+    nextPanel.content.appendChild(
+      createSpincoreBadge('ROOKIE CIRCUIT COMPLETE', 'mint'),
+    )
+  }
 
   const ladderHeading = document.createElement('div')
   ladderHeading.className = 'section-heading-row'
@@ -70,10 +84,10 @@ export function createLeagueHubScreen(options: {
   const tiers = document.createElement('div')
   tiers.className = 'league-tier-grid'
   tiers.append(
-    createTier('Local Circuit', 'Rookie', 'Your current proving ground.', true),
-    createTier('Metro League', 'Locked', 'Regional clubs and longer schedules.'),
+    createTier('Rookie Circuit', 'Current', 'Five opponents. One first title.', true),
+    createTier('Metro Circuit', 'Locked', 'Regional clubs and longer schedules.'),
     createTier('Pro Circuit', 'Locked', 'Professional rosters and contracts.'),
-    createTier('Apex Series', 'Locked', 'The top level of Spincore competition.'),
+    createTier('Apex League', 'Locked', 'The top level of Spincore competition.'),
   )
 
   const actions = document.createElement('div')

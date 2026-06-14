@@ -42,7 +42,9 @@ export function applyMatchRosterOverrides(
         teammate.controllerType = 'ai'
       }
 
-      const stick = getStickType(player.selectedStickId)
+      const stick = getStickType(
+        save.equipment.equipped.stickId ?? player.selectedStickId,
+      )
       entry.controllerType = 'human'
       entry.role = player.primaryRole
       entry.archetypeId = player.primaryRole
