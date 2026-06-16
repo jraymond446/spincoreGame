@@ -442,7 +442,7 @@ export class GameScene extends Phaser.Scene {
     )
     this.arenaSystem.containPlayers(players)
     this.keeperAreaSystem.update(players, delta)
-    this.applySpinGuard(players, delta)
+    this.applySpinGuard(players, delta, controlledPlayer.id)
 
     this.wallBounceSystem.update(
       this.stickInteractionSystem.getCarrierId() !== null,
@@ -1106,7 +1106,11 @@ export class GameScene extends Phaser.Scene {
     return 'flex'
   }
 
-  private applySpinGuard(players: Player[], deltaMs: number): void {
+  private applySpinGuard(
+    players: Player[],
+    deltaMs: number,
+    controlledPlayerId: string,
+  ): void {
     const carrierId = this.stickInteractionSystem.getCarrierId()
     const triggers = this.spinGuardSystem.update(
       players,
@@ -1115,6 +1119,7 @@ export class GameScene extends Phaser.Scene {
         const decision = this.aiSystem.getDecisionDebug(player.id)
         return {
           hasCore: player.id === carrierId,
+          isControlled: player.id === controlledPlayerId,
           currentAction: this.getActionLock(player),
           tacticalJob:
             this.aiSystem.getTacticalAssignment(player.id)?.job ?? null,

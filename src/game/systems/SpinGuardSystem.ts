@@ -32,6 +32,7 @@ type SpinSample = {
 
 export type SpinGuardContext = {
   hasCore: boolean
+  isControlled: boolean
   currentAction: PlayerActionLock
   tacticalJob: string | null
   carrierIntent: string | null
@@ -169,13 +170,32 @@ export class SpinGuardSystem {
       player.position,
       sample.windowStart,
     )
+    const purposefulCarrierAim =
+      context.hasCore &&
+      context.carrierIntent !== null &&
+      context.carrierIntent !== 'holdBriefly' &&
+      context.carrierIntent !== 'carryToAngle'
+    const controlledCarrierAim =
+      context.isControlled && context.hasCore
+    const controlledGatherAim =
+      context.isControlled && context.currentAction === 'gather'
+    const visualSpinHasBodyCommitment =
+      context.hasCore ||
+      sample.facingDelta >=
+        spinGuardConfig.facingDeltaThreshold * 0.85 ||
+      sample.movementDelta >=
+        spinGuardConfig.movementDeltaThreshold * 0.85
     const visualSpinActionAllowed =
       context.currentAction !== 'juke' &&
-      context.currentAction !== 'slash'
+      context.currentAction !== 'slash' &&
+      !controlledCarrierAim &&
+      !controlledGatherAim &&
+      !purposefulCarrierAim
     const visualSpinning =
       sample.windowMs >= spinGuardConfig.windowMs &&
       displacement <= spinGuardConfig.orbitMaxDisplacement &&
       visualSpinActionAllowed &&
+      visualSpinHasBodyCommitment &&
       (sample.aimDelta >= spinGuardConfig.aimDeltaThreshold ||
         sample.stickDelta >= spinGuardConfig.stickDeltaThreshold)
     const orbiting =
@@ -203,11 +223,14 @@ export class SpinGuardSystem {
             ? 'intentChurnOrbit'
             : 'facingMovementOrbit'
       this.recover(player, sample)
-      console.warn('[SpinGuard Triggered]', {
+      console.warn(
+        `[SpinGuard Triggered] ${reason} player=${player.id} controlled=${context.isControlled} core=${context.hasCore} action=${context.currentAction} job=${context.tacticalJob ?? 'none'} intent=${context.carrierIntent ?? 'none'}`,
+        {
         playerId: player.id,
         team: player.teamSide,
         role: player.role,
         hasCore: context.hasCore,
+        isControlled: context.isControlled,
         currentAction: context.currentAction,
         currentTacticalJob: context.tacticalJob,
         jukeState:

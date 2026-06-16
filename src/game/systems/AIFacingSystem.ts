@@ -13,12 +13,12 @@ type FacingState = {
 }
 
 const carrierTurnEnvelopeRadians = 1.05
-const offBallTurnEnvelopeRadians = 1.4
-const offBallTurnRateRadiansPerSec = 4
+const offBallTurnEnvelopeRadians = 1.2
+const offBallTurnRateRadiansPerSec = 3.2
 const reanchorDistance = 120
 const reanchorMinimumDirectness = 0.78
 const reanchorHeadingToleranceRadians = 0.6
-const settledReanchorMs = 800
+const settledReanchorMs = 950
 const maximumTrackedStepDistance = 40
 
 export class AIFacingSystem {

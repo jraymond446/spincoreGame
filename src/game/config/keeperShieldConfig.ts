@@ -3,8 +3,8 @@ export type KeeperEquipmentType = 'shield' | 'normalStick'
 export const keeperShieldConfig = {
   keeperUsesShieldDefault: true,
   keeperEquipmentType: 'shield' as KeeperEquipmentType,
-  keeperShieldWidth: 52,
-  keeperShieldDepth: 22,
+  keeperShieldWidth: 42,
+  keeperShieldDepth: 18,
   keeperShieldDeflectForce: 5,
   keeperShieldDeflectDamping: 0.35,
   keeperShieldClearForce: 8,

@@ -19,7 +19,7 @@ export const aiConfig = {
   passSpread: 42,
   shotSpread: 55,
   offBallAimMinimumDistance: 48,
-  offBallAimMaxTurnRate: 4.2,
+  offBallAimMaxTurnRate: 2.8,
   roleBehavior: {
     keeperReactionMin: 0.78,
     keeperReactionMax: 1,

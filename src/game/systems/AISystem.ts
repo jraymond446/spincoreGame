@@ -1396,7 +1396,7 @@ export class AISystem {
       passEnabled &&
       targetJob === 'frontSlot' &&
       aiOffenseConfig.aiFrontSlotPassEnabled &&
-      passShotScore >= directThreshold - 0.08
+      passShotScore >= directThreshold - 0.16
     const behindGoalPass =
       passEnabled &&
       targetJob === 'behindNet' &&
@@ -1408,14 +1408,31 @@ export class AISystem {
       passShotScore >= currentBestShot - 0.08
     const setPass =
       this.carrierPossessionMs >=
-        aiOffenseConfig.aiPossessionSettleMs * 1.15 &&
+        aiOffenseConfig.aiPossessionSettleMs * 0.85 &&
       !directGood &&
       !bankGood &&
-      passShotScore >= currentBestShot - 0.04
+      passShotScore >= currentBestShot - 0.12
+    const earlyOutletPass =
+      passOption !== null &&
+      this.carrierPossessionMs >= 220 &&
+      this.carrierPossessionMs <= 950 &&
+      pressure < 0.74 &&
+      (targetJob === 'supportOutlet' ||
+        targetJob === 'playmaker' ||
+        targetJob === 'weakSideLane' ||
+        targetJob === 'strongSideLane' ||
+        targetJob === 'verticalLow') &&
+      passOption.score >= passThreshold - 0.06 &&
+      passShotScore >= currentBestShot - 0.14
+    const passLaneReady =
+      passOption !== null &&
+      passOption.score >=
+        (earlyOutletPass ? passThreshold - 0.06 : passThreshold)
     const shouldPass =
       passEnabled &&
-      passOption.score >= passThreshold &&
+      passLaneReady &&
       (teammateBetter ||
+        earlyOutletPass ||
         pressurePass ||
         setPass ||
         passBack ||
@@ -1430,6 +1447,8 @@ export class AISystem {
         passOption,
         teammateBetter
           ? 'teammateBetter'
+          : earlyOutletPass
+            ? 'earlyOutletPass'
           : passBack
             ? 'behindGoalPass'
             : pressurePass
@@ -2259,9 +2278,11 @@ function findBestPassOption(
           : assignment?.job === 'behindNet'
             ? aiOffenseConfig.behindGoalPassScoreBonus
             : assignment?.job === 'weakSideLane'
-              ? 0.16
+              ? 0.22
+              : assignment?.job === 'strongSideLane'
+                ? 0.16
             : assignment?.job === 'supportOutlet'
-              ? 0.14
+              ? 0.2
               : 0.06
       const shotLane = laneScore(
         candidate.position,
