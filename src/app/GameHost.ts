@@ -1,5 +1,6 @@
 import Phaser from 'phaser'
 import { gameConfig } from '../game/config/gameConfig'
+import { createDefaultLabTuning } from '../game/config/tuningDefaults'
 import {
   applyDraftSettings,
   clearSavedLabSettings,
@@ -143,12 +144,11 @@ export class GameHost {
   }
 
   private prepareLabState(showLab: boolean): void {
-    const savedLabSettings = loadLabSettings()
+    const nextState = showLab
+      ? loadLabSettings() ?? createDefaultLabTuning()
+      : createDefaultLabTuning()
 
-    if (savedLabSettings) {
-      replaceLabState(savedLabSettings)
-    }
-
+    replaceLabState(nextState)
     if (!showLab) {
       setLabMode('match3v3')
     }

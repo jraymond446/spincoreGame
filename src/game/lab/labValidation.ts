@@ -122,7 +122,7 @@ const numericRules: Record<string, NumericRule> = {
   'aiOffense.opponentAiShotError': { min: 0, max: 0.6 },
   'aiOffense.opponentAiDecisionIntervalMs': { min: 80, max: 800 },
   'aiOffense.opponentAiAttackSpacing': { min: 40, max: 320 },
-  'aiOffense.aiDirectShotTargetOffsetRatio': { min: 0, max: 0.4 },
+  'aiOffense.aiDirectShotTargetOffsetRatio': { min: 0, max: 0.55 },
   'aiOffense.aiGoodDirectShotThreshold': { min: 0.1, max: 1 },
   'aiOffense.aiGoodBankShotThreshold': { min: 0.1, max: 1 },
   'aiOffense.aiPassBetterShotMargin': { min: 0, max: 0.6 },

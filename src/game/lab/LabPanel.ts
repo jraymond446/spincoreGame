@@ -1519,7 +1519,7 @@ export class LabPanel {
       this.createRange(
         'Direct-shot target offset ratio',
         offense.aiDirectShotTargetOffsetRatio,
-        { min: 0, max: 0.4, step: 0.01, digits: 2 },
+        { min: 0, max: 0.55, step: 0.01, digits: 2 },
         (value) => {
           offense.aiDirectShotTargetOffsetRatio = value
           this.markDraftChanged()

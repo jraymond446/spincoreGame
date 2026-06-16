@@ -141,6 +141,16 @@ function migrateGameplayDefaults(candidate: unknown): unknown {
     typeof migrated.keeper === 'object'
       ? migrated.keeper as Record<string, unknown>
       : null
+  const spacing =
+    migrated.spacing &&
+    typeof migrated.spacing === 'object'
+      ? migrated.spacing as Record<string, unknown>
+      : null
+  const aiTactics =
+    migrated.aiTactics &&
+    typeof migrated.aiTactics === 'object'
+      ? migrated.aiTactics as Record<string, unknown>
+      : null
   const clearSafety =
     migrated.clearSafety &&
     typeof migrated.clearSafety === 'object'
@@ -269,6 +279,181 @@ function migrateGameplayDefaults(candidate: unknown): unknown {
     260,
     320,
   )
+  replaceLegacyDefault(field, 'arenaWidth', 940, 1000)
+  replaceLegacyDefault(field, 'arenaHeight', 1460, 1500)
+  replaceLegacyDefault(field, 'playerVisualScale', 0.76, 0.72)
+  replaceLegacyDefault(field, 'playerPhysicsRadius', 23, 21.5)
+  replaceLegacyDefault(keeper, 'keeperShieldWidth', 52, 42)
+  replaceLegacyDefault(keeper, 'keeperShieldDepth', 22, 18)
+  replaceLegacyDefault(keeper, 'keeperOrbitSmoothing', 3.4, 4.4)
+  replaceLegacyDefault(keeper, 'keeperMaxLateralSpeed', 5.6, 6.6)
+  replaceLegacyDefault(keeper, 'keeperMoveSpeedMultiplier', 0.68, 0.84)
+  replaceLegacyDefault(keeper, 'keeperAccelerationMultiplier', 0.72, 1.05)
+  replaceLegacyDefault(keeper, 'keeperTurnRateMultiplier', 0.75, 1.05)
+  replaceLegacyDefault(keeper, 'keeperReactionDelayMs', 120, 75)
+  replaceLegacyDefault(keeper, 'keeperPredictionStrength', 0.65, 0.78)
+  replaceLegacyDefault(
+    keeper,
+    'keeperFrontBackRecoveryMultiplier',
+    0.65,
+    0.78,
+  )
+  replaceLegacyDefault(keeper, 'keeperRepositionDelayMs', 120, 65)
+  replaceLegacyDefault(spacing, 'presserSwitchCooldownMs', 900, 780)
+  replaceLegacyDefault(spacing, 'supportMinSpacingFromCarrier', 140, 150)
+  replaceLegacyDefault(spacing, 'supportPreferredSpacing', 210, 235)
+  replaceLegacyDefault(spacing, 'avoidClusterRadius', 130, 148)
+  replaceLegacyDefault(spacing, 'teammateRepulsionStrength', 0.45, 0.52)
+  replaceLegacyDefault(
+    spacing,
+    'offenseSupportMinSpacingFromCarrier',
+    158,
+    185,
+  )
+  replaceLegacyDefault(
+    spacing,
+    'offenseSupportPreferredSpacing',
+    240,
+    295,
+  )
+  replaceLegacyDefault(spacing, 'offenseAvoidClusterRadius', 152, 178)
+  replaceLegacyDefault(
+    spacing,
+    'offenseTeammateRepulsionStrength',
+    0.6,
+    0.74,
+  )
+  replaceLegacyDefault(spacing, 'frontSlotSpacing', 120, 155)
+  replaceLegacyDefault(spacing, 'bankShotPreference', 0.35, 0.42)
+  replaceLegacyDefault(
+    spacing,
+    'tacticalJobSwitchCooldownMs',
+    700,
+    580,
+  )
+  replaceLegacyDefault(aiTactics, 'jobTargetStrictness', 0.55, 0.68)
+  replaceLegacyDefault(aiTactics, 'emergencyGatherRadius', 75, 82)
+  replaceLegacyDefault(aiTactics, 'receiverCatchRadius', 95, 108)
+  replaceLegacyDefault(aiTactics, 'passLaneMinScore', 0.45, 0.38)
+  replaceLegacyDefault(aiTactics, 'supportPassBias', 0.25, 0.34)
+  replaceLegacyDefault(aiOffense, 'aiCarrierMinCommitMs', 350, 280)
+  replaceLegacyDefault(aiOffense, 'aiCarrierMaxCommitMs', 2100, 1900)
+  replaceLegacyDefault(
+    aiOffense,
+    'aiCarrierReevaluateAfterMs',
+    650,
+    480,
+  )
+  replaceLegacyDefault(aiOffense, 'aiMaxCarryMs', 2950, 2600)
+  replaceLegacyDefault(aiOffense, 'aiCarrySideCommitMs', 900, 700)
+  replaceLegacyDefault(aiOffense, 'aiPassChargeMinMs', 500, 260)
+  replaceLegacyDefault(aiOffense, 'aiPassChargeMaxMs', 800, 520)
+  replaceLegacyDefault(aiOffense, 'aiDirectShotChargeMinMs', 900, 760)
+  replaceLegacyDefault(aiOffense, 'aiDirectShotChargeMaxMs', 1200, 1060)
+  replaceLegacyDefault(aiOffense, 'aiBankShotChargeMinMs', 1150, 980)
+  replaceLegacyDefault(aiOffense, 'aiBankShotChargeMaxMs', 1500, 1320)
+  replaceLegacyDefault(aiOffense, 'opponentAiShotFrequency', 0.7, 0.78)
+  replaceLegacyDefault(
+    aiOffense,
+    'opponentAiBankShotFrequency',
+    0.45,
+    0.52,
+  )
+  replaceLegacyDefault(
+    aiOffense,
+    'opponentAiPassToShotBias',
+    0.55,
+    0.72,
+  )
+  replaceLegacyDefault(
+    aiOffense,
+    'opponentAiForceShotAfterMs',
+    2450,
+    2150,
+  )
+  replaceLegacyDefault(aiOffense, 'opponentAiAttackSpacing', 120, 155)
+  replaceLegacyDefault(
+    aiOffense,
+    'aiDirectShotTargetOffsetRatio',
+    0.2,
+    0.42,
+  )
+  replaceLegacyDefault(aiOffense, 'aiGoodDirectShotThreshold', 0.62, 0.5)
+  replaceLegacyDefault(aiOffense, 'aiGoodBankShotThreshold', 0.55, 0.45)
+  replaceLegacyDefault(aiOffense, 'aiPassBetterShotMargin', 0.18, 0.08)
+  replaceLegacyDefault(aiOffense, 'aiMaxCarryBeforeShotMs', 2450, 2150)
+  replaceLegacyDefault(aiOffense, 'aiPossessionSettleMs', 550, 300)
+  replaceLegacyDefault(aiOffense, 'aiShotCooldownMs', 500, 420)
+  replaceLegacyDefault(aiOffense, 'aiBankShotMinScore', 0.55, 0.5)
+  replaceLegacyDefault(
+    aiOffense,
+    'aiBankShotAttemptChanceWhenBlocked',
+    0.55,
+    0.65,
+  )
+  replaceLegacyDefault(
+    aiOffense,
+    'aiBankShotAttemptChanceWhenOpen',
+    0.18,
+    0.24,
+  )
+  replaceLegacyDefault(aiOffense, 'aiShotBlockedThreshold', 0.55, 0.48)
+  replaceLegacyDefault(aiOffense, 'aiLateralRepositionDistance', 120, 145)
+  replaceLegacyDefault(aiOffense, 'aiLateralRepositionTimeMs', 500, 460)
+  replaceLegacyDefault(aiOffense, 'aiWeakSideLanePreference', 0.5, 0.65)
+  replaceLegacyDefault(
+    aiOffense,
+    'aiBehindGoalPlayPreference',
+    0.45,
+    0.55,
+  )
+  replaceLegacyDefault(aiOffense, 'aiFrontSlotFinishPreference', 0.6, 0.68)
+  replaceLegacyDefault(aiOffense, 'aiShotPatienceMs', 520, 540)
+  replaceLegacyDefault(aiOffense, 'aiForceShotAfterMs', 2450, 2150)
+  replaceLegacyDefault(stick, 'stanceResetDelayMs', 120, 170)
+  replaceLegacyDefault(stick, 'stanceReturnSmoothing', 12, 10)
+  replaceLegacyDefault(stick, 'runningStanceOffsetRadians', 0.55, 0.48)
+  replaceLegacyDefault(stick, 'carrySocketLag', 0.08, 0.045)
+  replaceLegacyDefault(stick, 'carrySocketMaxOffset', 18, 13)
+  replaceLegacyDefault(stick, 'carrySocketLateralRange', 16, 12)
+  replaceLegacyDefault(stick, 'carrySocketForwardRange', 10, 8)
+  replaceLegacyDefault(stick, 'carrySwayAmount', 0.18, 0.1)
+  replaceLegacyDefault(stick, 'carryControlDeadzone', 0.12, 0.08)
+  replaceLegacyDefault(stick, 'carryControlResponsiveness', 10, 16)
+  replaceLegacyDefault(stick, 'carryAimBlend', 0.35, 0.25)
+  replaceLegacyDefault(stick, 'carryPoseOffsetRadians', 0.45, 0.38)
+  replaceLegacyDefault(stick, 'carryPoseSmoothing', 14, 18)
+  replaceLegacyDefault(stick, 'carryPoseRotationLimit', 6.5, 8)
+  replaceLegacyDefault(stick, 'activeGatherRadius', 84, 96)
+  replaceLegacyDefault(stick, 'activeGatherStrength', 0.58, 0.7)
+  replaceLegacyDefault(stick, 'activeGatherMaxSpeed', 16, 19)
+  replaceLegacyDefault(stick, 'activeGatherFunnelAngle', 1.65, 1.9)
+  replaceLegacyDefault(stick, 'activeGatherSnapRadius', 44, 52)
+  replaceLegacyDefault(stick, 'passiveGatherRadius', 52, 58)
+  replaceLegacyDefault(stick, 'passiveGatherStrength', 0.26, 0.32)
+  replaceLegacyDefault(stick, 'passiveGatherMaxSpeed', 9.5, 11)
+  replaceLegacyDefault(stick, 'passiveGatherFunnelAngle', 1.1, 1.25)
+  replaceLegacyDefault(stick, 'humanCloseGatherRadius', 30, 38)
+  replaceLegacyDefault(stick, 'humanPassiveCloseGatherRadius', 20, 26)
+  replaceLegacyDefault(stick, 'gatherAttemptCooldownMs', 30, 20)
+  replaceLegacyDefault(stick, 'failedGatherGraceMs', 160, 220)
+  replaceLegacyDefault(stick, 'catchReadyMinHoldMs', 120, 70)
+  replaceLegacyDefault(stick, 'catchReadyExitDelayMs', 80, 120)
+  replaceLegacyDefault(stick, 'cradleCaptureRadius', 52, 58)
+  replaceLegacyDefault(stick, 'cradleAssistRadius', 66, 74)
+  replaceLegacyDefault(stick, 'cradleAssistStrength', 0.28, 0.34)
+  replaceLegacyDefault(stick, 'cradleAssistMaxSpeed', 3.4, 4.4)
+  replaceLegacyDefault(stick, 'hardChargeHoldMs', 1250, 1100)
+  replaceLegacyDefault(stick, 'chargeCradleMs', 1250, 1100)
+  replaceLegacyDefault(stick, 'overchargeMs', 1850, 1750)
+  replaceLegacyDefault(stick, 'releaseForceMin', 7.2, 9.2)
+  replaceLegacyDefault(stick, 'releaseForceMax', 17.2, 19.8)
+  replaceLegacyDefault(stick, 'releaseSwingMs', 90, 75)
+  replaceLegacyDefault(defense, 'truckKnockdownThreshold', -0.06, -0.02)
+  replaceLegacyDefault(defense, 'slashFumblePressure', 0.32, 0.34)
+  replaceLegacyDefault(defense, 'stableSlashVulnerability', 0.75, 0.82)
+  replaceLegacyDefault(defense, 'fumblePressureThreshold', 1.12, 1.05)
+  replaceLegacyDefault(defense, 'supportStealBonus', 0.16, 0.2)
 
   return migrated
 }
