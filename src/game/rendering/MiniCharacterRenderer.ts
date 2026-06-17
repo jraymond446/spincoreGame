@@ -34,9 +34,9 @@ export function drawMiniCharacter(
     y: Math.sin(rotation),
   }
   const right = { x: -forward.y, y: forward.x }
-  const bodyLength = (pose === 'standing' ? 18 : 15) * scale
-  const bodyWidth = (pose === 'standing' ? 17 : 18) * scale
-  const headRadius = 6.4 * scale
+  const bodyLength = (pose === 'standing' ? 15 : 13) * scale
+  const bodyWidth = (pose === 'standing' ? 15 : 16) * scale
+  const headRadius = 7.6 * scale
   const bodyCenter = offset(
     { x, y },
     forward,
@@ -63,17 +63,18 @@ export function drawMiniCharacter(
   graphics.fillEllipse(
     x,
     y + 4 * scale,
-    24 * scale,
-    10 * scale,
+    22 * scale,
+    9 * scale,
   )
 
-  const lowerBody = [
-    offset(rear, forward, bodyLength * 0.2, right, -bodyWidth * 0.34),
-    offset(rear, forward, bodyLength * 0.2, right, bodyWidth * 0.34),
-    offset(rear, forward, -bodyLength * 0.2, right, bodyWidth * 0.24),
-    offset(rear, forward, -bodyLength * 0.28, right, 0),
-    offset(rear, forward, -bodyLength * 0.2, right, -bodyWidth * 0.24),
-  ]
+  const lowerBody = createOrientedEllipse(
+    rear,
+    forward,
+    right,
+    bodyLength * 0.28,
+    bodyWidth * 0.42,
+    12,
+  )
   fillAndStrokePolygon(
     graphics,
     lowerBody,
@@ -84,14 +85,14 @@ export function drawMiniCharacter(
 
   const halfLength = bodyLength * 0.5
   const halfWidth = bodyWidth * 0.5
-  const torso = [
-    offset(bodyCenter, forward, halfLength, right, -halfWidth * 0.7),
-    offset(bodyCenter, forward, halfLength, right, halfWidth * 0.7),
-    offset(bodyCenter, forward, -halfLength * 0.76, right, halfWidth),
-    offset(bodyCenter, forward, -halfLength, right, halfWidth * 0.58),
-    offset(bodyCenter, forward, -halfLength, right, -halfWidth * 0.58),
-    offset(bodyCenter, forward, -halfLength * 0.76, right, -halfWidth),
-  ]
+  const torso = createOrientedEllipse(
+    bodyCenter,
+    forward,
+    right,
+    halfLength,
+    halfWidth * 0.92,
+    14,
+  )
   fillAndStrokePolygon(
     graphics,
     torso,
@@ -107,7 +108,7 @@ export function drawMiniCharacter(
       forward,
       bodyLength * (pose === 'standing' ? 0.22 : 0.08),
       right,
-      bodyWidth * 0.62 * side,
+      bodyWidth * 0.55 * side,
     )
     graphics.lineStyle(
       armWidth + 2 * scale,
@@ -180,9 +181,11 @@ function drawTopDownHair(
   alpha: number,
 ): void {
   const rear = offset(center, forward, -radius * 0.34, right, 0)
-  graphics.fillStyle(variant.hairColor, alpha)
   const hairRadius =
-    variant.hairStyle === 'bob' ? radius * 0.9 : radius * 0.76
+    variant.hairStyle === 'bob' ? radius * 0.98 : radius * 0.86
+  graphics.fillStyle(visualStyleConfig.outline, alpha * 0.76)
+  graphics.fillCircle(rear.x, rear.y, hairRadius + radius * 0.18)
+  graphics.fillStyle(variant.hairColor, alpha)
   graphics.fillCircle(rear.x, rear.y, hairRadius)
 
   if (variant.hairStyle === 'cap') {
@@ -193,6 +196,7 @@ function drawTopDownHair(
     variant.hairStyle === 'tuft' ||
     variant.hairStyle === 'spikes'
   ) {
+    graphics.fillStyle(variant.hairColor, alpha)
     for (const side of [-1, 1]) {
       const base = offset(
         rear,
@@ -218,6 +222,32 @@ function drawTopDownHair(
       )
     }
   }
+}
+
+function createOrientedEllipse(
+  center: { x: number; y: number },
+  forward: { x: number; y: number },
+  right: { x: number; y: number },
+  forwardRadius: number,
+  rightRadius: number,
+  segments: number,
+): { x: number; y: number }[] {
+  const points: { x: number; y: number }[] = []
+
+  for (let index = 0; index < segments; index += 1) {
+    const angle = index / segments * Math.PI * 2
+    points.push(
+      offset(
+        center,
+        forward,
+        Math.cos(angle) * forwardRadius,
+        right,
+        Math.sin(angle) * rightRadius,
+      ),
+    )
+  }
+
+  return points
 }
 
 function offset(

@@ -413,28 +413,53 @@ export class PlayerVisual {
     length: number,
     width: number,
   ): void {
-    const rear = this.offset(
+    const shortsCenter = this.offset(
       center,
       forward,
-      -length * 0.62,
+      -length * 0.48,
       right,
       0,
     )
-    const points = [
-      this.offset(rear, forward, length * 0.28, right, -width * 0.38),
-      this.offset(rear, forward, length * 0.28, right, width * 0.38),
-      this.offset(rear, forward, -length * 0.23, right, width * 0.3),
-      this.offset(rear, forward, -length * 0.32, right, 0),
-      this.offset(rear, forward, -length * 0.23, right, -width * 0.3),
-    ]
 
-    this.fillAndStrokePolygon(points, this.palette.shorts)
+    this.fillAndStrokePolygon(
+      this.createOrientedEllipse(
+        shortsCenter,
+        forward,
+        right,
+        length * 0.3,
+        width * 0.48,
+        16,
+      ),
+      this.palette.shorts,
+    )
+
     this.character.fillStyle(this.palette.trim, 0.92)
     this.character.fillCircle(
-      rear.x,
-      rear.y,
-      Math.max(2.2, visualConfig.playerScale * 3.2),
+      shortsCenter.x,
+      shortsCenter.y,
+      Math.max(2.2, visualConfig.playerScale * 3),
     )
+
+    for (const side of [-1, 1]) {
+      const shoe = this.offset(
+        shortsCenter,
+        forward,
+        -length * 0.27,
+        right,
+        width * 0.23 * side,
+      )
+      this.fillAndStrokePolygon(
+        this.createOrientedEllipse(
+          shoe,
+          forward,
+          right,
+          length * 0.11,
+          width * 0.12,
+          10,
+        ),
+        visualConfig.outlineColor,
+      )
+    }
   }
 
   private drawAthleticStance(
@@ -447,19 +472,35 @@ export class PlayerVisual {
   ): void {
     const mountSign =
       getHandednessFrame(this.options.handedness).mountSign
-    const handSide = width * 0.48 * mountSign
-    const rearSide = -width * 0.4 * mountSign
+    const shoulderSide = width * 0.3 * mountSign
+    const rearShoulderSide = -width * 0.26 * mountSign
+    const handSide = width * 0.55 * mountSign
+    const rearSide = -width * 0.42 * mountSign
+    const frontShoulder = this.offset(
+      center,
+      forward,
+      length * 0.12,
+      right,
+      shoulderSide,
+    )
+    const rearShoulder = this.offset(
+      center,
+      forward,
+      -length * 0.18,
+      right,
+      rearShoulderSide,
+    )
     const frontHand = this.offset(
       center,
       forward,
-      length * (0.32 + pose.impact * 0.12),
+      length * (0.36 + pose.impact * 0.1),
       right,
       handSide,
     )
     const rearHand = this.offset(
       center,
       forward,
-      -length * 0.08,
+      -length * 0.04,
       right,
       rearSide,
     )
@@ -472,11 +513,31 @@ export class PlayerVisual {
       visualConfig.outlineColor,
       visualConfig.outlineAlpha,
     )
-    this.character.lineBetween(center.x, center.y, frontHand.x, frontHand.y)
-    this.character.lineBetween(center.x, center.y, rearHand.x, rearHand.y)
+    this.character.lineBetween(
+      frontShoulder.x,
+      frontShoulder.y,
+      frontHand.x,
+      frontHand.y,
+    )
+    this.character.lineBetween(
+      rearShoulder.x,
+      rearShoulder.y,
+      rearHand.x,
+      rearHand.y,
+    )
     this.character.lineStyle(armWidth, armColor, 1)
-    this.character.lineBetween(center.x, center.y, frontHand.x, frontHand.y)
-    this.character.lineBetween(center.x, center.y, rearHand.x, rearHand.y)
+    this.character.lineBetween(
+      frontShoulder.x,
+      frontShoulder.y,
+      frontHand.x,
+      frontHand.y,
+    )
+    this.character.lineBetween(
+      rearShoulder.x,
+      rearShoulder.y,
+      rearHand.x,
+      rearHand.y,
+    )
     this.character.fillStyle(this.palette.trim, 1)
     this.character.fillCircle(frontHand.x, frontHand.y, armWidth * 0.55)
     this.character.fillCircle(rearHand.x, rearHand.y, armWidth * 0.55)
@@ -489,56 +550,70 @@ export class PlayerVisual {
     length: number,
     width: number,
   ): void {
-    const halfLength = length * 0.5
-    const halfWidth = width * 0.5
-    const points = [
-      this.offset(center, forward, halfLength, right, -halfWidth * 0.72),
-      this.offset(center, forward, halfLength, right, halfWidth * 0.72),
-      this.offset(center, forward, -halfLength * 0.8, right, halfWidth),
-      this.offset(center, forward, -halfLength, right, halfWidth * 0.62),
-      this.offset(center, forward, -halfLength, right, -halfWidth * 0.62),
-      this.offset(center, forward, -halfLength * 0.8, right, -halfWidth),
-    ]
+    const halfLength = length * 0.54
+    const halfWidth = width * 0.48
 
-    this.fillAndStrokePolygon(points, this.palette.shirt)
+    this.fillAndStrokePolygon(
+      this.createOrientedEllipse(
+        center,
+        forward,
+        right,
+        halfLength,
+        halfWidth,
+        18,
+      ),
+      this.palette.shirt,
+    )
     this.drawLocalLine(
       center,
       forward,
       right,
-      halfLength * 0.62,
+      halfLength * 0.5,
       -halfWidth * 0.62,
-      halfLength * 0.62,
+      halfLength * 0.5,
       halfWidth * 0.62,
       this.palette.trim,
-      Math.max(2.5, visualConfig.playerScale * 4),
+      Math.max(2.5, visualConfig.playerScale * 3.6),
     )
 
-    const shadePoints = [
-      this.offset(center, forward, halfLength * 0.82, right, 0),
-      this.offset(center, forward, halfLength * 0.72, right, halfWidth * 0.7),
-      this.offset(center, forward, -halfLength * 0.78, right, halfWidth * 0.94),
-      this.offset(center, forward, -halfLength * 0.88, right, 0),
-    ]
-    this.fillPolygon(shadePoints, this.palette.shirtShade, 0.62)
+    const shadeCenter = this.offset(
+      center,
+      forward,
+      -halfLength * 0.1,
+      right,
+      halfWidth * 0.36,
+    )
+    this.fillPolygon(
+      this.createOrientedEllipse(
+        shadeCenter,
+        forward,
+        right,
+        halfLength * 0.72,
+        halfWidth * 0.42,
+        14,
+      ),
+      this.palette.shirtShade,
+      0.5,
+    )
 
     for (const side of [-1, 1]) {
       this.drawLocalLine(
         center,
         forward,
         right,
-        halfLength * 0.45,
-        halfWidth * 0.72 * side,
-        -halfLength * 0.55,
-        halfWidth * 0.86 * side,
+        halfLength * 0.34,
+        halfWidth * 0.66 * side,
+        -halfLength * 0.46,
+        halfWidth * 0.74 * side,
         this.palette.trim,
-        2.5,
+        Math.max(2, visualConfig.playerScale * 2.6),
       )
     }
 
     const collar = this.offset(
       center,
       forward,
-      halfLength * 0.72,
+      halfLength * 0.6,
       right,
       0,
     )
@@ -546,6 +621,18 @@ export class PlayerVisual {
     this.character.fillCircle(collar.x, collar.y, 5.2)
     this.character.fillStyle(this.palette.trim, 1)
     this.character.fillCircle(collar.x, collar.y, 3.1)
+
+    const jerseyMark = this.offset(
+      center,
+      forward,
+      -halfLength * 0.12,
+      right,
+      -halfWidth * 0.08,
+    )
+    this.character.fillStyle(visualConfig.outlineColor, 0.34)
+    this.character.fillCircle(jerseyMark.x, jerseyMark.y, 4.4)
+    this.character.fillStyle(this.palette.trim, 0.9)
+    this.character.fillCircle(jerseyMark.x, jerseyMark.y, 2.7)
   }
 
   private drawRoleAccent(
@@ -658,7 +745,7 @@ export class PlayerVisual {
       visualConfig.outlineColor,
       visualConfig.outlineAlpha,
     )
-    this.character.fillCircle(center.x, center.y, radius + 2.5)
+    this.character.fillCircle(center.x, center.y, radius + 3.1)
     this.character.fillStyle(
       this.options.profile.skinColor ?? visualConfig.skinColor,
       1,
@@ -693,7 +780,7 @@ export class PlayerVisual {
     const crownCenter = this.offset(
       center,
       forward,
-      -radius * 0.32,
+      -radius * 0.28,
       right,
       0,
     )
@@ -701,9 +788,9 @@ export class PlayerVisual {
       crownCenter,
       forward,
       right,
-      radius * this.hairStyle.crownScaleY,
-      radius * this.hairStyle.crownScaleX,
-      14,
+      radius * this.hairStyle.crownScaleY * 1.08,
+      radius * this.hairStyle.crownScaleX * 1.12,
+      16,
     )
     this.fillAndStrokePolygon(
       crownPoints,
@@ -752,7 +839,7 @@ export class PlayerVisual {
     const hairShine = this.offset(
       crownCenter,
       forward,
-      -radius * 0.18,
+      -radius * 0.16,
       right,
       -radius * 0.28,
     )
@@ -764,9 +851,23 @@ export class PlayerVisual {
       radius * 0.2,
     )
 
-    const facePoint = this.offset(center, forward, radius * 0.68, right, 0)
+    const eyeLine = this.offset(center, forward, radius * 0.55, right, 0)
     this.character.fillStyle(visualConfig.outlineColor, 0.84)
-    this.character.fillCircle(facePoint.x, facePoint.y, 2.1)
+    for (const side of [-1, 1]) {
+      const eye = this.offset(eyeLine, forward, 0, right, radius * 0.2 * side)
+      this.character.fillCircle(
+        eye.x,
+        eye.y,
+        Math.max(1.35, visualConfig.playerScale * 1.9),
+      )
+    }
+    const nose = this.offset(center, forward, radius * 0.7, right, 0)
+    this.character.fillStyle(this.palette.trim, 0.52)
+    this.character.fillCircle(
+      nose.x,
+      nose.y,
+      Math.max(0.95, visualConfig.playerScale * 1.25),
+    )
   }
 
   private createOrientedEllipse(
@@ -821,13 +922,9 @@ export class PlayerVisual {
         right,
         offset * radius * 0.1,
       )
-      this.character.fillTriangle(
-        left.x,
-        left.y,
-        rightPoint.x,
-        rightPoint.y,
-        tip.x,
-        tip.y,
+      this.fillAndStrokePolygon(
+        [left, rightPoint, tip],
+        this.options.profile.hairColor,
       )
     })
   }

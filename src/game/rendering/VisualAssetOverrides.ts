@@ -17,7 +17,10 @@ export function preloadVisualAssetOverrides(scene: Phaser.Scene): void {
     queueImage(scene, slot.key, slot.path)
   }
 
-  if (!scene.textures.exists(assetOverrideConfig.crowd.key)) {
+  if (
+    !scene.textures.exists(assetOverrideConfig.crowd.key) &&
+    optionalAssetExists(assetOverrideConfig.crowd.path)
+  ) {
     scene.load.spritesheet(
       assetOverrideConfig.crowd.key,
       assetOverrideConfig.crowd.path,
@@ -52,7 +55,23 @@ function queueImage(
   key: string,
   path: string,
 ): void {
-  if (!scene.textures.exists(key)) {
+  if (!scene.textures.exists(key) && optionalAssetExists(path)) {
     scene.load.image(key, path)
+  }
+}
+
+function optionalAssetExists(path: string): boolean {
+  if (typeof XMLHttpRequest === 'undefined') {
+    return true
+  }
+
+  try {
+    const request = new XMLHttpRequest()
+
+    request.open('HEAD', path, false)
+    request.send()
+    return request.status >= 200 && request.status < 300
+  } catch {
+    return false
   }
 }
