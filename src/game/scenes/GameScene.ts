@@ -110,12 +110,14 @@ export class GameScene extends Phaser.Scene {
   private labEventsBound = false
   private playerStats: MatchPlayerStats = createEmptyMatchPlayerStats()
   private matchCompletionEmitted = false
+  private matchCompletionFallbackTimer: number | null = null
 
   constructor() {
     super('GameScene')
   }
 
   init(data?: { gameMode?: GameMode }): void {
+    this.clearMatchCompletionFallback()
     this.gameMode = data?.gameMode ?? getLabState().mode
     this.matchState = structuredClone(initialMatchState)
     this.debugEnabled = false
@@ -227,6 +229,7 @@ export class GameScene extends Phaser.Scene {
       this.wallBounceSystem.destroy()
       this.aiOwnGoalSafetySystem.destroy()
       this.wallCarryPressureSystem.destroy()
+      this.clearMatchCompletionFallback()
     })
 
   }
@@ -825,16 +828,16 @@ export class GameScene extends Phaser.Scene {
       crossing.impactPoint,
       completesMatch,
     )
+    if (completesMatch) {
+      this.queueMatchCompletionFallback()
+    }
     this.updateHud()
   }
 
   private emitMatchCompletion(): void {
-    const launch = getMatchLaunchConfig()
-
     if (
       this.matchCompletionEmitted ||
-      !this.matchState.winner ||
-      launch.mode === 'lab'
+      !this.matchState.winner
     ) {
       return
     }
@@ -860,7 +863,30 @@ export class GameScene extends Phaser.Scene {
     )
   }
 
+  private queueMatchCompletionFallback(): void {
+    this.clearMatchCompletionFallback()
+
+    const delayMs = matchFlowConfig.enableGoalCelebration
+      ? Math.min(matchFlowConfig.goalCelebrationMs + 120, 1800)
+      : 0
+
+    this.matchCompletionFallbackTimer = window.setTimeout(() => {
+      this.matchCompletionFallbackTimer = null
+      this.emitMatchCompletion()
+    }, delayMs)
+  }
+
+  private clearMatchCompletionFallback(): void {
+    if (this.matchCompletionFallbackTimer === null) {
+      return
+    }
+
+    window.clearTimeout(this.matchCompletionFallbackTimer)
+    this.matchCompletionFallbackTimer = null
+  }
+
   private resetPositions = (clearGoalCooldown = true): void => {
+    this.clearMatchCompletionFallback()
     this.matchFlowSystem.reset()
     this.resetEntities(clearGoalCooldown)
   }
@@ -921,11 +947,14 @@ export class GameScene extends Phaser.Scene {
     this.matchState = structuredClone(initialMatchState)
     this.matchStatsTracker.reset()
     this.aiSystem.resetMetrics()
+    this.matchCompletionEmitted = false
+    this.clearMatchCompletionFallback()
     this.resetPositions()
     this.updateHud()
   }
 
   private restartForLabState(): void {
+    this.clearMatchCompletionFallback()
     const gameMode = getLabState().mode
 
     console.info('[Lab Apply] Structural match rebuild queued', {
@@ -936,6 +965,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private resetCore = (): void => {
+    this.clearMatchCompletionFallback()
     this.matchFlowSystem.reset()
     this.inputController.reset()
     this.keeperControlAssistSystem.reset()
@@ -982,7 +1012,7 @@ export class GameScene extends Phaser.Scene {
     if (
       this.matchState.winner ||
       this.matchState.score[goal.scoringTeam] >=
-        this.matchState.firstTo - 1
+        this.matchState.firstTo
     ) {
       this.matchState = structuredClone(initialMatchState)
       this.matchStatsTracker.reset()

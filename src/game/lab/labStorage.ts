@@ -280,7 +280,8 @@ function migrateGameplayDefaults(candidate: unknown): unknown {
     320,
   )
   replaceLegacyDefault(field, 'arenaWidth', 940, 1000)
-  replaceLegacyDefault(field, 'arenaHeight', 1460, 1500)
+  replaceLegacyDefault(field, 'arenaHeight', 1460, 1600)
+  replaceLegacyDefault(field, 'arenaHeight', 1500, 1600)
   replaceLegacyDefault(field, 'playerVisualScale', 0.76, 0.72)
   replaceLegacyDefault(field, 'playerPhysicsRadius', 23, 21.5)
   replaceLegacyDefault(keeper, 'keeperShieldWidth', 52, 42)
@@ -450,6 +451,25 @@ function migrateGameplayDefaults(candidate: unknown): unknown {
   replaceLegacyDefault(stick, 'releaseForceMax', 17.2, 19.8)
   replaceLegacyDefault(stick, 'releaseSwingMs', 90, 75)
   replaceLegacyDefault(defense, 'truckKnockdownThreshold', -0.06, -0.02)
+  replaceLegacyDefault(defense, 'truckFumblePressure', 0.38, 0.42)
+  replaceLegacyDefault(
+    defense,
+    'chargingSlashVulnerability',
+    1.45,
+    1.75,
+  )
+  replaceLegacyDefault(
+    defense,
+    'slashChargeFumbleBaseChance',
+    0.45,
+    0.58,
+  )
+  replaceLegacyDefault(
+    defense,
+    'chargingFumbleResistance',
+    0.94,
+    1.14,
+  )
   replaceLegacyDefault(defense, 'slashFumblePressure', 0.32, 0.34)
   replaceLegacyDefault(defense, 'stableSlashVulnerability', 0.75, 0.82)
   replaceLegacyDefault(defense, 'fumblePressureThreshold', 1.12, 1.05)

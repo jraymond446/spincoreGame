@@ -3,7 +3,7 @@ import { visualStyleConfig } from './visualStyleConfig'
 
 export const arenaDimensionsConfig = {
   width: 1000,
-  height: 1500,
+  height: 1600,
 } as const
 
 export const arenaConfig = {

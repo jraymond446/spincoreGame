@@ -27,11 +27,13 @@ import {
 
 export class GameHost {
   private readonly root: HTMLElement
+  private readonly launch: MatchLaunchConfig
   private readonly gameRoot: HTMLDivElement
   private readonly labRoot: HTMLDivElement
   private readonly resizeObserver: ResizeObserver
   private game: Phaser.Game | null = null
   private labPanel: LabPanel | null = null
+  private matchCompleteOverlay: HTMLDivElement | null = null
   private destroyed = false
   private readonly exitButton: HTMLButtonElement
   private readonly onExit: () => void
@@ -45,6 +47,7 @@ export class GameHost {
     onCompleted: (result: MatchCompletionDetail) => void
   }) {
     this.root = options.root
+    this.launch = options.launch
     this.onExit = options.onExit
     this.onCompleted = options.onCompleted
     this.root.replaceChildren()
@@ -137,6 +140,8 @@ export class GameHost {
     this.resizeObserver.disconnect()
     this.labPanel?.destroy()
     this.labPanel = null
+    this.matchCompleteOverlay?.remove()
+    this.matchCompleteOverlay = null
     this.game?.destroy(true)
     this.game = null
     clearMatchLaunchConfig()
@@ -170,12 +175,130 @@ export class GameHost {
 
     this.completionHandled = true
     const customEvent = event as CustomEvent<MatchCompletionDetail>
-    this.exitButton.hidden = true
-    this.onCompleted(structuredClone(customEvent.detail))
+    this.showMatchCompleteOverlay(structuredClone(customEvent.detail))
   }
 
   private exitMatch = (): void => {
+    this.matchCompleteOverlay?.remove()
+    this.matchCompleteOverlay = null
     this.onExit()
+  }
+
+  private showMatchCompleteOverlay(detail: MatchCompletionDetail): void {
+    this.matchCompleteOverlay?.remove()
+    this.exitButton.hidden = true
+
+    const isLab = this.launch.mode === 'lab'
+    const won = detail.winner === 'A'
+    const winnerName = detail.teamNames[detail.winner]
+    const overlay = document.createElement('div')
+    overlay.className = 'match-complete-overlay'
+    overlay.setAttribute('role', 'dialog')
+    overlay.setAttribute('aria-modal', 'true')
+    overlay.setAttribute('aria-label', 'Match complete')
+
+    const card = document.createElement('section')
+    card.className =
+      `match-complete-card ${won ? 'is-win' : 'is-loss'}`.trim()
+
+    const eyebrow = document.createElement('p')
+    eyebrow.className = 'match-complete-eyebrow'
+    eyebrow.textContent = isLab ? 'LAB RUN COMPLETE' : 'FINAL WHISTLE'
+
+    const title = document.createElement('h2')
+    title.textContent = isLab
+      ? `${winnerName} wins`
+      : won
+        ? 'You win'
+        : 'Final whistle'
+
+    const score = document.createElement('p')
+    score.className = 'match-complete-score'
+    score.textContent = `${detail.score.A} - ${detail.score.B}`
+
+    const copy = document.createElement('p')
+    copy.className = 'match-complete-copy'
+    copy.textContent = isLab
+      ? 'The Lab match reached first to five. Reset the run or leave the court cleanly.'
+      : 'The match is final. Continue to bank your XP, funds, and career stats.'
+
+    const stats = document.createElement('dl')
+    stats.className = 'match-complete-stat-grid'
+    const playerStats = detail.playerStats
+    const statEntries: Array<[string, number]> = [
+      ['Goals', playerStats?.goals ?? detail.playerGoals],
+      ['Assists', playerStats?.assists ?? 0],
+      ['Shots', playerStats?.shots ?? 0],
+      ['Gathers', playerStats?.successfulGathers ?? 0],
+      ['Team saves', detail.stats.A.saves],
+      ['Team checks', detail.stats.A.checks],
+    ]
+
+    for (const [label, value] of statEntries) {
+      stats.appendChild(this.createMatchCompleteStat(label, value))
+    }
+
+    const actions = document.createElement('div')
+    actions.className = 'match-complete-actions'
+
+    if (isLab) {
+      actions.append(
+        this.createMatchCompleteButton('Run it back', 'primary', () => {
+          this.matchCompleteOverlay?.remove()
+          this.matchCompleteOverlay = null
+          this.exitButton.hidden = false
+          this.completionHandled = false
+          window.dispatchEvent(new CustomEvent(labEvents.resetMatch))
+        }),
+        this.createMatchCompleteButton('Main menu', 'secondary', () => {
+          this.exitMatch()
+        }),
+      )
+    } else {
+      actions.append(
+        this.createMatchCompleteButton('Continue to rewards', 'primary', () => {
+          actions
+            .querySelectorAll('button')
+            .forEach((button) => {
+              button.disabled = true
+            })
+          this.onCompleted(structuredClone(detail))
+        }),
+      )
+    }
+
+    card.append(eyebrow, title, score, copy, stats, actions)
+    overlay.appendChild(card)
+    this.root.appendChild(overlay)
+    this.matchCompleteOverlay = overlay
+  }
+
+  private createMatchCompleteStat(
+    label: string,
+    value: number,
+  ): HTMLDivElement {
+    const item = document.createElement('div')
+    const term = document.createElement('dt')
+    const description = document.createElement('dd')
+
+    term.textContent = label
+    description.textContent = String(value)
+    item.append(term, description)
+    return item
+  }
+
+  private createMatchCompleteButton(
+    label: string,
+    tone: 'primary' | 'secondary',
+    onClick: () => void,
+  ): HTMLButtonElement {
+    const button = document.createElement('button')
+
+    button.type = 'button'
+    button.className = `match-complete-button is-${tone}`
+    button.textContent = label
+    button.addEventListener('click', onClick)
+    return button
   }
 
   private syncViewport = (): void => {
