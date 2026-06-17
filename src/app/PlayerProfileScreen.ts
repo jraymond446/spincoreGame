@@ -90,17 +90,23 @@ export function createPlayerProfileScreen(options: {
 
   const buildColumn = document.createElement('div')
   buildColumn.className = 'player-profile-build-column'
+  const effective = getEffectivePlayerAttributes(save)
+  const itemBonusTotal = playerAttributeKeys.reduce(
+    (total, key) => total + Math.max(0, effective[key] - save.player.attributes[key]),
+    0,
+  )
   const attributesPanel = createSpincorePanel({
-    eyebrow: 'PLAYER RATINGS',
-    title: 'Core Attributes',
+    eyebrow: 'TOTAL RATINGS',
+    title: 'Player + Item Attributes',
     copy:
       save.progression.unspentAttributePoints > 0
-        ? `${save.progression.unspentAttributePoints} points available.`
-        : 'Earn attribute points by leveling up.',
+        ? `${save.progression.unspentAttributePoints} points available. ` +
+          'Blue is your player build; green is equipped item power.'
+        : 'Blue is your player build; green is equipped item power.',
   })
   const attributeList = document.createElement('div')
   attributeList.className = 'profile-attribute-list'
-  const effective = getEffectivePlayerAttributes(save)
+  const attributeLegend = createAttributeLegend(itemBonusTotal)
 
   for (const key of playerAttributeKeys) {
     attributeList.appendChild(
@@ -117,11 +123,11 @@ export function createPlayerProfileScreen(options: {
     )
   }
 
-  attributesPanel.content.appendChild(attributeList)
+  attributesPanel.content.append(attributeLegend, attributeList)
   const stickPanel = createSpincorePanel({
     eyebrow: 'EQUIPMENT',
-    title: 'Stick Attributes',
-    copy: 'Stick modifiers are included in the effective ratings above.',
+    title: 'Equipped Stick',
+    copy: 'Stick modifiers are folded into the item numbers above.',
   })
   const stick = getStickType(
     save.equipment.equipped.stickId ?? save.player.selectedStickId,
@@ -196,6 +202,26 @@ export function createPlayerProfileScreen(options: {
   )
   body.append(profileGrid, statsPanel.panel, actions)
   return root
+}
+
+function createAttributeLegend(itemBonusTotal: number): HTMLElement {
+  const legend = document.createElement('div')
+  legend.className = 'profile-attribute-legend'
+  const entries = [
+    ['player', 'Player base'],
+    ['item', `Items +${itemBonusTotal}`],
+    ['total', `Live cap ${playerEffectiveAttributeMax}`],
+  ] as const
+
+  for (const [tone, label] of entries) {
+    const chip = document.createElement('span')
+    chip.className = `profile-attribute-legend-chip is-${tone}`
+    const swatch = document.createElement('i')
+    chip.append(swatch, label)
+    legend.appendChild(chip)
+  }
+
+  return legend
 }
 
 function createStatGrid(stats: PlayerStatLine | SeasonStats): HTMLElement {

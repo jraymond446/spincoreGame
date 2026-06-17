@@ -15,11 +15,21 @@ export function createSpincoreAttributeRow(options: {
     options.effective > options.base
       ? `${options.base} +${options.effective - options.base}`
       : String(options.base)
+  const item = options.effective - options.base
   const stat = createSpincoreStatBar({
     label: options.label,
     value: options.effective,
     max: options.max,
     detail,
+    segments: {
+      base: options.base,
+      item,
+    },
+    detailSegments: {
+      base: options.base,
+      item,
+      total: options.effective,
+    },
   })
   const add = createSpincoreButton('+', options.onIncrease, {
     tone: 'primary',

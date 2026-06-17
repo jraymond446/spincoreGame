@@ -481,6 +481,7 @@ body {
 }
 
 .attribute-meter {
+  position: relative;
   height: 10px;
   overflow: hidden;
   border: 2px solid #16324f;
@@ -488,10 +489,30 @@ body {
   background: #d8e4e5;
 }
 
-.attribute-meter i {
+.attribute-meter i,
+.attribute-meter b {
   display: block;
   height: 100%;
+}
+
+.attribute-meter i {
   background: linear-gradient(90deg, #198bd5, #8df0cf);
+}
+
+.attribute-meter.is-stacked i,
+.attribute-meter.is-stacked b {
+  position: absolute;
+  top: 0;
+}
+
+.attribute-meter.is-stacked .attribute-meter-base {
+  left: 0;
+  background: linear-gradient(90deg, #167dca, #2da4e8);
+}
+
+.attribute-meter.is-stacked .attribute-meter-item {
+  background: linear-gradient(90deg, #42cfac, #8df0cf);
+  box-shadow: inset 2px 0 0 rgba(22, 50, 79, 0.22);
 }
 
 .attribute-add-button {
@@ -1177,6 +1198,10 @@ body {
   gap: 9px;
 }
 
+.spincore-attribute-row .spincore-stat-bar {
+  grid-template-columns: 112px minmax(108px, auto) minmax(86px, 1fr);
+}
+
 .spincore-stat-bar {
   display: grid;
   grid-template-columns: 112px 58px minmax(80px, 1fr);
@@ -1190,6 +1215,82 @@ body {
 .spincore-stat-bar > strong {
   color: #16324f;
   text-align: right;
+}
+
+.spincore-stat-value.is-stacked {
+  display: inline-grid;
+  grid-template-columns: repeat(3, auto);
+  justify-content: end;
+  gap: 4px;
+  font-size: 10px;
+}
+
+.spincore-stat-value.is-stacked span {
+  min-width: 24px;
+  box-sizing: border-box;
+  border: 2px solid #16324f;
+  border-radius: 4px;
+  padding: 2px 4px;
+  text-align: center;
+  line-height: 1;
+}
+
+.spincore-stat-value .is-player {
+  color: #fff8df;
+  background: #198bd5;
+}
+
+.spincore-stat-value .is-item {
+  color: #0c3e45;
+  background: #8df0cf;
+}
+
+.spincore-stat-value .is-item.is-negative {
+  color: #fff8df;
+  background: #e54872;
+}
+
+.spincore-stat-value .is-total {
+  color: #fff8df;
+  background: #16324f;
+}
+
+.profile-attribute-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin: -3px 0 2px;
+}
+
+.profile-attribute-legend-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 2px solid #16324f;
+  border-radius: 999px;
+  padding: 5px 8px;
+  color: #16324f;
+  background: #eef5f3;
+  font-size: 9px;
+  font-weight: 950;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.profile-attribute-legend-chip i {
+  width: 10px;
+  height: 10px;
+  border: 2px solid #16324f;
+  border-radius: 50%;
+  background: #198bd5;
+}
+
+.profile-attribute-legend-chip.is-item i {
+  background: #8df0cf;
+}
+
+.profile-attribute-legend-chip.is-total i {
+  background: #16324f;
 }
 
 .profile-loadout-list {
@@ -2658,6 +2759,19 @@ button.spincore-stick-card:hover {
   .spincore-stat-bar {
     grid-template-columns: 88px 48px minmax(60px, 1fr);
     gap: 7px;
+  }
+
+  .spincore-attribute-row .spincore-stat-bar {
+    grid-template-columns: 88px minmax(92px, auto) minmax(58px, 1fr);
+  }
+
+  .spincore-stat-value.is-stacked {
+    gap: 3px;
+  }
+
+  .spincore-stat-value.is-stacked span {
+    min-width: 22px;
+    padding: 2px 3px;
   }
 
   .store-filter-tabs {
