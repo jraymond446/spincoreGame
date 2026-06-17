@@ -1243,7 +1243,7 @@ function targetDebug(
 }
 
 function normalizedAttribute(value: number): number {
-  return Phaser.Math.Clamp(value, 0, 1.28)
+  return Phaser.Math.Clamp(value, 0, 1.6)
 }
 
 function stickSlashMultiplier(player: Player): number {

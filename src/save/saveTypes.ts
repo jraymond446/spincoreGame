@@ -17,6 +17,7 @@ export type CreatedPlayerAttributes = Record<PlayerAttributeKey, number>
 export const playerAttributeMin = 1
 export const playerAttributeMax = 25
 export const playerAttributeUltraMax = 26
+export const playerEffectiveAttributeMax = 50
 export const playerAttributeDefault = 13
 
 export const playerArchetypeKeys = [

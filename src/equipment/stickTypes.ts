@@ -1,5 +1,6 @@
 import type { StickStyle } from '../game/data/matchTypes'
 import type { PlayerAttributeKey } from '../save/saveTypes'
+import { equipmentPerks } from './perkCatalog.ts'
 import type {
   EquipmentPerk,
   EquipmentRarity,
@@ -43,44 +44,6 @@ export type StickType = {
 const rookieLeagueId = 'rookie_circuit'
 const wallLeagueId = 'wall_rats_circuit'
 const apexLeagueId = 'apex_circuit'
-
-export const equipmentPerks = {
-  bankReverse: {
-    id: 'bank-reverse',
-    name: 'Reverse Bite',
-    tier: 'major',
-    description:
-      'Future perk hook: banked shots can leave the wall with opposite spin.',
-  },
-  longCharge: {
-    id: 'long-charge',
-    name: 'Deep Charge',
-    tier: 'major',
-    description:
-      'Future perk hook: extends the safe charge window before fumble risk.',
-  },
-  snapPass: {
-    id: 'snap-pass',
-    name: 'Snap Feed',
-    tier: 'minor',
-    description:
-      'Future perk hook: faster low-charge passes to nearby teammates.',
-  },
-  wallMagnet: {
-    id: 'wall-magnet',
-    name: 'Wall Magnet',
-    tier: 'minor',
-    description:
-      'Future perk hook: slightly steadier gathers after wall rebounds.',
-  },
-  ultraOrbit: {
-    id: 'ultra-orbit',
-    name: 'Orbit Break',
-    tier: 'ultra',
-    description:
-      'Future ultra hook: one signature shot can bend late after a bank.',
-  },
-} as const satisfies Record<string, EquipmentPerk>
 
 export const stickTypes: StickType[] = [
   {
@@ -152,13 +115,12 @@ export const stickTypes: StickType[] = [
       fumbleResistanceModifier: 3,
     },
     attributeModifiers: {
-      reaction: 2,
-      shotSpin: 1,
+      shotAccuracy: 3,
+      shotSpin: 3,
     },
     summaryModifiers: [
-      { label: 'Reaction', value: 2 },
-      { label: 'Shot Spin', value: 1 },
-      { label: 'Shot Power', value: -1 },
+      { label: 'Shot Accuracy', value: 3 },
+      { label: 'Shot Spin', value: 3 },
     ],
     availableAtCreation: true,
     catalog: {
@@ -183,13 +145,12 @@ export const stickTypes: StickType[] = [
       fumbleResistanceModifier: -2,
     },
     attributeModifiers: {
-      shotSpin: 3,
-      shotAccuracy: 1,
+      shotSpin: 5,
+      shotAccuracy: 3,
     },
     summaryModifiers: [
-      { label: 'Shot Spin', value: 3 },
-      { label: 'Shot Accuracy', value: 1 },
-      { label: 'Toughness', value: -1 },
+      { label: 'Shot Spin', value: 5 },
+      { label: 'Shot Accuracy', value: 3 },
     ],
     availableAtCreation: true,
     catalog: {
@@ -197,7 +158,7 @@ export const stickTypes: StickType[] = [
       price: 160,
       shopId: 'riverside_market',
       leagueId: rookieLeagueId,
-      statBudget: 4,
+      statBudget: 5,
     },
   },
   {
@@ -214,13 +175,14 @@ export const stickTypes: StickType[] = [
       fumbleResistanceModifier: 0,
     },
     attributeModifiers: {
-      speed: 2,
-      reaction: 2,
+      shotPower: 3,
+      shotAccuracy: 3,
+      shotSpin: 3,
     },
     summaryModifiers: [
-      { label: 'Speed', value: 2 },
-      { label: 'Reaction', value: 2 },
-      { label: 'Shot Power', value: -1 },
+      { label: 'Shot Power', value: 3 },
+      { label: 'Shot Accuracy', value: 3 },
+      { label: 'Shot Spin', value: 3 },
     ],
     availableAtCreation: true,
     catalog: {
@@ -228,7 +190,7 @@ export const stickTypes: StickType[] = [
       price: 150,
       shopId: 'riverside_market',
       leagueId: rookieLeagueId,
-      statBudget: 4,
+      statBudget: 3,
     },
   },
   {
@@ -245,21 +207,19 @@ export const stickTypes: StickType[] = [
       fumbleResistanceModifier: 4,
     },
     attributeModifiers: {
-      reaction: 3,
-      shotAccuracy: 2,
-      shotSpin: 2,
+      shotAccuracy: 8,
+      shotSpin: 8,
     },
     summaryModifiers: [
-      { label: 'Reaction', value: 3 },
-      { label: 'Shot Accuracy', value: 2 },
-      { label: 'Shot Spin', value: 2 },
+      { label: 'Shot Accuracy', value: 8 },
+      { label: 'Shot Spin', value: 8 },
     ],
     catalog: {
       rarity: 'rare',
       price: 320,
       shopId: 'wall_rat_workshop',
       leagueId: wallLeagueId,
-      statBudget: 7,
+      statBudget: 8,
       perks: [equipmentPerks.wallMagnet],
       unlockHint: 'Normally unlocked after reaching the Wall Rats circuit.',
     },
@@ -278,13 +238,12 @@ export const stickTypes: StickType[] = [
       fumbleResistanceModifier: -1,
     },
     attributeModifiers: {
-      shotSpin: 5,
-      shotAccuracy: 3,
+      shotSpin: 12,
+      shotAccuracy: 8,
     },
     summaryModifiers: [
-      { label: 'Shot Spin', value: 5 },
-      { label: 'Shot Accuracy', value: 3 },
-      { label: 'Fumble Resist', value: -1 },
+      { label: 'Shot Spin', value: 12 },
+      { label: 'Shot Accuracy', value: 8 },
     ],
     catalog: {
       rarity: 'rare',
@@ -310,20 +269,19 @@ export const stickTypes: StickType[] = [
       fumbleResistanceModifier: 6,
     },
     attributeModifiers: {
-      shotPower: 5,
-      toughness: 4,
+      shotPower: 12,
+      shotAccuracy: 8,
     },
     summaryModifiers: [
-      { label: 'Shot Power', value: 5 },
-      { label: 'Toughness', value: 4 },
-      { label: 'Accuracy', value: -1 },
+      { label: 'Shot Power', value: 12 },
+      { label: 'Shot Accuracy', value: 8 },
     ],
     catalog: {
       rarity: 'rare',
       price: 380,
       shopId: 'crease_foundry',
       leagueId: wallLeagueId,
-      statBudget: 9,
+      statBudget: 12,
       perks: [equipmentPerks.longCharge],
       unlockHint: 'Normally unlocked after reaching a crease-heavy league.',
     },
@@ -342,14 +300,14 @@ export const stickTypes: StickType[] = [
       fumbleResistanceModifier: 2,
     },
     attributeModifiers: {
-      speed: 5,
-      reaction: 4,
-      shotSpin: 4,
+      shotPower: 13,
+      shotAccuracy: 13,
+      shotSpin: 13,
     },
     summaryModifiers: [
-      { label: 'Speed', value: 5 },
-      { label: 'Reaction', value: 4 },
-      { label: 'Shot Spin', value: 4 },
+      { label: 'Shot Power', value: 13 },
+      { label: 'Shot Accuracy', value: 13 },
+      { label: 'Shot Spin', value: 13 },
     ],
     catalog: {
       rarity: 'epic',
@@ -375,17 +333,14 @@ export const stickTypes: StickType[] = [
       fumbleResistanceModifier: 6,
     },
     attributeModifiers: {
-      speed: 3,
-      reaction: 5,
-      shotAccuracy: 5,
-      shotSpin: 5,
-      toughness: 2,
+      shotPower: 20,
+      shotAccuracy: 20,
+      shotSpin: 20,
     },
     summaryModifiers: [
-      { label: 'Reaction', value: 5 },
-      { label: 'Shot Accuracy', value: 5 },
-      { label: 'Shot Spin', value: 5 },
-      { label: 'Speed', value: 3 },
+      { label: 'Shot Power', value: 20 },
+      { label: 'Shot Accuracy', value: 20 },
+      { label: 'Shot Spin', value: 20 },
     ],
     catalog: {
       rarity: 'legendary',
@@ -393,7 +348,10 @@ export const stickTypes: StickType[] = [
       shopId: 'apex_outfitters',
       leagueId: apexLeagueId,
       statBudget: 20,
-      perks: [equipmentPerks.snapPass, equipmentPerks.longCharge],
+      perks: [
+        equipmentPerks.snapPassEnhanced,
+        equipmentPerks.longChargeEnhanced,
+      ],
       unlockHint: 'Normally unlocked in the highest league stores.',
     },
   },
@@ -411,18 +369,14 @@ export const stickTypes: StickType[] = [
       fumbleResistanceModifier: 4,
     },
     attributeModifiers: {
-      speed: 4,
-      reaction: 5,
-      shotPower: 4,
-      shotAccuracy: 5,
-      shotSpin: 6,
-      toughness: 2,
+      shotPower: 26,
+      shotAccuracy: 26,
+      shotSpin: 26,
     },
     summaryModifiers: [
-      { label: 'Shot Spin', value: 6 },
-      { label: 'Reaction', value: 5 },
-      { label: 'Shot Accuracy', value: 5 },
-      { label: 'Ultra', value: 1 },
+      { label: 'Shot Power', value: 26 },
+      { label: 'Shot Accuracy', value: 26 },
+      { label: 'Shot Spin', value: 26 },
     ],
     catalog: {
       rarity: 'ultra',
@@ -430,7 +384,10 @@ export const stickTypes: StickType[] = [
       shopId: 'triumph_vault',
       leagueId: apexLeagueId,
       statBudget: 26,
-      perks: [equipmentPerks.ultraOrbit],
+      perks: [
+        equipmentPerks.bankReverseEnhanced,
+        equipmentPerks.exoticOrbit,
+      ],
       unlockHint: 'Future triumph: win a league title with 3 bank goals.',
     },
   },

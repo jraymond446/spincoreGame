@@ -1213,7 +1213,7 @@ export class StickInteractionSystem {
         player.attributes.control * 0.3 +
         player.attributes.reaction * 0.2,
       0,
-      1.28,
+      1.6,
     )
     const roleBonus =
       player.role === 'support'
@@ -1233,7 +1233,7 @@ export class StickInteractionSystem {
         roleBonus +
         styleBonus,
       0.72,
-      1.28,
+      1.42,
     )
     const graceActive = (this.failedGatherGrace.get(player.id) ?? 0) > 0
     const baseRadius = active
@@ -2703,7 +2703,7 @@ function getCradleEntrySpeedLimit(player: Player): number {
 }
 
 function runtimeAttribute(value: number): number {
-  return Phaser.Math.Clamp(value, 0, 1.28)
+  return Phaser.Math.Clamp(value, 0, 1.6)
 }
 
 function testDeflectZone(core: Core, player: Player): DeflectHit | null {

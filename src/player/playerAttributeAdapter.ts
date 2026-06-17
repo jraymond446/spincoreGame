@@ -4,7 +4,7 @@ import {
   playerAttributeDefault,
   playerAttributeMax,
   playerAttributeMin,
-  playerAttributeUltraMax,
+  playerEffectiveAttributeMax,
 } from '../save/saveTypes.ts'
 
 export function mapCreatedPlayerAttributesToMatchAttributes(
@@ -75,10 +75,11 @@ function runtimeValue(value: number): number {
       : 0.82 + normalized * 0.4
   const ultraBonus =
     value > playerAttributeMax
-      ? (value - playerAttributeMax) /
-        (playerAttributeUltraMax - playerAttributeMax) *
-        0.06
+      ? (Math.min(value, playerEffectiveAttributeMax) -
+          playerAttributeMax) /
+        (playerEffectiveAttributeMax - playerAttributeMax) *
+        0.38
       : 0
 
-  return Math.min(1.28, Math.max(0.42, runtime + ultraBonus))
+  return Math.min(1.6, Math.max(0.42, runtime + ultraBonus))
 }

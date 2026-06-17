@@ -2,8 +2,8 @@ import { equipmentCatalog } from './equipmentCatalog.ts'
 import { getStickType } from './stickTypes.ts'
 import type { SaveGame } from '../save/saveTypes'
 import {
+  playerEffectiveAttributeMax,
   playerAttributeMin,
-  playerAttributeUltraMax,
   playerAttributeKeys,
   type CreatedPlayerAttributes,
 } from '../save/saveTypes.ts'
@@ -48,7 +48,7 @@ export function getEffectivePlayerAttributes(
 
 function clampEffectiveAttribute(value: number): number {
   return Math.min(
-    playerAttributeUltraMax,
+    playerEffectiveAttributeMax,
     Math.max(playerAttributeMin, value),
   )
 }

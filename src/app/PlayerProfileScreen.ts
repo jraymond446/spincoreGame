@@ -9,8 +9,8 @@ import type {
   SeasonStats,
 } from '../save/saveTypes'
 import {
+  playerEffectiveAttributeMax,
   playerAttributeMax,
-  playerAttributeUltraMax,
   playerAttributeKeys,
 } from '../save/saveTypes'
 import {
@@ -111,7 +111,7 @@ export function createPlayerProfileScreen(options: {
         canIncrease:
           save.progression.unspentAttributePoints > 0 &&
           save.player.attributes[key] < playerAttributeMax,
-        max: playerAttributeUltraMax,
+        max: playerEffectiveAttributeMax,
         onIncrease: () => options.onSpendPoint(key),
       }),
     )

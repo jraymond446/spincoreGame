@@ -43,12 +43,12 @@ export class FumbleSystem {
     const handling = Phaser.Math.Clamp(
       carrier.attributes.ballHandling,
       0,
-      1.28,
+      1.6,
     )
     const toughness = Phaser.Math.Clamp(
       carrier.attributes.toughness,
       0,
-      1.28,
+      1.6,
     )
     const contactResistance =
       source === 'truck'
@@ -96,12 +96,12 @@ export class FumbleSystem {
     const handling = Phaser.Math.Clamp(
       carrier.attributes.ballHandling,
       0,
-      1.28,
+      1.6,
     )
     const toughness = Phaser.Math.Clamp(
       carrier.attributes.toughness,
       0,
-      1.28,
+      1.6,
     )
     const resistance = Phaser.Math.Linear(
       1.16,

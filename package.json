@@ -9,7 +9,8 @@
     "test:goals": "node --experimental-strip-types src/game/rules/GoalCrossing.test.ts",
     "test:progression": "node --experimental-strip-types src/save/progression.test.ts",
     "test:attributes": "node --experimental-strip-types src/match/attributeGameplay.test.ts",
-    "test": "npm run test:goals && npm run test:progression && npm run test:attributes",
+    "test:loot": "node --experimental-strip-types src/equipment/lootRollTables.test.ts",
+    "test": "npm run test:goals && npm run test:progression && npm run test:attributes && npm run test:loot",
     "preview": "vite preview"
   },
   "devDependencies": {

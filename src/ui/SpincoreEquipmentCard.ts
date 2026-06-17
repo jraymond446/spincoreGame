@@ -22,7 +22,8 @@ export function createSpincoreEquipmentCard(options: {
     createSpincoreBadge(`${item.statBudget} PTS`, 'navy'),
   )
   const icon = document.createElement('div')
-  icon.className = `spincore-equipment-icon is-${item.type}`
+  icon.className =
+    `spincore-equipment-icon is-${item.type} is-${item.rarity}`
   icon.textContent =
     item.type === 'stick'
       ? 'STK'
@@ -57,7 +58,11 @@ export function createSpincoreEquipmentCard(options: {
       modifiers.appendChild(
         createSpincoreBadge(
           `${perk.tier.toUpperCase()}: ${perk.name}`,
-          perk.tier === 'ultra' ? 'rose' : 'blue',
+          perk.tier === 'exotic'
+            ? 'rose'
+            : perk.tier === 'enhanced'
+              ? 'gold'
+              : 'blue',
         ),
       )
     }

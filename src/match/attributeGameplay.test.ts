@@ -9,6 +9,7 @@ import {
 } from '../save/defaultSave.ts'
 import {
   playerAttributeDefault,
+  playerEffectiveAttributeMax,
   type CreatedPlayerAttributes,
   type PlayerAttributeKey,
 } from '../save/saveTypes.ts'
@@ -73,6 +74,32 @@ assertGreater(
   'equipped armor should change effective toughness',
 )
 
+const endgameSave = createNewSave(
+  createCreatedPlayer({
+    name: 'Cap Tester',
+    jerseyNumber: 99,
+    handedness: 'right',
+    archetype: 'striker',
+    cosmetics: defaultPlayerCosmetics,
+    attributes: attributes(25),
+    selectedStickId: 'orbit-breaker',
+  }),
+)
+endgameSave.equipment.inventory.push('redline-spikes')
+endgameSave.equipment.equipped.stickId = 'orbit-breaker'
+endgameSave.equipment.equipped.shoesId = 'redline-spikes'
+const endgameAttributes = getEffectivePlayerAttributes(endgameSave)
+assertEqual(
+  endgameAttributes.speed,
+  playerEffectiveAttributeMax,
+  'endgame speed should reach effective cap',
+)
+assertEqual(
+  endgameAttributes.shotPower,
+  playerEffectiveAttributeMax,
+  'endgame shot power should reach effective cap',
+)
+
 const teamA = createTeamARoster()
 const teamB: PlayerRosterEntry[] = []
 const overrides = applyMatchRosterOverrides(
@@ -112,13 +139,15 @@ for (const itemId of [
   'quick-whip',
   'apex-runners',
   'crash-padding',
+  'orbit-breaker',
+  'redline-spikes',
 ]) {
   if (!equipmentCatalog.some((item) => item.id === itemId)) {
     throw new Error(`${itemId} missing from equipment catalog`)
   }
 }
 
-console.info('Attribute gameplay bridge cases passed: 12')
+console.info('Attribute gameplay bridge cases passed: 14')
 
 function attributes(value = playerAttributeDefault): CreatedPlayerAttributes {
   const result = {} as CreatedPlayerAttributes

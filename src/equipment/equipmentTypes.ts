@@ -18,13 +18,25 @@ export type EquipmentShopId =
   | 'crease_foundry'
   | 'apex_outfitters'
   | 'triumph_vault'
-export type EquipmentPerkTier = 'minor' | 'major' | 'ultra'
+export type EquipmentPerkTier = 'standard' | 'enhanced' | 'exotic'
+export type EquipmentPerkTag =
+  | 'bank'
+  | 'charge'
+  | 'defense'
+  | 'gather'
+  | 'passing'
+  | 'release'
+  | 'wall'
+  | 'ultra'
 
 export type EquipmentPerk = {
   id: string
   name: string
   tier: EquipmentPerkTier
   description: string
+  tags?: readonly EquipmentPerkTag[]
+  allowedTypes?: readonly EquipmentType[]
+  rollWeight?: number
 }
 
 export type EquipmentCosmeticSlot =
@@ -47,6 +59,7 @@ export type EquipmentRarityInfo = {
   color: 'grey' | 'green' | 'blue' | 'purple' | 'orange' | 'red'
   statBudgetRange: readonly [number, number]
   perkSlots: number
+  perkRolls: readonly EquipmentPerkTier[]
   description: string
 }
 
@@ -59,27 +72,31 @@ export const equipmentRarityInfo: Record<
     color: 'grey',
     statBudgetRange: [0, 0],
     perkSlots: 0,
+    perkRolls: [],
     description: 'Issued gear. No cost, no flair, dependable baseline.',
   },
   common: {
     label: 'Common',
     color: 'grey',
-    statBudgetRange: [1, 2],
+    statBudgetRange: [0, 3],
     perkSlots: 0,
+    perkRolls: [],
     description: 'Small stat bumps for early builds.',
   },
   uncommon: {
     label: 'Uncommon',
     color: 'green',
-    statBudgetRange: [3, 6],
+    statBudgetRange: [3, 7],
     perkSlots: 0,
+    perkRolls: [],
     description: 'Early identity pieces with a clear direction.',
   },
   rare: {
     label: 'Rare',
     color: 'blue',
-    statBudgetRange: [7, 12],
+    statBudgetRange: [8, 12],
     perkSlots: 1,
+    perkRolls: ['standard'],
     description: 'First perk tier. Gear starts changing play style.',
   },
   epic: {
@@ -87,6 +104,7 @@ export const equipmentRarityInfo: Record<
     color: 'purple',
     statBudgetRange: [13, 19],
     perkSlots: 2,
+    perkRolls: ['standard', 'standard'],
     description: 'Build-defining equipment with sharper tradeoffs.',
   },
   legendary: {
@@ -94,13 +112,15 @@ export const equipmentRarityInfo: Record<
     color: 'orange',
     statBudgetRange: [20, 25],
     perkSlots: 2,
+    perkRolls: ['enhanced', 'enhanced'],
     description: 'Endgame league loot with premium stat budgets.',
   },
   ultra: {
     label: 'Ultra',
     color: 'red',
     statBudgetRange: [26, 26],
-    perkSlots: 1,
+    perkSlots: 2,
+    perkRolls: ['enhanced', 'exotic'],
     description: 'Scale-breaking triumph loot. Only one ultra should be worn.',
   },
 }

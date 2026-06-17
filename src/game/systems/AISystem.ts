@@ -703,7 +703,7 @@ export class AISystem {
     const readMultiplier = Phaser.Math.Clamp(
       getAiDecisionSpeed(player, context),
       0.78,
-      1.28,
+      1.45,
     )
     const catchable =
       loose &&
