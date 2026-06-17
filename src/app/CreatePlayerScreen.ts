@@ -1,4 +1,4 @@
-import { stickTypes } from '../equipment/stickTypes'
+import { startingStickTypes } from '../equipment/stickTypes'
 import {
   accentColorOptions,
   defaultPlayerCosmetics,
@@ -18,6 +18,7 @@ import type {
   PlayerCosmetics,
 } from '../save/saveTypes'
 import {
+  playerAttributeMax,
   playerArchetypeKeys,
   playerAttributeKeys,
 } from '../save/saveTypes'
@@ -32,8 +33,8 @@ import {
   titleCase,
 } from '../ui'
 
-const startingPointBudget = 10
-const creationAttributeCap = 70
+const startingPointBudget = 4
+const creationAttributeCap = 18
 
 export type CreatePlayerValues = {
   name: string
@@ -62,7 +63,7 @@ export function createCreatePlayerScreen(options: {
   let attributes = structuredClone(baseline)
   let pointsRemaining = startingPointBudget
   let cosmetics = structuredClone(defaultPlayerCosmetics)
-  let selectedStickId = stickTypes[0].id
+  let selectedStickId = startingStickTypes[0].id
 
   const preview = createSpincorePlayerPreview({
     name: 'ROOKIE',
@@ -217,6 +218,7 @@ export function createCreatePlayerScreen(options: {
     const stat = createSpincoreStatBar({
       label: titleCase(key),
       value: attributes[key],
+      max: playerAttributeMax,
       detail: String(attributes[key]),
     })
     const controls = document.createElement('div')
@@ -237,7 +239,7 @@ export function createCreatePlayerScreen(options: {
     const add = createSpincoreButton('+', () => {
       if (
         pointsRemaining <= 0 ||
-        attributes[key] >= creationAttributeCap
+        attributes[key] >= Math.min(creationAttributeCap, playerAttributeMax)
       ) {
         return
       }
@@ -249,7 +251,7 @@ export function createCreatePlayerScreen(options: {
       compact: true,
       disabled:
         pointsRemaining <= 0 ||
-        attributes[key] >= creationAttributeCap,
+        attributes[key] >= Math.min(creationAttributeCap, playerAttributeMax),
     })
     add.setAttribute('aria-label', `Increase ${titleCase(key)}`)
     controls.append(subtract, add)
@@ -259,7 +261,7 @@ export function createCreatePlayerScreen(options: {
 
   const renderSticks = (): void => {
     stickGrid.replaceChildren(
-      ...stickTypes.map((stick) =>
+      ...startingStickTypes.map((stick) =>
         createSpincoreStickCard(stick, {
           selected: stick.id === selectedStickId,
           onSelect: () => {

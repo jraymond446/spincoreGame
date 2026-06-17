@@ -1,4 +1,5 @@
 import type { EquipmentItem } from '../equipment/equipmentTypes'
+import { equipmentRarityInfo } from '../equipment/equipmentTypes'
 import type { SaveGame } from '../save/saveTypes'
 import { createSpincoreBadge } from './SpincoreBadge'
 import { createSpincoreButton } from './SpincoreButton'
@@ -14,14 +15,22 @@ export function createSpincoreEquipmentCard(options: {
   card.className = `store-item spincore-equipment-card is-${item.rarity}`
   const meta = document.createElement('div')
   meta.className = 'store-item-meta'
+  const rarity = equipmentRarityInfo[item.rarity]
   meta.append(
     createSpincoreBadge(titleCase(item.type), 'blue'),
-    createSpincoreBadge(titleCase(item.rarity), rarityTone(item.rarity)),
+    createSpincoreBadge(rarity.label, rarityTone(item.rarity)),
+    createSpincoreBadge(`${item.statBudget} PTS`, 'navy'),
   )
   const icon = document.createElement('div')
   icon.className = `spincore-equipment-icon is-${item.type}`
   icon.textContent =
-    item.type === 'stick' ? 'STK' : item.type === 'shield' ? 'SHD' : 'SPD'
+    item.type === 'stick'
+      ? 'STK'
+      : item.type === 'shield'
+        ? 'SHD'
+        : item.type === 'armor'
+          ? 'ARM'
+          : 'SPD'
   const name = document.createElement('h2')
   name.textContent = item.name
   const description = document.createElement('p')
@@ -41,6 +50,33 @@ export function createSpincoreEquipmentCard(options: {
         ),
       )
     }
+  }
+
+  if (item.perks?.length) {
+    for (const perk of item.perks) {
+      modifiers.appendChild(
+        createSpincoreBadge(
+          `${perk.tier.toUpperCase()}: ${perk.name}`,
+          perk.tier === 'ultra' ? 'rose' : 'blue',
+        ),
+      )
+    }
+  }
+
+  if (item.cosmeticSlots?.length) {
+    modifiers.appendChild(
+      createSpincoreBadge(
+        `${item.cosmeticSlots.length} COSMETIC HOOKS`,
+        'gold',
+      ),
+    )
+  }
+
+  if (item.unlockHint) {
+    const hint = document.createElement('small')
+    hint.className = 'store-unlock-hint'
+    hint.textContent = item.unlockHint
+    modifiers.appendChild(hint)
   }
 
   const owned = save.equipment.inventory.includes(item.id)
@@ -69,12 +105,21 @@ export function createSpincoreEquipmentCard(options: {
 
 function rarityTone(
   rarity: EquipmentItem['rarity'],
-): 'navy' | 'rose' | 'gold' {
-  if (rarity === 'rare') {
-    return 'rose'
+): 'navy' | 'rose' | 'gold' | 'blue' | 'mint' {
+  switch (rarity) {
+    case 'starter':
+    case 'common':
+      return 'navy'
+    case 'uncommon':
+      return 'mint'
+    case 'rare':
+      return 'blue'
+    case 'epic':
+    case 'ultra':
+      return 'rose'
+    case 'legendary':
+      return 'gold'
   }
-
-  return rarity === 'starter' ? 'navy' : 'gold'
 }
 
 function titleCase(value: string): string {

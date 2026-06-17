@@ -1,3 +1,8 @@
+import {
+  getEquipmentItem,
+  isEquipmentType,
+  migrateEquipmentId,
+} from '../equipment/equipmentCatalog'
 import { getStickType, migrateStickId } from '../equipment/stickTypes'
 import {
   defaultPlayerCosmetics,
@@ -19,6 +24,10 @@ import type {
   SeasonStats,
 } from './saveTypes'
 import {
+  playerAttributeDefault,
+  playerAttributeMax,
+  playerAttributeMin,
+  playerAttributeUltraMax,
   playerArchetypeKeys,
   playerAttributeKeys,
 } from './saveTypes'
@@ -174,7 +183,24 @@ export function validateSave(raw: unknown): SaveGame | null {
     const selectedStickId = getStickType(
       migrateStickId(equipped.stickId ?? player.selectedStickId),
     ).id
-    const inventory = stringArray(equipment.inventory).map(migrateStickId)
+    const inventory = stringArray(equipment.inventory)
+      .map(migrateEquipmentId)
+      .filter((id): id is string => id !== null)
+    const shieldId = validateEquippedItemId(
+      equipped.shieldId,
+      'shield',
+      inventory,
+    )
+    const shoesId = validateEquippedItemId(
+      equipped.shoesId,
+      'shoes',
+      inventory,
+    )
+    const armorId = validateEquippedItemId(
+      equipped.armorId,
+      'armor',
+      inventory,
+    )
     const leagueStats = validateLeagueStats(migrated.leagueStats)
     const currentLeagueId = normalizeLeagueId(league.currentLeagueId)
     const defeatedOpponentTeamIds = stringArray(
@@ -228,10 +254,19 @@ export function validateSave(raw: unknown): SaveGame | null {
       equipment: {
         equipped: {
           stickId: selectedStickId,
-          shieldId: nullableString(equipped.shieldId),
-          shoesId: nullableString(equipped.shoesId),
+          shieldId,
+          shoesId,
+          armorId,
         },
-        inventory: [...new Set([...inventory, selectedStickId])],
+        inventory: [
+          ...new Set([
+            ...inventory,
+            selectedStickId,
+            ...[shieldId, shoesId, armorId].filter(
+              (id): id is string => id !== null,
+            ),
+          ]),
+        ],
       },
       league: {
         currentLeagueId,
@@ -355,7 +390,7 @@ function validateAttributes(raw: unknown): CreatedPlayerAttributes {
   const attributes = {} as CreatedPlayerAttributes
 
   for (const key of playerAttributeKeys) {
-    attributes[key] = integer(values[key], 1, 99, 50)
+    attributes[key] = normalizeAttribute(values[key])
   }
 
   return attributes
@@ -518,7 +553,7 @@ function averageLegacy(...values: unknown[]): number {
 }
 
 function legacyAttribute(value: unknown): number {
-  return integer(value, 1, 99, 50)
+  return scaleLegacyAttribute(value)
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -586,5 +621,50 @@ function dateString(value: unknown, fallback: string): string {
 }
 
 export function clampAttribute(value: number): number {
-  return Math.min(99, Math.max(1, Math.round(value)))
+  return Math.min(
+    playerAttributeMax,
+    Math.max(playerAttributeMin, Math.round(value)),
+  )
+}
+
+function normalizeAttribute(value: unknown): number {
+  const numeric = typeof value === 'number' ? value : Number.NaN
+
+  if (!Number.isFinite(numeric)) {
+    return playerAttributeDefault
+  }
+
+  if (numeric > playerAttributeUltraMax) {
+    return scaleLegacyAttribute(numeric)
+  }
+
+  return clampAttribute(numeric)
+}
+
+function scaleLegacyAttribute(value: unknown): number {
+  const legacy = integer(value, 1, 99, 50)
+  const normalized = (legacy - 1) / 98
+  return clampAttribute(
+    playerAttributeMin +
+      normalized * (playerAttributeMax - playerAttributeMin),
+  )
+}
+
+function validateEquippedItemId(
+  value: unknown,
+  type: 'shield' | 'shoes' | 'armor',
+  inventory: string[],
+): string | null {
+  const id = migrateEquipmentId(value)
+  const item = getEquipmentItem(id)
+
+  if (!isEquipmentType(item, type)) {
+    return null
+  }
+
+  if (!inventory.includes(item.id)) {
+    inventory.push(item.id)
+  }
+
+  return item.id
 }

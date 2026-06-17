@@ -1,4 +1,8 @@
-import { equipmentCatalog } from '../equipment/equipmentCatalog'
+import {
+  equipmentCatalog,
+  equipmentShops,
+  getEquipmentItem,
+} from '../equipment/equipmentCatalog'
 import type { EquipmentItem } from '../equipment/equipmentTypes'
 import { opponentTeams } from '../game/data/opponentTeams'
 import { defaultLeagues } from '../league/defaultLeagues'
@@ -23,6 +27,7 @@ import type {
   PlayerAttributeKey,
   SaveGame,
 } from '../save/saveTypes'
+import { playerAttributeMax } from '../save/saveTypes'
 import { createBootScreen } from './BootScreen'
 import { createCreatePlayerScreen } from './CreatePlayerScreen'
 import type { AppScreen } from './GameScreen'
@@ -205,6 +210,7 @@ export class AppShell {
       createStoreScreen({
         save,
         catalog: equipmentCatalog,
+        shops: equipmentShops,
         onBack: () => this.renderMainMenu(),
         onBuy: (item) => this.buyItem(item),
         onEquip: (item) => this.equipItem(item),
@@ -340,7 +346,7 @@ export class AppShell {
     const next = updateSave((draft) => {
       if (
         draft.progression.unspentAttributePoints <= 0 ||
-        draft.player.attributes[key] >= 99
+        draft.player.attributes[key] >= playerAttributeMax
       ) {
         return
       }
@@ -386,6 +392,17 @@ export class AppShell {
 
     const slot = `${item.type}Id` as EquipmentSlot
     const draft = structuredClone(save)
+
+    if (item.ultraUnique) {
+      for (const key of Object.keys(draft.equipment.equipped) as EquipmentSlot[]) {
+        const equippedItem = getEquipmentItem(draft.equipment.equipped[key])
+
+        if (equippedItem?.ultraUnique && key !== slot) {
+          draft.equipment.equipped[key] = null
+        }
+      }
+    }
+
     draft.equipment.equipped[slot] = item.id
 
     if (item.type === 'stick') {

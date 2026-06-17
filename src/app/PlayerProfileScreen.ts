@@ -8,7 +8,11 @@ import type {
   SaveGame,
   SeasonStats,
 } from '../save/saveTypes'
-import { playerAttributeKeys } from '../save/saveTypes'
+import {
+  playerAttributeMax,
+  playerAttributeUltraMax,
+  playerAttributeKeys,
+} from '../save/saveTypes'
 import {
   createSpincoreAttributeRow,
   createSpincoreBadge,
@@ -106,7 +110,8 @@ export function createPlayerProfileScreen(options: {
         effective: effective[key],
         canIncrease:
           save.progression.unspentAttributePoints > 0 &&
-          save.player.attributes[key] < 99,
+          save.player.attributes[key] < playerAttributeMax,
+        max: playerAttributeUltraMax,
         onIncrease: () => options.onSpendPoint(key),
       }),
     )

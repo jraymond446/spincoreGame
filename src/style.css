@@ -562,6 +562,20 @@ body {
   gap: 16px;
 }
 
+.store-shop-stack {
+  display: grid;
+  gap: 18px;
+}
+
+.store-shop-note {
+  margin: -4px 0 0;
+  color: #526b7b;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .store-item {
   display: flex;
   min-height: 255px;
@@ -571,8 +585,36 @@ body {
 
 .store-item.is-rare {
   background:
-    linear-gradient(135deg, rgba(229, 72, 114, 0.15), transparent 60%),
+    linear-gradient(135deg, rgba(25, 139, 213, 0.17), transparent 60%),
     #fff8df;
+}
+
+.store-item.is-uncommon {
+  background:
+    linear-gradient(135deg, rgba(141, 240, 207, 0.22), transparent 60%),
+    #fff8df;
+}
+
+.store-item.is-epic {
+  background:
+    linear-gradient(135deg, rgba(120, 104, 186, 0.22), transparent 62%),
+    #fff8df;
+}
+
+.store-item.is-legendary {
+  background:
+    linear-gradient(135deg, rgba(242, 200, 75, 0.3), transparent 60%),
+    #fff8df;
+}
+
+.store-item.is-ultra {
+  border-color: #e54872;
+  background:
+    linear-gradient(135deg, rgba(229, 72, 114, 0.3), transparent 62%),
+    #fff8df;
+  box-shadow:
+    0 6px 0 #091f38,
+    inset 0 0 0 3px rgba(229, 72, 114, 0.2);
 }
 
 .store-item-meta,
@@ -603,6 +645,15 @@ body {
   color: #198b79 !important;
   font-size: 11px !important;
   font-weight: 900 !important;
+}
+
+.store-unlock-hint {
+  flex-basis: 100%;
+  margin-top: 5px;
+  color: #526b7b;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.35;
 }
 
 .store-item-footer {
@@ -1206,6 +1257,11 @@ body {
 .spincore-equipment-icon.is-shoes {
   border-radius: 50% 15% 40% 35%;
   background: #2d938e;
+}
+
+.spincore-equipment-icon.is-armor {
+  border-radius: 16px 16px 26px 26px;
+  background: #7868ba;
 }
 
 .spincore-equipment-card .store-modifiers {

@@ -1,5 +1,10 @@
 import type { PlayerAttributes } from '../game/data/matchTypes'
 import type { CreatedPlayerAttributes } from '../save/saveTypes'
+import {
+  playerAttributeMax,
+  playerAttributeMin,
+  playerAttributeUltraMax,
+} from '../save/saveTypes'
 
 export function mapCreatedPlayerAttributesToMatchAttributes(
   attributes: CreatedPlayerAttributes,
@@ -39,5 +44,16 @@ function average(...values: number[]): number {
 }
 
 function runtimeValue(value: number): number {
-  return Math.min(1.19, Math.max(0.21, 0.2 + value / 100))
+  const normalized =
+    (value - playerAttributeMin) /
+    (playerAttributeMax - playerAttributeMin)
+  const runtime = 0.21 + normalized * 0.98
+  const ultraBonus =
+    value > playerAttributeMax
+      ? (value - playerAttributeMax) /
+        (playerAttributeUltraMax - playerAttributeMax) *
+        0.07
+      : 0
+
+  return Math.min(1.26, Math.max(0.21, runtime + ultraBonus))
 }

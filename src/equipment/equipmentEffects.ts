@@ -2,6 +2,8 @@ import { equipmentCatalog } from './equipmentCatalog'
 import { getStickType } from './stickTypes'
 import type { SaveGame } from '../save/saveTypes'
 import {
+  playerAttributeMin,
+  playerAttributeUltraMax,
   playerAttributeKeys,
   type CreatedPlayerAttributes,
 } from '../save/saveTypes'
@@ -13,6 +15,7 @@ export function getEffectivePlayerAttributes(
   const equippedIds = [
     save.equipment.equipped.shieldId,
     save.equipment.equipped.shoesId,
+    save.equipment.equipped.armorId,
   ].filter(
     (id): id is string => Boolean(id),
   )
@@ -21,9 +24,8 @@ export function getEffectivePlayerAttributes(
   )
 
   for (const key of playerAttributeKeys) {
-    attributes[key] = Math.min(
-      99,
-      Math.max(1, attributes[key] + (stick.attributeModifiers[key] ?? 0)),
+    attributes[key] = clampEffectiveAttribute(
+      attributes[key] + (stick.attributeModifiers[key] ?? 0),
     )
   }
 
@@ -35,12 +37,18 @@ export function getEffectivePlayerAttributes(
     }
 
     for (const key of playerAttributeKeys) {
-      attributes[key] = Math.min(
-        99,
-        Math.max(1, attributes[key] + (item.modifiers[key] ?? 0)),
+      attributes[key] = clampEffectiveAttribute(
+        attributes[key] + (item.modifiers[key] ?? 0),
       )
     }
   }
 
   return attributes
+}
+
+function clampEffectiveAttribute(value: number): number {
+  return Math.min(
+    playerAttributeUltraMax,
+    Math.max(playerAttributeMin, value),
+  )
 }

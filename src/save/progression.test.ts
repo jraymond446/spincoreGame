@@ -73,6 +73,7 @@ function createTestSave(): SaveGame {
         stickId: 'balanced-cesta',
         shieldId: null,
         shoesId: null,
+        armorId: null,
       },
       inventory: ['balanced-cesta'],
     },

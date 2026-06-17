@@ -14,6 +14,10 @@ export const playerAttributeKeys = [
 
 export type PlayerAttributeKey = (typeof playerAttributeKeys)[number]
 export type CreatedPlayerAttributes = Record<PlayerAttributeKey, number>
+export const playerAttributeMin = 1
+export const playerAttributeMax = 25
+export const playerAttributeUltraMax = 26
+export const playerAttributeDefault = 13
 
 export const playerArchetypeKeys = [
   'striker',
@@ -121,7 +125,11 @@ export type LeagueStatLine = Pick<
   championships: number
 }
 
-export type EquipmentSlot = 'stickId' | 'shieldId' | 'shoesId'
+export type EquipmentSlot =
+  | 'stickId'
+  | 'shieldId'
+  | 'shoesId'
+  | 'armorId'
 
 export type SaveGame = {
   version: 3

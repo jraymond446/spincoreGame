@@ -8,45 +8,46 @@ import type {
   PlayerStatLine,
   SaveGame,
 } from './saveTypes'
+import { playerAttributeDefault } from './saveTypes'
 
 const roleAdjustments: Record<
   CreatedPlayerArchetype,
   Partial<Record<PlayerAttributeKey, number>>
 > = {
   striker: {
-    speed: 5,
-    shotPower: 8,
-    shotAccuracy: 7,
-    toughness: -5,
-    reaction: -2,
+    speed: 1,
+    shotPower: 3,
+    shotAccuracy: 2,
+    toughness: -2,
+    reaction: -1,
   },
   support: {
-    reaction: 7,
-    shotAccuracy: 5,
-    shotSpin: 8,
-    shotPower: -5,
-    toughness: -3,
+    reaction: 2,
+    shotAccuracy: 2,
+    shotSpin: 3,
+    shotPower: -2,
+    toughness: -1,
   },
   brute: {
-    toughness: 10,
-    shotPower: 6,
-    speed: -4,
-    shotAccuracy: -5,
-    shotSpin: -3,
+    toughness: 4,
+    shotPower: 2,
+    speed: -2,
+    shotAccuracy: -2,
+    shotSpin: -1,
   },
   technician: {
-    shotSpin: 10,
-    shotAccuracy: 6,
-    reaction: 4,
-    toughness: -6,
-    shotPower: -4,
+    shotSpin: 4,
+    shotAccuracy: 2,
+    reaction: 1,
+    toughness: -2,
+    shotPower: -1,
   },
   keeper: {
-    reaction: 10,
-    toughness: 8,
-    shotPower: 3,
-    speed: -5,
-    shotSpin: -5,
+    reaction: 4,
+    toughness: 3,
+    shotPower: 1,
+    speed: -2,
+    shotSpin: -2,
   },
 }
 
@@ -54,12 +55,12 @@ export function createStartingAttributes(
   archetype: CreatedPlayerArchetype,
 ): CreatedPlayerAttributes {
   const attributes: CreatedPlayerAttributes = {
-    speed: 50,
-    reaction: 50,
-    shotPower: 50,
-    shotAccuracy: 50,
-    shotSpin: 50,
-    toughness: 50,
+    speed: playerAttributeDefault,
+    reaction: playerAttributeDefault,
+    shotPower: playerAttributeDefault,
+    shotAccuracy: playerAttributeDefault,
+    shotSpin: playerAttributeDefault,
+    toughness: playerAttributeDefault,
   }
 
   for (const [key, adjustment] of Object.entries(
@@ -146,6 +147,7 @@ export function createNewSave(
         stickId: player.selectedStickId,
         shieldId: null,
         shoesId: null,
+        armorId: null,
       },
       inventory: [player.selectedStickId],
     },

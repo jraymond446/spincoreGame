@@ -6,6 +6,7 @@ export function createSpincoreAttributeRow(options: {
   base: number
   effective: number
   canIncrease: boolean
+  max?: number
   onIncrease: () => void
 }): HTMLElement {
   const row = document.createElement('div')
@@ -17,6 +18,7 @@ export function createSpincoreAttributeRow(options: {
   const stat = createSpincoreStatBar({
     label: options.label,
     value: options.effective,
+    max: options.max,
     detail,
   })
   const add = createSpincoreButton('+', options.onIncrease, {
