@@ -119,55 +119,44 @@ export class GoalGate {
     const planeColor = this.flashAmount > 0 ? config.flashColor : accentColor
     const postColor = this.flashAmount > 0 ? config.flashColor : config.postColor
     const alpha = 0.68 + this.flashAmount * 0.32
+    const left = Math.min(this.planeStart.x, this.planeEnd.x)
+    const right = Math.max(this.planeStart.x, this.planeEnd.x)
+    const width = right - left
 
     this.graphics.clear()
     this.drawSuspendedShadow()
 
-    this.graphics.lineStyle(17, visualStyleConfig.outline, 0.84)
-    this.graphics.lineBetween(
-      this.planeStart.x,
-      this.planeStart.y + 5,
-      this.planeEnd.x,
-      this.planeEnd.y + 5,
-    )
-    this.graphics.lineStyle(13, visualStyleConfig.goal.metalShade, 0.96)
-    this.graphics.lineBetween(
-      this.planeStart.x,
-      this.planeStart.y + 5,
-      this.planeEnd.x,
-      this.planeEnd.y + 5,
-    )
-    this.graphics.lineStyle(15, visualStyleConfig.outline, 0.9)
-    this.graphics.lineBetween(
-      this.planeStart.x,
-      this.planeStart.y - 3,
-      this.planeEnd.x,
-      this.planeEnd.y - 3,
-    )
-    this.graphics.lineStyle(10, planeColor, alpha)
-    this.graphics.lineBetween(
-      this.planeStart.x,
-      this.planeStart.y - 3,
-      this.planeEnd.x,
-      this.planeEnd.y - 3,
-    )
-    this.graphics.lineStyle(3, visualStyleConfig.goal.energy, alpha * 0.94)
-    this.graphics.lineBetween(
+    this.graphics.fillStyle(visualStyleConfig.outline, 0.9)
+    this.graphics.fillRect(left - 12, config.y + 2, width + 24, 18)
+    this.graphics.fillStyle(visualStyleConfig.goal.metalShade, 0.98)
+    this.graphics.fillRect(left - 8, config.y + 6, width + 16, 11)
+    this.graphics.fillStyle(visualStyleConfig.goal.metal, 0.96)
+    this.graphics.fillRect(left - 6, config.y + 5, width + 12, 5)
+
+    this.graphics.fillStyle(visualStyleConfig.outline, 0.94)
+    this.graphics.fillRect(left - 9, config.y - 9, width + 18, 17)
+    this.graphics.fillStyle(planeColor, alpha)
+    this.graphics.fillRect(left - 5, config.y - 5, width + 10, 9)
+    this.graphics.fillStyle(visualStyleConfig.goal.energy, alpha * 0.94)
+    this.graphics.fillRect(
       this.scoringPlaneStart.x,
-      this.scoringPlaneStart.y - 4,
-      this.scoringPlaneEnd.x,
-      this.scoringPlaneEnd.y - 4,
+      this.scoringPlaneStart.y - 2,
+      this.scoringPlaneEnd.x - this.scoringPlaneStart.x,
+      3,
     )
+    this.graphics.fillStyle(visualStyleConfig.goal.energy, alpha * 0.42)
+    this.graphics.fillRect(left + 9, config.y - 12, width - 18, 3)
+    this.graphics.fillRect(left + 9, config.y + 7, width - 18, 3)
 
     this.drawPostHead(this.planeStart, postColor, accentColor)
     this.drawPostHead(this.planeEnd, postColor, accentColor)
 
     this.graphics.fillStyle(visualStyleConfig.outline, 0.86)
-    this.graphics.fillRoundedRect(config.x - 23, config.y - 12, 46, 18, 4)
+    this.graphics.fillRect(config.x - 24, config.y - 15, 48, 22)
     this.graphics.fillStyle(visualStyleConfig.goal.metal, 0.96)
-    this.graphics.fillRoundedRect(config.x - 19, config.y - 10, 38, 12, 3)
-    this.graphics.fillStyle(accentColor, 0.9)
-    this.graphics.fillRect(config.x - 12, config.y - 8, 24, 3)
+    this.graphics.fillRect(config.x - 19, config.y - 11, 38, 14)
+    this.graphics.fillStyle(accentColor, 0.92)
+    this.graphics.fillRect(config.x - 12, config.y - 8, 24, 4)
   }
 
   private drawSuspendedShadow(): void {
@@ -176,7 +165,14 @@ export class GoalGate {
     const centerY = (this.planeStart.y + this.planeEnd.y) * 0.5
 
     this.graphics.fillStyle(visualStyleConfig.goal.shadow, 0.16)
-    this.graphics.fillEllipse(centerX, centerY + 18, width, 22)
+    this.graphics.fillRect(centerX - width / 2, centerY + 17, width, 15)
+    this.graphics.fillStyle(visualStyleConfig.goal.shadow, 0.08)
+    this.graphics.fillRect(
+      centerX - width / 2 + 12,
+      centerY + 32,
+      width - 24,
+      6,
+    )
   }
 
   private drawPostHead(
@@ -187,25 +183,46 @@ export class GoalGate {
     const radius = goalConfig.goalPostRadius
 
     this.graphics.fillStyle(visualStyleConfig.goal.shadow, 0.2)
-    this.graphics.fillEllipse(
-      position.x,
-      position.y + radius + 9,
-      radius * 2.5,
-      radius * 0.82,
+    this.graphics.fillRect(
+      position.x - radius - 8,
+      position.y + radius + 8,
+      radius * 2 + 16,
+      8,
     )
     this.graphics.fillStyle(visualStyleConfig.outline, 0.96)
-    this.graphics.fillCircle(position.x, position.y + 3, radius + 7)
+    this.graphics.fillRect(
+      position.x - radius - 7,
+      position.y - radius - 1,
+      radius * 2 + 14,
+      radius * 2 + 14,
+    )
     this.graphics.fillStyle(visualStyleConfig.goal.metalShade, 1)
-    this.graphics.fillCircle(position.x, position.y + 4, radius + 3)
+    this.graphics.fillRect(
+      position.x - radius - 3,
+      position.y - radius + 3,
+      radius * 2 + 6,
+      radius * 2 + 7,
+    )
     this.graphics.fillStyle(postColor, 1)
-    this.graphics.fillCircle(position.x, position.y, radius - 1)
-    this.graphics.lineStyle(4, accentColor, 0.96)
-    this.graphics.strokeCircle(position.x, position.y, radius - 3)
+    this.graphics.fillRect(
+      position.x - radius,
+      position.y - radius,
+      radius * 2,
+      radius * 2,
+    )
+    this.graphics.fillStyle(accentColor, 0.96)
+    this.graphics.fillRect(
+      position.x - radius + 3,
+      position.y - radius + 3,
+      radius * 2 - 6,
+      4,
+    )
     this.graphics.fillStyle(visualStyleConfig.goal.metal, 0.92)
-    this.graphics.fillCircle(
-      position.x - radius * 0.26,
-      position.y - radius * 0.3,
-      radius * 0.3,
+    this.graphics.fillRect(
+      position.x - radius + 3,
+      position.y - radius + 8,
+      5,
+      5,
     )
   }
 

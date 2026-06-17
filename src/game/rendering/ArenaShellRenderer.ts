@@ -40,14 +40,14 @@ export class ArenaShellRenderer {
       bottomDepth,
       simplified,
     )
+    this.drawPixelVenueTrim(left, top, bottom, simplified)
 
     this.graphics.fillStyle(venue.courtShadowColor, 0.22)
-    this.graphics.fillRoundedRect(
+    this.graphics.fillRect(
       left - 13,
       top + 16,
       arenaConfig.width + 26,
       arenaConfig.height + 22,
-      arenaConfig.cornerRadius + 8,
     )
   }
 
@@ -341,9 +341,11 @@ export class ArenaShellRenderer {
     color: number,
   ): void {
     this.graphics.fillStyle(visualStyleConfig.outline, 0.92)
-    this.graphics.fillRoundedRect(x - 2, y - 2, width + 4, height + 4, 4)
+    this.graphics.fillRect(x - 3, y - 3, width + 6, height + 6)
+    this.graphics.fillStyle(visualStyleConfig.venue.rail, 0.92)
+    this.graphics.fillRect(x - 1, y - 1, width + 2, height + 2)
     this.graphics.fillStyle(color, 0.94)
-    this.graphics.fillRoundedRect(x, y, width, height, 3)
+    this.graphics.fillRect(x, y, width, height)
     this.graphics.fillStyle(0xffffff, 0.58)
     this.graphics.fillRect(
       x + width * 0.18,
@@ -351,5 +353,75 @@ export class ArenaShellRenderer {
       width * 0.64,
       3,
     )
+  }
+
+  private drawPixelVenueTrim(
+    left: number,
+    top: number,
+    bottom: number,
+    simplified: boolean,
+  ): void {
+    const margin = arenaPresentationConfig.sidelineDecorationWidth
+    const right = left + arenaConfig.width
+    const trimWidth = simplified ? 15 : 22
+    const railOffset = simplified ? 18 : 24
+    const markerStep = simplified ? 126 : 92
+
+    this.graphics.fillStyle(visualStyleConfig.outline, 0.86)
+    this.graphics.fillRect(
+      left - railOffset,
+      top - 6,
+      trimWidth,
+      arenaConfig.height + 12,
+    )
+    this.graphics.fillRect(
+      right + railOffset - trimWidth,
+      top - 6,
+      trimWidth,
+      arenaConfig.height + 12,
+    )
+    this.graphics.fillStyle(visualStyleConfig.venue.rail, 1)
+    this.graphics.fillRect(
+      left - railOffset + 4,
+      top,
+      trimWidth - 8,
+      arenaConfig.height,
+    )
+    this.graphics.fillRect(
+      right + railOffset - trimWidth + 4,
+      top,
+      trimWidth - 8,
+      arenaConfig.height,
+    )
+
+    this.graphics.fillStyle(0x1aa3b1, 0.9)
+    for (let y = top + 58; y < bottom - 58; y += markerStep) {
+      this.graphics.fillRect(left - railOffset - 5, y, 7, 34)
+      this.graphics.fillRect(right + railOffset - 2, y, 7, 34)
+      this.graphics.fillStyle(visualStyleConfig.venue.rail, 0.8)
+      this.graphics.fillRect(left - railOffset - 7, y + 12, 11, 4)
+      this.graphics.fillRect(right + railOffset - 4, y + 12, 11, 4)
+      this.graphics.fillStyle(0x1aa3b1, 0.9)
+    }
+
+    const cornerPad = 42
+    this.drawPixelPlanter(left - margin + 28, top - 28, 1)
+    this.drawPixelPlanter(right + margin - 64, top - 28, -1)
+    this.drawPixelPlanter(left - margin + cornerPad, bottom + 18, 1)
+    this.drawPixelPlanter(right + margin - cornerPad - 36, bottom + 18, -1)
+  }
+
+  private drawPixelPlanter(x: number, y: number, direction: -1 | 1): void {
+    this.graphics.fillStyle(visualStyleConfig.outline, 0.82)
+    this.graphics.fillRect(x - 3, y + 24, 38, 18)
+    this.graphics.fillStyle(0xd7b06a, 1)
+    this.graphics.fillRect(x, y + 26, 32, 12)
+    this.graphics.fillStyle(0x1d7048, 1)
+    this.graphics.fillRect(x + 7, y + 12, 18, 18)
+    this.graphics.fillStyle(0x36a958, 1)
+    this.graphics.fillRect(x + 3, y + 19, 15, 12)
+    this.graphics.fillRect(x + 17, y + 17, 17, 13)
+    this.graphics.fillStyle(0x72c86c, 1)
+    this.graphics.fillRect(x + 12 + direction * 2, y + 8, 12, 12)
   }
 }
