@@ -35,10 +35,19 @@ export function createSpincorePlayerPreview(
   figure.className = 'player-builder-figure'
   const shadow = document.createElement('div')
   shadow.className = 'player-builder-shadow'
+  const aura = document.createElement('div')
+  aura.className = 'player-builder-aura'
+  const core = document.createElement('div')
+  core.className = 'player-builder-core'
   const head = document.createElement('div')
   head.className = 'player-builder-head'
   const hair = document.createElement('div')
   hair.className = 'player-builder-hair'
+  const face = document.createElement('div')
+  face.className = 'player-builder-face'
+  const arms = document.createElement('div')
+  arms.className = 'player-builder-arms'
+  arms.append(document.createElement('i'), document.createElement('b'))
   const body = document.createElement('div')
   body.className = 'player-builder-body'
   const number = document.createElement('strong')
@@ -46,12 +55,16 @@ export function createSpincorePlayerPreview(
   body.appendChild(number)
   const shorts = document.createElement('div')
   shorts.className = 'player-builder-shorts'
+  const shoes = document.createElement('div')
+  shoes.className = 'player-builder-shoes'
+  shoes.append(document.createElement('i'), document.createElement('b'))
   const stick = document.createElement('div')
   stick.className = 'player-builder-stick'
+  const stickPocket = document.createElement('span')
   const stickHead = document.createElement('i')
-  stick.appendChild(stickHead)
-  head.appendChild(hair)
-  figure.append(shadow, stick, body, shorts, head)
+  stick.append(stickPocket, stickHead)
+  head.append(hair, face)
+  figure.append(shadow, aura, core, shoes, shorts, body, arms, stick, head)
   arena.appendChild(figure)
 
   const footer = document.createElement('div')
@@ -73,6 +86,10 @@ export function createSpincorePlayerPreview(
       getCosmeticCssColor('skin', data.cosmetics.skinTone),
     )
     element.style.setProperty(
+      '--preview-skin-shade',
+      getCosmeticCssColor('skinShade', data.cosmetics.skinTone),
+    )
+    element.style.setProperty(
       '--preview-hair',
       getCosmeticCssColor('hair', data.cosmetics.hairColor),
     )
@@ -81,12 +98,20 @@ export function createSpincorePlayerPreview(
       getCosmeticCssColor('shirt', data.cosmetics.shirtColor),
     )
     element.style.setProperty(
+      '--preview-shirt-shade',
+      getCosmeticCssColor('shirtShade', data.cosmetics.shirtColor),
+    )
+    element.style.setProperty(
       '--preview-accent',
       getCosmeticCssColor('accent', data.cosmetics.accentColor),
     )
     element.style.setProperty(
       '--preview-shorts',
       getCosmeticCssColor('shirt', data.cosmetics.shortsColor),
+    )
+    element.style.setProperty(
+      '--preview-shorts-shade',
+      getCosmeticCssColor('shirtShade', data.cosmetics.shortsColor),
     )
     hair.dataset.style = data.cosmetics.hairStyle
     figure.dataset.hand = data.handedness

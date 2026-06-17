@@ -102,17 +102,27 @@ const accentColors: Record<PlayerAccentColor, number> = {
 }
 
 export function getCosmeticCssColor(
-  type: 'skin' | 'hair' | 'shirt' | 'accent',
+  type:
+    | 'skin'
+    | 'skinShade'
+    | 'hair'
+    | 'shirt'
+    | 'shirtShade'
+    | 'accent',
   value: string,
 ): string {
   const color =
     type === 'skin'
       ? skinColors[value as PlayerSkinTone]?.[0]
-      : type === 'hair'
-        ? hairColors[value as PlayerHairColor]
-        : type === 'shirt'
-          ? shirtColors[value as PlayerShirtColor]?.[0]
-          : accentColors[value as PlayerAccentColor]
+      : type === 'skinShade'
+        ? skinColors[value as PlayerSkinTone]?.[1]
+        : type === 'hair'
+          ? hairColors[value as PlayerHairColor]
+          : type === 'shirt'
+            ? shirtColors[value as PlayerShirtColor]?.[0]
+            : type === 'shirtShade'
+              ? shirtColors[value as PlayerShirtColor]?.[1]
+              : accentColors[value as PlayerAccentColor]
   return `#${(color ?? 0x16324f).toString(16).padStart(6, '0')}`
 }
 

@@ -70,7 +70,12 @@ function optionalAssetExists(path: string): boolean {
 
     request.open('HEAD', path, false)
     request.send()
-    return request.status >= 200 && request.status < 300
+    if (request.status < 200 || request.status >= 300) {
+      return false
+    }
+
+    const contentType = request.getResponseHeader('content-type') ?? ''
+    return contentType.toLowerCase().startsWith('image/')
   } catch {
     return false
   }
