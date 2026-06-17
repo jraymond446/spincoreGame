@@ -1,4 +1,4 @@
-import { defaultPlayerCosmetics } from '../player/playerCosmetics'
+import { defaultPlayerCosmetics } from '../player/playerCosmetics.ts'
 import type {
   CreatedPlayer,
   CreatedPlayerArchetype,
@@ -8,7 +8,7 @@ import type {
   PlayerStatLine,
   SaveGame,
 } from './saveTypes'
-import { playerAttributeDefault } from './saveTypes'
+import { playerAttributeDefault } from './saveTypes.ts'
 
 const roleAdjustments: Record<
   CreatedPlayerArchetype,

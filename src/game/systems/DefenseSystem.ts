@@ -705,7 +705,7 @@ export class DefenseSystem {
               Phaser.Math.Linear(
                 0.72,
                 1.12,
-                Phaser.Math.Clamp(attacker.attributes.defense, 0, 1),
+                normalizedAttribute(attacker.attributes.defense),
               ) *
               carrierResistance *
               roleMultiplier,
@@ -1243,7 +1243,7 @@ function targetDebug(
 }
 
 function normalizedAttribute(value: number): number {
-  return Phaser.Math.Clamp(value, 0, 1)
+  return Phaser.Math.Clamp(value, 0, 1.28)
 }
 
 function stickSlashMultiplier(player: Player): number {

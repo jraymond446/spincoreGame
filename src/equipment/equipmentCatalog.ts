@@ -1,4 +1,4 @@
-import { stickTypes, equipmentPerks, migrateStickId } from './stickTypes'
+import { stickTypes, equipmentPerks, migrateStickId } from './stickTypes.ts'
 import type {
   EquipmentItem,
   EquipmentShop,

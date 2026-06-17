@@ -4,10 +4,10 @@ import type {
   PlayerRosterEntry,
 } from '../game/data/matchTypes'
 import type { OpponentTeam } from '../game/data/opponentTeams'
-import { getEffectivePlayerAttributes } from '../equipment/equipmentEffects'
-import { getStickType } from '../equipment/stickTypes'
-import { mapCreatedPlayerAttributesToMatchAttributes } from '../player/playerAttributeAdapter'
-import { mapCosmeticsToMatchVisual } from '../player/playerCosmetics'
+import { getEffectivePlayerAttributes } from '../equipment/equipmentEffects.ts'
+import { getStickType } from '../equipment/stickTypes.ts'
+import { mapCreatedPlayerAttributesToMatchAttributes } from '../player/playerAttributeAdapter.ts'
+import { mapCosmeticsToMatchVisual } from '../player/playerCosmetics.ts'
 import type { SaveGame } from '../save/saveTypes'
 
 export type MatchRosterOverrides = {

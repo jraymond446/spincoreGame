@@ -1213,7 +1213,7 @@ export class StickInteractionSystem {
         player.attributes.control * 0.3 +
         player.attributes.reaction * 0.2,
       0,
-      1.1,
+      1.28,
     )
     const roleBonus =
       player.role === 'support'
@@ -1256,14 +1256,14 @@ export class StickInteractionSystem {
       Phaser.Math.Linear(
         0.9,
         1.14,
-        Phaser.Math.Clamp(player.attributes.reaction, 0, 1),
+        runtimeAttribute(player.attributes.reaction),
       )
     const funnelAngle =
       baseFunnelAngle *
         Phaser.Math.Linear(
           0.9,
           1.12,
-          Phaser.Math.Clamp(player.attributes.control, 0, 1),
+          runtimeAttribute(player.attributes.control),
         ) +
       (graceActive ? 0.12 : 0)
     const relativeSpeed = distance(core.velocity, player.velocity)
@@ -1924,7 +1924,7 @@ export class StickInteractionSystem {
     const handlingInstability = Phaser.Math.Linear(
       1.25,
       0.75,
-      Phaser.Math.Clamp(carrier.attributes.ballHandling, 0, 1),
+      runtimeAttribute(carrier.attributes.ballHandling),
     )
     const releaseDirection = normalized(direction)
     const playerForwardSpeed =
@@ -1936,7 +1936,7 @@ export class StickInteractionSystem {
     const powerMultiplier = Phaser.Math.Linear(
       0.9,
       1.14,
-      Phaser.Math.Clamp(carrier.attributes.power, 0, 1.2),
+      runtimeAttribute(carrier.attributes.power),
     )
     const instabilityForce =
       instabilityWave *
@@ -2697,9 +2697,13 @@ function getCradleEntrySpeedLimit(player: Player): number {
     Phaser.Math.Linear(
       0.94,
       1.08,
-      Phaser.Math.Clamp(player.attributes.ballHandling, 0, 1),
+      runtimeAttribute(player.attributes.ballHandling),
     )
   )
+}
+
+function runtimeAttribute(value: number): number {
+  return Phaser.Math.Clamp(value, 0, 1.28)
 }
 
 function testDeflectZone(core: Core, player: Player): DeflectHit | null {

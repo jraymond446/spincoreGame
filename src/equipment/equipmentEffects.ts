@@ -1,12 +1,12 @@
-import { equipmentCatalog } from './equipmentCatalog'
-import { getStickType } from './stickTypes'
+import { equipmentCatalog } from './equipmentCatalog.ts'
+import { getStickType } from './stickTypes.ts'
 import type { SaveGame } from '../save/saveTypes'
 import {
   playerAttributeMin,
   playerAttributeUltraMax,
   playerAttributeKeys,
   type CreatedPlayerAttributes,
-} from '../save/saveTypes'
+} from '../save/saveTypes.ts'
 
 export function getEffectivePlayerAttributes(
   save: SaveGame,
