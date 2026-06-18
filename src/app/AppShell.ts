@@ -55,6 +55,7 @@ import {
   createTeamManagementScreen,
   type TeamIdentityChanges,
 } from './TeamManagementScreen'
+import { createWorldMapScreen } from './WorldMapScreen'
 import {
   getAvailableLoadoutCopies,
   canCutRosterSlot,
@@ -101,7 +102,7 @@ export class AppShell {
     this.save = loadSave()
 
     if (this.save?.settings.createdPlayerComplete) {
-      this.renderMainMenu()
+      this.renderWorldMap()
     } else {
       this.renderCreatePlayer()
     }
@@ -127,8 +128,56 @@ export class AppShell {
           }
 
           this.save = saved
-          this.renderMainMenu()
+          this.renderWorldMap()
         },
+      }),
+    )
+  }
+
+  private renderWorldMap(): void {
+    const save = this.requireSave()
+
+    if (!save) {
+      return
+    }
+
+    const league = this.getCurrentLeague()
+
+    if (!league) {
+      this.renderMainMenu()
+      return
+    }
+
+    const nextOpponent = this.getNextLeagueOpponent(league, save)
+    const matchReadiness = getTeamRosterReadiness(save)
+
+    this.screen = 'worldMap'
+    this.show(
+      createWorldMapScreen({
+        save,
+        league,
+        nextOpponent,
+        matchReadiness,
+        rewardNotice: this.rewardNotice,
+        onArena: () => {
+          if (!matchReadiness.ready) {
+            this.renderTeamManagement()
+            return
+          }
+
+          if (nextOpponent) {
+            this.selectedOpponentId = nextOpponent.id
+            this.startMatch('league', nextOpponent.id)
+            return
+          }
+
+          this.startMatch('exhibition')
+        },
+        onPlayer: () => this.renderPlayerProfile(),
+        onLeague: () => this.renderLeagueHub(),
+        onTeam: () => this.renderTeamManagement(),
+        onStore: () => this.renderStore(),
+        onStatus: () => this.renderMainMenu(),
       }),
     )
   }
@@ -158,6 +207,7 @@ export class AppShell {
         onStore: () => this.renderStore(),
         onLab: () => this.startMatch('lab'),
         onSettings: () => this.renderSettings(),
+        onWorldMap: () => this.renderWorldMap(),
         onResetSave: () => this.confirmResetSave(),
       }),
     )
@@ -175,7 +225,7 @@ export class AppShell {
       createPlayerProfileScreen({
         save,
         matchReadiness: getTeamRosterReadiness(save),
-        onBack: () => this.renderMainMenu(),
+        onBack: () => this.renderWorldMap(),
         onPlay: () => this.startMatch('exhibition'),
         onTeam: () => this.renderTeamManagement(),
         onStore: () => this.renderStore(),
@@ -206,7 +256,7 @@ export class AppShell {
       createTeamManagementScreen({
         save,
         league,
-        onBack: () => this.renderMainMenu(),
+        onBack: () => this.renderWorldMap(),
         onLeague: () => this.renderLeagueHub(),
         onPlayer: () => this.renderPlayerProfile(),
         onStore: () => this.renderStore(),
@@ -254,18 +304,12 @@ export class AppShell {
       defaultLeagues.find(
         (candidate) => candidate.id === save.league.currentLeagueId,
       ) ?? defaultLeagues[0]
-    const nextOpponentId =
-      league?.teams[save.league.rookieCircuit.currentOpponentIndex]
-        ?.opponentTeamId
-    const nextOpponent =
-      opponentTeams.find(
-        (candidate) => candidate.id === nextOpponentId,
-      ) ?? null
-
     if (!league) {
-      this.renderMainMenu()
+      this.renderWorldMap()
       return
     }
+
+    const nextOpponent = this.getNextLeagueOpponent(league, save)
 
     this.screen = 'leagueHub'
     this.show(
@@ -275,7 +319,7 @@ export class AppShell {
         nextOpponent,
         matchReadiness: getTeamRosterReadiness(save),
         standings: buildLeagueStandings(league, save),
-        onBack: () => this.renderMainMenu(),
+        onBack: () => this.renderWorldMap(),
         onTeam: () => this.renderTeamManagement(),
         onPlayNext: () => {
           if (!nextOpponent) {
@@ -302,7 +346,7 @@ export class AppShell {
         save,
         catalog: equipmentCatalog,
         shops: equipmentShops,
-        onBack: () => this.renderMainMenu(),
+        onBack: () => this.renderWorldMap(),
         onBuy: (item) => this.buyItem(item),
         onEquip: (item) => this.equipItem(item),
       }),
@@ -313,7 +357,7 @@ export class AppShell {
     this.screen = 'settings'
     this.show(
       createSettingsScreen({
-        onBack: () => this.renderMainMenu(),
+        onBack: () => this.renderWorldMap(),
         onOpenLab: () => this.startMatch('lab'),
       }),
     )
@@ -369,7 +413,7 @@ export class AppShell {
           this.save = loadSave()
         }
 
-        this.renderMainMenu()
+        this.renderWorldMap()
       },
       onCompleted: (completion) => {
         window.setTimeout(() => {
@@ -438,14 +482,14 @@ export class AppShell {
           if (result.mode === 'league') {
             this.renderLeagueHub()
           } else {
-            this.renderMainMenu()
+            this.renderWorldMap()
           }
         },
         onRematch: () => {
           this.selectedOpponentId = result.opponentTeamId
           this.startMatch(launch.mode, result.opponentTeamId)
         },
-        onMainMenu: () => this.renderMainMenu(),
+        onMainMenu: () => this.renderWorldMap(),
         onPlayerProfile: () => this.renderPlayerProfile(),
       }),
     )
@@ -831,6 +875,21 @@ export class AppShell {
       ) ??
       defaultLeagues[0] ??
       null
+    )
+  }
+
+  private getNextLeagueOpponent(
+    league: (typeof defaultLeagues)[number],
+    save: SaveGame,
+  ): (typeof opponentTeams)[number] | null {
+    const nextOpponentId =
+      league.teams[save.league.rookieCircuit.currentOpponentIndex]
+        ?.opponentTeamId
+
+    return (
+      opponentTeams.find(
+        (candidate) => candidate.id === nextOpponentId,
+      ) ?? null
     )
   }
 

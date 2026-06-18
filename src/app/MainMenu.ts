@@ -34,6 +34,7 @@ export function createMainMenu(options: {
   onStore: () => void
   onLab: () => void
   onSettings: () => void
+  onWorldMap: () => void
   onResetSave: () => void
 }): HTMLElement {
   const { root, body, header } = createSpincoreScreenFrame({
@@ -189,6 +190,10 @@ export function createMainMenu(options: {
     `Profile saved ${new Date(options.save.updatedAt).toLocaleString()}`
   footer.append(
     saveStatus,
+    createSpincoreButton('World Map', options.onWorldMap, {
+      tone: 'primary',
+      compact: true,
+    }),
     createSpincoreButton('Reset Save', options.onResetSave, {
       tone: 'danger',
       compact: true,
