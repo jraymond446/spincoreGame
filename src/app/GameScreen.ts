@@ -3,6 +3,8 @@ export type AppScreen =
   | 'mainMenu'
   | 'createPlayer'
   | 'playerProfile'
+  | 'teamManagement'
+  | 'teamLoadout'
   | 'leagueHub'
   | 'store'
   | 'settings'

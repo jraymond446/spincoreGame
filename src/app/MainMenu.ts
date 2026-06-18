@@ -27,6 +27,7 @@ export function createMainMenu(options: {
   onOpponentChange: (id: string) => void
   onPlay: () => void
   onPlayer: () => void
+  onTeam: () => void
   onLeague: () => void
   onStore: () => void
   onLab: () => void
@@ -118,6 +119,13 @@ export function createMainMenu(options: {
   player.actions.append(
     createSpincoreButton('Open Profile', options.onPlayer),
   )
+  const team = createSpincoreCard(
+    'Team HQ',
+    'Roster spots, coach identity, gear cabinet, and team stats.',
+  )
+  team.actions.append(
+    createSpincoreButton('Manage Team', options.onTeam),
+  )
   const league = createSpincoreCard(
     'League',
     'Beat five clubs in sequence and claim the Rookie Circuit.',
@@ -139,7 +147,7 @@ export function createMainMenu(options: {
   settings.actions.append(
     createSpincoreButton('Open Settings', options.onSettings),
   )
-  grid.append(player.card, league.card, store.card, settings.card)
+  grid.append(player.card, team.card, league.card, store.card, settings.card)
 
   const labStrip = document.createElement('section')
   labStrip.className = 'menu-lab-strip'

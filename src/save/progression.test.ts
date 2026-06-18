@@ -77,6 +77,42 @@ function createTestSave(): SaveGame {
       },
       inventory: ['balanced-cesta'],
     },
+    team: {
+      name: 'Test Club',
+      colors: {
+        primary: 'teal',
+        secondary: 'gold',
+        homeField: 'blue',
+      },
+      sponsorId: null,
+      coachId: 'mara-voss',
+      rosterLoadouts: {
+        'a-keeper': {
+          equipment: {
+            stickId: null,
+            shieldId: null,
+            shoesId: null,
+            armorId: null,
+          },
+        },
+        'a-support': {
+          equipment: {
+            stickId: null,
+            shieldId: null,
+            shoesId: null,
+            armorId: null,
+          },
+        },
+        'a-striker': {
+          equipment: {
+            stickId: null,
+            shieldId: null,
+            shoesId: null,
+            armorId: null,
+          },
+        },
+      },
+    },
     league: {
       currentLeagueId: 'rookie_circuit',
       unlockedLeagueIds: ['rookie_circuit'],

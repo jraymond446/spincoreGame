@@ -1,14 +1,23 @@
 import type {
   PlayerArchetype,
+  PlayerAttributes,
   PlayerPlayStyle,
   PlayerRosterEntry,
 } from '../game/data/matchTypes'
+import { playerArchetypes } from '../game/data/playerArchetypes.ts'
 import type { OpponentTeam } from '../game/data/opponentTeams'
 import { getEffectivePlayerAttributes } from '../equipment/equipmentEffects.ts'
 import { getStickType } from '../equipment/stickTypes.ts'
+import {
+  applyLoadoutModifiersToCreatedAttributes,
+  createNeutralRosterAttributes,
+  getCreatedPlayerRosterSlot,
+  getTeamRosterLoadout,
+  isTeamRosterSlotId,
+} from '../franchise/teamRoster.ts'
 import { mapCreatedPlayerAttributesToMatchAttributes } from '../player/playerAttributeAdapter.ts'
 import { mapCosmeticsToMatchVisual } from '../player/playerCosmetics.ts'
-import type { SaveGame } from '../save/saveTypes'
+import type { EquipmentSlot, SaveGame, TeamRosterSlotId } from '../save/saveTypes'
 
 export type MatchRosterOverrides = {
   teams: {
@@ -26,16 +35,15 @@ export function applyMatchRosterOverrides(
 ): MatchRosterOverrides {
   const archetypes = new Map<string, PlayerArchetype>()
   let teamAPlayerId: string | null = null
+  const createdPlayerSlotId = save?.settings.createdPlayerComplete
+    ? getCreatedPlayerRosterSlot(save.player)
+    : null
 
   if (save?.settings.createdPlayerComplete) {
     const player = save.player
-    const targetId =
-      player.primaryRole === 'keeper'
-        ? 'a-keeper'
-        : player.primaryRole === 'striker'
-          ? 'a-striker'
-          : 'a-support'
-    const entry = teamA.find((candidate) => candidate.id === targetId)
+    const entry = teamA.find(
+      (candidate) => candidate.id === createdPlayerSlotId,
+    )
 
     if (entry) {
       for (const teammate of teamA) {
@@ -65,6 +73,13 @@ export function applyMatchRosterOverrides(
         ),
       })
     }
+
+    applyTeamLoadoutsToAiRoster(
+      teamA,
+      save,
+      createdPlayerSlotId,
+      archetypes,
+    )
   }
 
   if (opponent) {
@@ -100,6 +115,90 @@ export function applyMatchRosterOverrides(
     },
     archetypes,
   }
+}
+
+function applyTeamLoadoutsToAiRoster(
+  teamA: PlayerRosterEntry[],
+  save: SaveGame,
+  createdPlayerSlotId: TeamRosterSlotId | null,
+  archetypes: Map<string, PlayerArchetype>,
+): void {
+  for (const entry of teamA) {
+    if (
+      !isTeamRosterSlotId(entry.id) ||
+      entry.id === createdPlayerSlotId
+    ) {
+      continue
+    }
+
+    const equipment = getTeamRosterLoadout(save, entry.id)
+
+    if (equipment.stickId) {
+      entry.stickStyle = getStickType(equipment.stickId).visualStyle
+    }
+
+    if (!hasAssignedGear(equipment)) {
+      continue
+    }
+
+    const base = playerArchetypes[entry.archetypeId]
+    archetypes.set(entry.id, {
+      ...base,
+      id: entry.archetypeId,
+      role: entry.role,
+      defaultHandedness: entry.handedness,
+      defaultPlayStyle: entry.playStyle,
+      attributes: applyLoadoutDeltasToMatchAttributes(
+        base.attributes,
+        equipment,
+      ),
+    })
+  }
+}
+
+function applyLoadoutDeltasToMatchAttributes(
+  base: PlayerAttributes,
+  equipment: Record<EquipmentSlot, string | null>,
+): PlayerAttributes {
+  const neutral = createNeutralRosterAttributes()
+  const neutralRuntime =
+    mapCreatedPlayerAttributesToMatchAttributes(neutral)
+  const boostedRuntime =
+    mapCreatedPlayerAttributesToMatchAttributes(
+      applyLoadoutModifiersToCreatedAttributes(neutral, equipment),
+    )
+  const result = { ...base }
+
+  for (const key of runtimeAttributeKeys) {
+    result[key] = clampRuntimeAttribute(
+      base[key] + boostedRuntime[key] - neutralRuntime[key],
+    )
+  }
+
+  return result
+}
+
+function hasAssignedGear(
+  equipment: Record<EquipmentSlot, string | null>,
+): boolean {
+  return Object.values(equipment).some(Boolean)
+}
+
+const runtimeAttributeKeys: Array<keyof PlayerAttributes> = [
+  'speed',
+  'control',
+  'passing',
+  'shooting',
+  'defense',
+  'power',
+  'accuracy',
+  'reaction',
+  'ballHandling',
+  'toughness',
+]
+
+function clampRuntimeAttribute(value: number): number {
+  return Math.min(1.6, Math.max(0.42, value))
 }
 
 function playStyleForArchetype(

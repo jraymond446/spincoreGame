@@ -1,5 +1,6 @@
 import { equipmentCatalog } from '../equipment/equipmentCatalog.ts'
 import { getEffectivePlayerAttributes } from '../equipment/equipmentEffects.ts'
+import { playerArchetypes } from '../game/data/playerArchetypes.ts'
 import type { PlayerRosterEntry } from '../game/data/matchTypes.ts'
 import { mapCreatedPlayerAttributesToMatchAttributes } from '../player/playerAttributeAdapter.ts'
 import { defaultPlayerCosmetics } from '../player/playerCosmetics.ts'
@@ -52,10 +53,13 @@ save.equipment.inventory.push(
   'quick-whip',
   'apex-runners',
   'crash-padding',
+  'spin-sling',
 )
 save.equipment.equipped.stickId = 'quick-whip'
 save.equipment.equipped.shoesId = 'apex-runners'
 save.equipment.equipped.armorId = 'crash-padding'
+save.team.rosterLoadouts['a-support'].equipment.stickId = 'spin-sling'
+save.team.rosterLoadouts['a-support'].equipment.shoesId = 'apex-runners'
 const afterGear = getEffectivePlayerAttributes(save)
 
 assertGreater(
@@ -109,9 +113,14 @@ const overrides = applyMatchRosterOverrides(
   undefined,
 )
 const createdPlayerRuntime = overrides.archetypes.get('a-striker')
+const supportRuntime = overrides.archetypes.get('a-support')
 
 if (!createdPlayerRuntime) {
   throw new Error('created player runtime archetype was not applied')
+}
+
+if (!supportRuntime) {
+  throw new Error('teammate runtime archetype was not applied')
 }
 
 assertEqual(
@@ -134,6 +143,16 @@ assertGreater(
   neutral.power,
   'equipped power should reach the live match archetype',
 )
+assertGreater(
+  supportRuntime.attributes.speed,
+  playerArchetypes.support.attributes.speed,
+  'teammate shoes should affect the live match archetype',
+)
+assertEqual(
+  teamA.find((entry) => entry.id === 'a-support')?.stickStyle,
+  'fork',
+  'teammate stick assignment should reach the live roster',
+)
 
 for (const itemId of [
   'quick-whip',
@@ -147,7 +166,7 @@ for (const itemId of [
   }
 }
 
-console.info('Attribute gameplay bridge cases passed: 14')
+console.info('Attribute gameplay bridge cases passed: 16')
 
 function attributes(value = playerAttributeDefault): CreatedPlayerAttributes {
   const result = {} as CreatedPlayerAttributes

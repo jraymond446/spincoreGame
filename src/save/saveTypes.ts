@@ -126,11 +126,56 @@ export type LeagueStatLine = Pick<
   championships: number
 }
 
-export type EquipmentSlot =
-  | 'stickId'
-  | 'shieldId'
-  | 'shoesId'
-  | 'armorId'
+export const equipmentSlotKeys = [
+  'stickId',
+  'shieldId',
+  'shoesId',
+  'armorId',
+] as const
+
+export type EquipmentSlot = (typeof equipmentSlotKeys)[number]
+
+export const teamRosterSlotIds = [
+  'a-keeper',
+  'a-support',
+  'a-striker',
+] as const
+
+export type TeamRosterSlotId = (typeof teamRosterSlotIds)[number]
+
+export type TeamRosterLoadout = {
+  equipment: Record<EquipmentSlot, string | null>
+}
+
+export type TeamRosterLoadouts = Record<
+  TeamRosterSlotId,
+  TeamRosterLoadout
+>
+
+export const teamColorKeys = [
+  'teal',
+  'blue',
+  'rose',
+  'gold',
+  'purple',
+  'green',
+  'orange',
+  'navy',
+] as const
+
+export type TeamColorKey = (typeof teamColorKeys)[number]
+
+export type TeamIdentity = {
+  name: string
+  colors: {
+    primary: TeamColorKey
+    secondary: TeamColorKey
+    homeField: TeamColorKey
+  }
+  sponsorId: string | null
+  coachId: string | null
+  rosterLoadouts: TeamRosterLoadouts
+}
 
 export type SaveGame = {
   version: 3
@@ -149,6 +194,7 @@ export type SaveGame = {
     equipped: Record<EquipmentSlot, string | null>
     inventory: string[]
   }
+  team: TeamIdentity
   league: {
     currentLeagueId: string | null
     unlockedLeagueIds: string[]

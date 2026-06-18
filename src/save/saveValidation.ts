@@ -8,10 +8,17 @@ import {
   defaultPlayerCosmetics,
   roleForArchetype,
 } from './defaultSave'
+import {
+  createDefaultTeamIdentity,
+} from '../franchise/teamIdentity'
+import {
+  createDefaultRosterLoadouts,
+} from '../franchise/teamRoster'
 import type {
   CreatedPlayer,
   CreatedPlayerArchetype,
   CreatedPlayerAttributes,
+  EquipmentSlot,
   LeagueStatLine,
   PlayerAccentColor,
   PlayerCosmetics,
@@ -22,14 +29,19 @@ import type {
   PlayerStatLine,
   SaveGame,
   SeasonStats,
+  TeamIdentity,
+  TeamRosterLoadouts,
 } from './saveTypes'
 import {
+  equipmentSlotKeys,
   playerAttributeDefault,
   playerAttributeMax,
   playerAttributeMin,
   playerAttributeUltraMax,
   playerArchetypeKeys,
   playerAttributeKeys,
+  teamColorKeys,
+  teamRosterSlotIds,
 } from './saveTypes'
 
 const roles = ['keeper', 'striker', 'support', 'brute'] as const
@@ -230,6 +242,21 @@ export function validateSave(raw: unknown): SaveGame | null {
       leagueName: 'Rookie Circuit',
     }
 
+    const validatedInventory = [
+      ...new Set([
+        ...inventory,
+        selectedStickId,
+        ...[shieldId, shoesId, armorId].filter(
+          (id): id is string => id !== null,
+        ),
+      ]),
+    ]
+    const team = validateTeamIdentity(
+      migrated.team,
+      player,
+      validatedInventory,
+    )
+
     return {
       version: 3,
       createdAt: dateString(migrated.createdAt, timestamp),
@@ -258,16 +285,9 @@ export function validateSave(raw: unknown): SaveGame | null {
           shoesId,
           armorId,
         },
-        inventory: [
-          ...new Set([
-            ...inventory,
-            selectedStickId,
-            ...[shieldId, shoesId, armorId].filter(
-              (id): id is string => id !== null,
-            ),
-          ]),
-        ],
+        inventory: validatedInventory,
       },
+      team,
       league: {
         currentLeagueId,
         unlockedLeagueIds: [
@@ -478,6 +498,83 @@ function validateLeagueStats(raw: unknown): Record<string, LeagueStatLine> {
   return result
 }
 
+function validateTeamIdentity(
+  raw: unknown,
+  player: CreatedPlayer,
+  inventory: string[],
+): TeamIdentity {
+  const fallback = createDefaultTeamIdentity(player)
+  const values = record(raw)
+  const colors = record(values.colors)
+  const name =
+    typeof values.name === 'string' && values.name.trim()
+      ? values.name.trim().slice(0, 32)
+      : fallback.name
+
+  return {
+    name,
+    colors: {
+      primary:
+        teamColorKeys.find((value) => value === colors.primary) ??
+        fallback.colors.primary,
+      secondary:
+        teamColorKeys.find((value) => value === colors.secondary) ??
+        fallback.colors.secondary,
+      homeField:
+        teamColorKeys.find((value) => value === colors.homeField) ??
+        fallback.colors.homeField,
+    },
+    sponsorId: nullableString(values.sponsorId),
+    coachId: nullableString(values.coachId) ?? fallback.coachId,
+    rosterLoadouts: validateRosterLoadouts(
+      values.rosterLoadouts,
+      inventory,
+    ),
+  }
+}
+
+function validateRosterLoadouts(
+  raw: unknown,
+  inventory: string[],
+): TeamRosterLoadouts {
+  const fallback = createDefaultRosterLoadouts()
+  const values = record(raw)
+
+  for (const slotId of teamRosterSlotIds) {
+    const loadout = record(values[slotId])
+    const equipment = record(loadout.equipment)
+
+    for (const slot of equipmentSlotKeys) {
+      fallback[slotId].equipment[slot] = validateLoadoutItemId(
+        equipment[slot],
+        slot,
+        inventory,
+      )
+    }
+  }
+
+  return fallback
+}
+
+function validateLoadoutItemId(
+  value: unknown,
+  slot: EquipmentSlot,
+  inventory: string[],
+): string | null {
+  const id = migrateEquipmentId(value)
+  const item = getEquipmentItem(id)
+
+  if (!isEquipmentType(item, equipmentTypeForSlot(slot))) {
+    return null
+  }
+
+  if (!inventory.includes(item.id)) {
+    inventory.push(item.id)
+  }
+
+  return item.id
+}
+
 function migrateLegacyAttributes(
   old: LegacyAttributes,
 ): CreatedPlayerAttributes {
@@ -667,4 +764,19 @@ function validateEquippedItemId(
   }
 
   return item.id
+}
+
+function equipmentTypeForSlot(
+  slot: EquipmentSlot,
+): 'stick' | 'shield' | 'shoes' | 'armor' {
+  switch (slot) {
+    case 'stickId':
+      return 'stick'
+    case 'shieldId':
+      return 'shield'
+    case 'shoesId':
+      return 'shoes'
+    case 'armorId':
+      return 'armor'
+  }
 }

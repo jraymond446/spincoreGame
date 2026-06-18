@@ -26,6 +26,7 @@ import type {
   EquipmentSlot,
   PlayerAttributeKey,
   SaveGame,
+  TeamRosterSlotId,
 } from '../save/saveTypes'
 import { playerAttributeMax } from '../save/saveTypes'
 import { createBootScreen } from './BootScreen'
@@ -39,6 +40,15 @@ import { createMatchResultsScreen } from './MatchResultsScreen'
 import { createPlayerProfileScreen } from './PlayerProfileScreen'
 import { createSettingsScreen } from './SettingsScreen'
 import { createStoreScreen } from './StoreScreen'
+import { createTeamLoadoutScreen } from './TeamLoadoutScreen'
+import {
+  createTeamManagementScreen,
+  type TeamIdentityChanges,
+} from './TeamManagementScreen'
+import {
+  findLoadoutOwner,
+  getCreatedPlayerRosterSlot,
+} from '../franchise/teamRoster'
 
 export class AppShell {
   private readonly root: HTMLElement
@@ -127,6 +137,7 @@ export class AppShell {
         },
         onPlay: () => this.startMatch('exhibition'),
         onPlayer: () => this.renderPlayerProfile(),
+        onTeam: () => this.renderTeamManagement(),
         onLeague: () => this.renderLeagueHub(),
         onStore: () => this.renderStore(),
         onLab: () => this.startMatch('lab'),
@@ -151,6 +162,61 @@ export class AppShell {
         onPlay: () => this.startMatch('exhibition'),
         onStore: () => this.renderStore(),
         onSpendPoint: (key) => this.spendAttributePoint(key),
+      }),
+    )
+  }
+
+  private renderTeamManagement(): void {
+    const save = this.requireSave()
+
+    if (!save) {
+      return
+    }
+
+    const league =
+      defaultLeagues.find(
+        (candidate) => candidate.id === save.league.currentLeagueId,
+      ) ?? defaultLeagues[0]
+
+    if (!league) {
+      this.renderMainMenu()
+      return
+    }
+
+    this.screen = 'teamManagement'
+    this.show(
+      createTeamManagementScreen({
+        save,
+        league,
+        onBack: () => this.renderMainMenu(),
+        onLeague: () => this.renderLeagueHub(),
+        onPlayer: () => this.renderPlayerProfile(),
+        onStore: () => this.renderStore(),
+        onEquip: (item) => this.equipItem(item, 'teamManagement'),
+        onOpenLoadout: (slotId) => this.renderTeamLoadout(slotId),
+        onTeamChange: (changes) => this.updateTeamIdentity(changes),
+      }),
+    )
+  }
+
+  private renderTeamLoadout(slotId: TeamRosterSlotId): void {
+    const save = this.requireSave()
+
+    if (!save) {
+      return
+    }
+
+    this.screen = 'teamLoadout'
+    this.show(
+      createTeamLoadoutScreen({
+        save,
+        slotId,
+        onBack: () => this.renderTeamManagement(),
+        onStore: () => this.renderStore(),
+        onEquip: (selectedSlotId, item) =>
+          this.equipRosterItem(selectedSlotId, item),
+        onClear: (selectedSlotId, slot) =>
+          this.clearRosterItem(selectedSlotId, slot),
       }),
     )
   }
@@ -361,6 +427,30 @@ export class AppShell {
     }
   }
 
+  private updateTeamIdentity(changes: TeamIdentityChanges): void {
+    const next = updateSave((draft) => {
+      if (typeof changes.name === 'string') {
+        const name = changes.name.trim()
+
+        if (name) {
+          draft.team.name = name.slice(0, 32)
+        }
+      }
+
+      if (changes.colors) {
+        draft.team.colors = {
+          ...draft.team.colors,
+          ...changes.colors,
+        }
+      }
+    })
+
+    if (next) {
+      this.save = next
+      this.renderTeamManagement()
+    }
+  }
+
   private buyItem(item: EquipmentItem): void {
     const save = this.requireSave()
 
@@ -383,7 +473,10 @@ export class AppShell {
     }
   }
 
-  private equipItem(item: EquipmentItem): void {
+  private equipItem(
+    item: EquipmentItem,
+    destination: 'store' | 'teamManagement' = 'store',
+  ): void {
     const save = this.requireSave()
 
     if (!save?.equipment.inventory.includes(item.id)) {
@@ -413,7 +506,122 @@ export class AppShell {
 
     if (saved) {
       this.save = saved
-      this.renderStore()
+      if (destination === 'teamManagement') {
+        this.renderTeamManagement()
+      } else {
+        this.renderStore()
+      }
+    }
+  }
+
+  private equipRosterItem(
+    slotId: TeamRosterSlotId,
+    item: EquipmentItem,
+  ): void {
+    const save = this.requireSave()
+
+    if (!save?.equipment.inventory.includes(item.id)) {
+      return
+    }
+
+    const currentOwner = findLoadoutOwner(save, item.id)
+
+    if (currentOwner && currentOwner !== slotId) {
+      return
+    }
+
+    const createdPlayerSlotId = getCreatedPlayerRosterSlot(save.player)
+
+    if (slotId === createdPlayerSlotId) {
+      this.equipItemForCreatedPlayerSlot(item, slotId)
+      return
+    }
+
+    const equipmentSlot = `${item.type}Id` as EquipmentSlot
+    const next = updateSave((draft) => {
+      const loadout = draft.team.rosterLoadouts[slotId]
+
+      if (item.ultraUnique) {
+        for (const key of Object.keys(loadout.equipment) as EquipmentSlot[]) {
+          const equippedItem = getEquipmentItem(loadout.equipment[key])
+
+          if (equippedItem?.ultraUnique && key !== equipmentSlot) {
+            loadout.equipment[key] = null
+          }
+        }
+      }
+
+      loadout.equipment[equipmentSlot] = item.id
+    })
+
+    if (next) {
+      this.save = next
+      this.renderTeamLoadout(slotId)
+    }
+  }
+
+  private equipItemForCreatedPlayerSlot(
+    item: EquipmentItem,
+    slotId: TeamRosterSlotId,
+  ): void {
+    const save = this.requireSave()
+
+    if (!save?.equipment.inventory.includes(item.id)) {
+      return
+    }
+
+    const slot = `${item.type}Id` as EquipmentSlot
+    const next = updateSave((draft) => {
+      if (item.ultraUnique) {
+        for (const key of Object.keys(draft.equipment.equipped) as EquipmentSlot[]) {
+          const equippedItem = getEquipmentItem(draft.equipment.equipped[key])
+
+          if (equippedItem?.ultraUnique && key !== slot) {
+            draft.equipment.equipped[key] = null
+          }
+        }
+      }
+
+      draft.equipment.equipped[slot] = item.id
+
+      if (item.type === 'stick') {
+        draft.player.selectedStickId = item.id
+      }
+    })
+
+    if (next) {
+      this.save = next
+      this.renderTeamLoadout(slotId)
+    }
+  }
+
+  private clearRosterItem(
+    slotId: TeamRosterSlotId,
+    slot: EquipmentSlot,
+  ): void {
+    const save = this.requireSave()
+
+    if (
+      !save ||
+      (slot === 'stickId' &&
+        slotId === getCreatedPlayerRosterSlot(save.player))
+    ) {
+      return
+    }
+
+    const createdPlayerSlotId = getCreatedPlayerRosterSlot(save.player)
+    const next = updateSave((draft) => {
+      if (slotId === createdPlayerSlotId) {
+        draft.equipment.equipped[slot] = null
+        return
+      }
+
+      draft.team.rosterLoadouts[slotId].equipment[slot] = null
+    })
+
+    if (next) {
+      this.save = next
+      this.renderTeamLoadout(slotId)
     }
   }
 

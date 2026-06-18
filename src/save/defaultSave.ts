@@ -1,4 +1,5 @@
 import { defaultPlayerCosmetics } from '../player/playerCosmetics.ts'
+import { createDefaultTeamIdentity } from '../franchise/teamIdentity.ts'
 import type {
   CreatedPlayer,
   CreatedPlayerArchetype,
@@ -151,6 +152,7 @@ export function createNewSave(
       },
       inventory: [player.selectedStickId],
     },
+    team: createDefaultTeamIdentity(player),
     league: {
       currentLeagueId: 'rookie_circuit',
       unlockedLeagueIds: ['rookie_circuit'],
