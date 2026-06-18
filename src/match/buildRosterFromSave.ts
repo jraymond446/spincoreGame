@@ -12,6 +12,7 @@ import {
   applyLoadoutModifiersToCreatedAttributes,
   createNeutralRosterAttributes,
   getCreatedPlayerRosterSlot,
+  getSignedRosterPlayer,
   getTeamRosterLoadout,
   isTeamRosterSlotId,
 } from '../franchise/teamRoster.ts'
@@ -132,6 +133,34 @@ function applyTeamLoadoutsToAiRoster(
     }
 
     const equipment = getTeamRosterLoadout(save, entry.id)
+    const signedPlayer = getSignedRosterPlayer(save, entry.id)
+
+    if (signedPlayer) {
+      entry.role = signedPlayer.role
+      entry.archetypeId = signedPlayer.role
+      entry.handedness = signedPlayer.handedness
+      entry.playStyle = signedPlayer.playStyle
+      entry.displayName = signedPlayer.name
+      entry.jerseyNumber = signedPlayer.jerseyNumber
+
+      if (equipment.stickId) {
+        entry.stickStyle = getStickType(equipment.stickId).visualStyle
+      }
+
+      archetypes.set(entry.id, {
+        id: signedPlayer.role,
+        role: signedPlayer.role,
+        defaultHandedness: signedPlayer.handedness,
+        defaultPlayStyle: signedPlayer.playStyle,
+        attributes: mapCreatedPlayerAttributesToMatchAttributes(
+          applyLoadoutModifiersToCreatedAttributes(
+            signedPlayer.attributes,
+            equipment,
+          ),
+        ),
+      })
+      continue
+    }
 
     if (equipment.stickId) {
       entry.stickStyle = getStickType(equipment.stickId).visualStyle

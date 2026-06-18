@@ -1,4 +1,5 @@
 import type { OpponentTeam } from '../game/data/opponentTeams'
+import type { TeamRosterReadiness } from '../franchise/teamRoster'
 import type { League } from '../league/leagueTypes'
 import type { SaveGame } from '../save/saveTypes'
 import {
@@ -14,7 +15,9 @@ export function createLeagueHubScreen(options: {
   save: SaveGame
   league: League
   nextOpponent: OpponentTeam | null
+  matchReadiness: TeamRosterReadiness
   onBack: () => void
+  onTeam: () => void
   onPlayNext: () => void
 }): HTMLElement {
   const { root, body } = createSpincoreScreenFrame({
@@ -45,7 +48,9 @@ export function createLeagueHubScreen(options: {
     title: options.nextOpponent ? 'Rookie Circuit Match' : 'Rookie Champion',
     copy:
       options.nextOpponent
-        ? 'Beat each club in sequence to claim the Rookie Circuit.'
+        ? options.matchReadiness.ready
+          ? 'Beat each club in sequence to claim the Rookie Circuit.'
+          : `${options.matchReadiness.message} League fixtures need a complete active lineup.`
         : 'All five Rookie Circuit opponents have been defeated.',
     tone: 'featured',
   })
@@ -59,9 +64,21 @@ export function createLeagueHubScreen(options: {
     )
     nextPanel.actions.append(
       createSpincoreButton('Play Next Match', options.onPlayNext, {
-        tone: 'primary',
+        tone: options.matchReadiness.ready ? 'primary' : 'quiet',
+        disabled: !options.matchReadiness.ready,
       }),
     )
+
+    if (!options.matchReadiness.ready) {
+      nextPanel.content.append(
+        createSpincoreBadge('ROSTER INCOMPLETE', 'rose'),
+      )
+      nextPanel.actions.append(
+        createSpincoreButton('Manage Team', options.onTeam, {
+          tone: 'secondary',
+        }),
+      )
+    }
   } else {
     nextPanel.content.appendChild(
       createSpincoreBadge('ROOKIE CIRCUIT COMPLETE', 'mint'),

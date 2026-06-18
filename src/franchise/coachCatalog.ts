@@ -140,6 +140,11 @@ export const coachCatalog: Coach[] = [
 ]
 
 export const starterCoachId = 'mara-voss'
+export const coachMarketIds = [
+  'mara-voss',
+  'juno-crest',
+  'brick-sato',
+] as const
 
 export function getCoach(id: string | null | undefined): Coach {
   return (
@@ -147,4 +152,8 @@ export function getCoach(id: string | null | undefined): Coach {
     coachCatalog.find((coach) => coach.id === starterCoachId) ??
     coachCatalog[0]
   )
+}
+
+export function getCoachMarket(): Coach[] {
+  return coachMarketIds.map((id) => getCoach(id))
 }

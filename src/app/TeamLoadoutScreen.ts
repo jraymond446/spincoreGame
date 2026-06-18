@@ -1,12 +1,16 @@
 import {
   getEquipmentItem,
 } from '../equipment/equipmentCatalog'
+import {
+  getInventoryItemCount,
+  getUniqueInventoryItemIds,
+} from '../equipment/equipmentInventory'
 import type { EquipmentItem } from '../equipment/equipmentTypes'
 import {
   applyLoadoutModifiersToCreatedAttributes,
   createNeutralRosterAttributes,
-  findLoadoutOwner,
   getLoadoutAttributeModifiers,
+  getLoadoutAssignmentCount,
   getTeamRosterLoadout,
   getTeamRosterSlotProfile,
 } from '../franchise/teamRoster'
@@ -55,8 +59,8 @@ export function createTeamLoadoutScreen(options: {
     createSpincoreMetric('Role', profile.roleLabel, true),
     createSpincoreMetric('Gear Slots', `${assignedItems.length}/4`),
     createSpincoreMetric(
-      'Owned Gear',
-      new Set(options.save.equipment.inventory).size,
+      'Owned Copies',
+      options.save.equipment.inventory.length,
     ),
   )
   header.appendChild(headerMetrics)
@@ -234,11 +238,9 @@ function createLockerPanel(options: {
     eyebrow: 'TEAM LOCKER',
     title: 'Owned Items',
     copy:
-      'Assign gear here for this roster slot. Buy more copies later once roster inventory gets quantity tracking.',
+      'Each assigned roster slot consumes one owned copy. Extra copies stay ready in the locker.',
   })
-  const inventory = [
-    ...new Set(options.save.equipment.inventory),
-  ]
+  const inventory = getUniqueInventoryItemIds(options.save.equipment.inventory)
     .map((id) => getEquipmentItem(id))
     .filter((item): item is EquipmentItem => item !== null)
     .sort(sortLockerItems)
@@ -257,7 +259,6 @@ function createLockerPanel(options: {
           save: options.save,
           selectedSlotId: options.slotId,
           equippedHere: equipment[`${item.type}Id` as EquipmentSlot] === item.id,
-          owner: findLoadoutOwner(options.save, item.id),
           onEquip: () => options.onEquip(options.slotId, item),
         }),
       )
@@ -279,14 +280,23 @@ function createLockerRow(options: {
   save: SaveGame
   selectedSlotId: TeamRosterSlotId
   equippedHere: boolean
-  owner: TeamRosterSlotId | null
   onEquip: () => void
 }): HTMLElement {
-  const owner =
-    options.owner && options.owner !== options.selectedSlotId
-      ? getTeamRosterSlotProfile(options.save, options.owner)
-      : null
-  const disabled = options.equippedHere || Boolean(owner)
+  const ownedCount = getInventoryItemCount(
+    options.save.equipment.inventory,
+    options.item.id,
+  )
+  const assignedCount = getLoadoutAssignmentCount(
+    options.save,
+    options.item.id,
+  )
+  const assignedElsewhere = getLoadoutAssignmentCount(
+    options.save,
+    options.item.id,
+    { excludeSlotId: options.selectedSlotId },
+  )
+  const availableCopies = Math.max(0, ownedCount - assignedElsewhere)
+  const disabled = options.equippedHere || availableCopies <= 0
   const row = document.createElement('article')
   row.className = `team-gear-row is-${options.item.rarity}`
   const icon = document.createElement('div')
@@ -297,16 +307,17 @@ function createLockerRow(options: {
   const name = document.createElement('strong')
   name.textContent = options.item.name
   const meta = document.createElement('span')
-  meta.textContent = owner
-    ? `Assigned to ${owner.name}`
-    : `${titleCase(options.item.type)} / ` +
-      `${titleCase(options.item.rarity)} / ${options.item.statBudget} pts`
+  meta.textContent = options.equippedHere
+    ? `Equipped here / ${assignedCount}/${ownedCount} assigned`
+    : availableCopies <= 0
+      ? `All ${ownedCount} assigned`
+      : `Own ${ownedCount}x / ${assignedCount} assigned`
   copy.append(name, meta)
   const action = createSpincoreButton(
-    options.equippedHere ? 'Equipped' : owner ? 'Assigned' : 'Equip',
+    options.equippedHere ? 'Equipped' : availableCopies <= 0 ? 'Assigned' : 'Equip',
     options.onEquip,
     {
-      tone: options.equippedHere || owner ? 'quiet' : 'secondary',
+      tone: options.equippedHere || availableCopies <= 0 ? 'quiet' : 'secondary',
       compact: true,
       disabled,
     },

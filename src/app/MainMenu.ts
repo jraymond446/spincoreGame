@@ -1,4 +1,5 @@
 import type { OpponentTeam } from '../game/data/opponentTeams'
+import type { TeamRosterReadiness } from '../franchise/teamRoster'
 import { xpToNextLevel } from '../save/progression'
 import type { SaveGame } from '../save/saveTypes'
 import {
@@ -23,6 +24,7 @@ export function createMainMenu(options: {
   save: SaveGame
   opponents: OpponentTeam[]
   selectedOpponentId: string
+  matchReadiness: TeamRosterReadiness
   rewardNotice?: RewardNotice | null
   onOpponentChange: (id: string) => void
   onPlay: () => void
@@ -67,19 +69,36 @@ export function createMainMenu(options: {
     eyebrow: 'NEXT UP',
     title: 'Exhibition Match',
     copy:
-      'Take your created player into the tuned 3v3 match. ' +
-      'Every run earns circuit XP and cash.',
+      options.matchReadiness.ready
+        ? 'Take your created player into the tuned 3v3 match. Every run earns circuit XP and cash.'
+        : `${options.matchReadiness.message} House players can hold the board in Team HQ, but sanctioned matches need a full starting lineup.`,
     tone: 'featured',
   })
   playPanel.content.append(
-    createSpincoreBadge('FIRST TO 5', 'rose'),
-    createSpincoreBadge('3 VS 3', 'blue'),
+    createSpincoreBadge(
+      options.matchReadiness.ready ? 'FIRST TO 5' : 'ROSTER INCOMPLETE',
+      options.matchReadiness.ready ? 'rose' : 'navy',
+    ),
+    createSpincoreBadge(
+      `${options.matchReadiness.activePlayerCount}/${options.matchReadiness.requiredActivePlayerCount} STARTERS`,
+      options.matchReadiness.ready ? 'blue' : 'rose',
+    ),
   )
   playPanel.actions.append(
     createSpincoreButton('Play Match', options.onPlay, {
-      tone: 'primary',
+      tone: options.matchReadiness.ready ? 'primary' : 'quiet',
+      disabled: !options.matchReadiness.ready,
     }),
   )
+
+  if (!options.matchReadiness.ready) {
+    playPanel.actions.append(
+      createSpincoreButton('Manage Team', options.onTeam, {
+        tone: 'secondary',
+      }),
+    )
+  }
+
   frontDoor.appendChild(playPanel.panel)
 
   const opponentPanel = createSpincorePanel({

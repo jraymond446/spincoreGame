@@ -2,18 +2,23 @@ import {
   getEquipmentItem,
   isEquipmentType,
   migrateEquipmentId,
-} from '../equipment/equipmentCatalog'
-import { getStickType, migrateStickId } from '../equipment/stickTypes'
+} from '../equipment/equipmentCatalog.ts'
+import { getStickType, migrateStickId } from '../equipment/stickTypes.ts'
 import {
   defaultPlayerCosmetics,
   roleForArchetype,
-} from './defaultSave'
+} from './defaultSave.ts'
 import {
   createDefaultTeamIdentity,
-} from '../franchise/teamIdentity'
+} from '../franchise/teamIdentity.ts'
 import {
   createDefaultRosterLoadouts,
-} from '../franchise/teamRoster'
+  createDefaultRosterAssignments,
+  getCreatedPlayerRosterSlot,
+} from '../franchise/teamRoster.ts'
+import {
+  getFreeAgent,
+} from '../franchise/freeAgentCatalog.ts'
 import type {
   CreatedPlayer,
   CreatedPlayerArchetype,
@@ -30,7 +35,9 @@ import type {
   SaveGame,
   SeasonStats,
   TeamIdentity,
+  TeamRosterAssignments,
   TeamRosterLoadouts,
+  TeamRosterSlotId,
 } from './saveTypes'
 import {
   equipmentSlotKeys,
@@ -42,7 +49,7 @@ import {
   playerAttributeKeys,
   teamColorKeys,
   teamRosterSlotIds,
-} from './saveTypes'
+} from './saveTypes.ts'
 
 const roles = ['keeper', 'striker', 'support', 'brute'] as const
 const handedness = ['left', 'right'] as const
@@ -195,7 +202,7 @@ export function validateSave(raw: unknown): SaveGame | null {
     const selectedStickId = getStickType(
       migrateStickId(equipped.stickId ?? player.selectedStickId),
     ).id
-    const inventory = stringArray(equipment.inventory)
+    const inventory = inventoryArray(equipment.inventory)
       .map(migrateEquipmentId)
       .filter((id): id is string => id !== null)
     const shieldId = validateEquippedItemId(
@@ -242,19 +249,31 @@ export function validateSave(raw: unknown): SaveGame | null {
       leagueName: 'Rookie Circuit',
     }
 
-    const validatedInventory = [
-      ...new Set([
-        ...inventory,
-        selectedStickId,
-        ...[shieldId, shoesId, armorId].filter(
-          (id): id is string => id !== null,
-        ),
-      ]),
-    ]
+    const validatedInventory = [...inventory]
+    ensureInventoryItemCount(validatedInventory, selectedStickId, 1)
+
+    for (const id of [shieldId, shoesId, armorId]) {
+      if (id) {
+        ensureInventoryItemCount(validatedInventory, id, 1)
+      }
+    }
+
     const team = validateTeamIdentity(
       migrated.team,
       player,
       validatedInventory,
+    )
+    const validatedEquipped = {
+      stickId: selectedStickId,
+      shieldId,
+      shoesId,
+      armorId,
+    } satisfies Record<EquipmentSlot, string | null>
+    ensureInventoryCoversAssignedGear(
+      validatedInventory,
+      validatedEquipped,
+      team,
+      player,
     )
 
     return {
@@ -279,12 +298,7 @@ export function validateSave(raw: unknown): SaveGame | null {
         ),
       },
       equipment: {
-        equipped: {
-          stickId: selectedStickId,
-          shieldId,
-          shoesId,
-          armorId,
-        },
+        equipped: validatedEquipped,
         inventory: validatedInventory,
       },
       team,
@@ -526,11 +540,49 @@ function validateTeamIdentity(
     },
     sponsorId: nullableString(values.sponsorId),
     coachId: nullableString(values.coachId) ?? fallback.coachId,
+    rosterAssignments: validateRosterAssignments(
+      values.rosterAssignments,
+      player,
+    ),
     rosterLoadouts: validateRosterLoadouts(
       values.rosterLoadouts,
       inventory,
     ),
   }
+}
+
+function validateRosterAssignments(
+  raw: unknown,
+  player: CreatedPlayer,
+): TeamRosterAssignments {
+  const fallback = createDefaultRosterAssignments()
+  const values = record(raw)
+  const usedPlayerIds = new Set<string>()
+  const createdPlayerSlotId = getCreatedPlayerRosterSlot(player)
+
+  for (const slotId of teamRosterSlotIds) {
+    if (slotId === createdPlayerSlotId) {
+      fallback[slotId] = null
+      continue
+    }
+
+    const agentId = nullableString(values[slotId])
+    const agent = getFreeAgent(agentId)
+
+    if (
+      !agent ||
+      usedPlayerIds.has(agent.id) ||
+      !isAgentAllowedInSlot(agent.role, slotId)
+    ) {
+      fallback[slotId] = null
+      continue
+    }
+
+    fallback[slotId] = agent.id
+    usedPlayerIds.add(agent.id)
+  }
+
+  return fallback
 }
 
 function validateRosterLoadouts(
@@ -556,6 +608,21 @@ function validateRosterLoadouts(
   return fallback
 }
 
+function isAgentAllowedInSlot(
+  role: CreatedPlayer['primaryRole'],
+  slotId: TeamRosterSlotId,
+): boolean {
+  if (slotId === 'bench') {
+    return true
+  }
+
+  if (slotId === 'a-keeper') {
+    return role === 'keeper'
+  }
+
+  return role !== 'keeper'
+}
+
 function validateLoadoutItemId(
   value: unknown,
   slot: EquipmentSlot,
@@ -573,6 +640,38 @@ function validateLoadoutItemId(
   }
 
   return item.id
+}
+
+function ensureInventoryCoversAssignedGear(
+  inventory: string[],
+  equipped: Record<EquipmentSlot, string | null>,
+  team: TeamIdentity,
+  player: CreatedPlayer,
+): void {
+  const requiredCounts = new Map<string, number>()
+  const createdPlayerSlotId = getCreatedPlayerRosterSlot(player)
+
+  for (const id of Object.values(equipped)) {
+    if (id) {
+      incrementCount(requiredCounts, id)
+    }
+  }
+
+  for (const slotId of teamRosterSlotIds) {
+    if (slotId === createdPlayerSlotId) {
+      continue
+    }
+
+    for (const id of Object.values(team.rosterLoadouts[slotId].equipment)) {
+      if (id) {
+        incrementCount(requiredCounts, id)
+      }
+    }
+  }
+
+  for (const [id, count] of requiredCounts) {
+    ensureInventoryItemCount(inventory, id, count)
+  }
 }
 
 function migrateLegacyAttributes(
@@ -704,6 +803,41 @@ function stringArray(value: unknown): string[] {
         .filter(Boolean),
     ),
   ]
+}
+
+function inventoryArray(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return []
+  }
+
+  return value
+    .filter((entry): entry is string => typeof entry === 'string')
+    .map((entry) => entry.trim().slice(0, 100))
+    .filter(Boolean)
+    .slice(0, 999)
+}
+
+function ensureInventoryItemCount(
+  inventory: string[],
+  itemId: string,
+  requiredCount: number,
+): void {
+  let currentCount = inventory.reduce(
+    (count, id) => count + (id === itemId ? 1 : 0),
+    0,
+  )
+
+  while (currentCount < requiredCount) {
+    inventory.push(itemId)
+    currentCount += 1
+  }
+}
+
+function incrementCount(
+  counts: Map<string, number>,
+  itemId: string,
+): void {
+  counts.set(itemId, (counts.get(itemId) ?? 0) + 1)
 }
 
 function dateString(value: unknown, fallback: string): string {

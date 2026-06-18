@@ -1,5 +1,6 @@
 import { getEffectivePlayerAttributes } from '../equipment/equipmentEffects'
 import { getStickType } from '../equipment/stickTypes'
+import type { TeamRosterReadiness } from '../franchise/teamRoster'
 import { xpToNextLevel } from '../save/progression'
 import type {
   LeagueStatLine,
@@ -29,8 +30,10 @@ type StatsTab = 'season' | 'career' | 'league'
 
 export function createPlayerProfileScreen(options: {
   save: SaveGame
+  matchReadiness: TeamRosterReadiness
   onBack: () => void
   onPlay: () => void
+  onTeam: () => void
   onStore: () => void
   onSpendPoint: (key: PlayerAttributeKey) => void
 }): HTMLElement {
@@ -197,9 +200,23 @@ export function createPlayerProfileScreen(options: {
   actions.append(
     createSpincoreButton('Back', options.onBack, { tone: 'quiet' }),
     createSpincoreButton('Play Exhibition', options.onPlay, {
-      tone: 'primary',
+      tone: options.matchReadiness.ready ? 'primary' : 'quiet',
+      disabled: !options.matchReadiness.ready,
     }),
   )
+
+  if (!options.matchReadiness.ready) {
+    actions.append(
+      createSpincoreButton('Finish Roster', options.onTeam, {
+        tone: 'secondary',
+      }),
+      createSpincoreBadge(
+        `${options.matchReadiness.activePlayerCount}/${options.matchReadiness.requiredActivePlayerCount} starters`,
+        'rose',
+      ),
+    )
+  }
+
   body.append(profileGrid, statsPanel.panel, actions)
   return root
 }

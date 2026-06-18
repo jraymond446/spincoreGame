@@ -682,9 +682,41 @@ body {
   padding-top: 16px;
 }
 
-.store-item-footer > strong {
-  color: #e54872;
+.store-price-block {
+  display: grid;
+  gap: 3px;
+}
+
+.store-price {
   font-size: 18px;
+}
+
+.store-price.is-affordable,
+.store-copy-price.is-affordable {
+  color: #198b79;
+}
+
+.store-price.is-unaffordable,
+.store-copy-price.is-unaffordable {
+  color: #e54872;
+}
+
+.store-price.is-owned {
+  color: #16324f;
+}
+
+.store-copy-price {
+  font-size: 9px;
+  font-weight: 950;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.store-item-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 7px;
 }
 
 .settings-panel {
@@ -1527,6 +1559,48 @@ body {
   margin-top: 14px;
 }
 
+.team-roster-readiness {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  border: 3px solid #16324f;
+  border-radius: 7px;
+  padding: 10px 12px;
+  background: #eef5f3;
+  box-shadow: 0 4px 0 #16324f;
+}
+
+.team-roster-readiness.is-ready {
+  background:
+    linear-gradient(90deg, rgba(76, 213, 138, 0.2), transparent 68%),
+    #eef5f3;
+}
+
+.team-roster-readiness.is-incomplete {
+  background:
+    linear-gradient(90deg, rgba(229, 72, 114, 0.18), transparent 68%),
+    #fff8df;
+}
+
+.team-roster-readiness > div {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.team-roster-readiness strong {
+  color: #16324f;
+  font-size: 14px;
+}
+
+.team-roster-readiness span {
+  color: #526b7b;
+  font-size: 10px;
+  font-weight: 850;
+  line-height: 1.35;
+}
+
 .team-roster-slot {
   display: grid;
   min-height: 165px;
@@ -1593,6 +1667,66 @@ body {
 .team-roster-slot .app-button {
   align-self: end;
   justify-self: stretch;
+}
+
+.team-roster-actions {
+  align-self: end;
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px !important;
+}
+
+.team-market-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.team-market-list {
+  display: grid;
+  gap: 10px;
+}
+
+.team-market-card {
+  display: grid;
+  gap: 9px;
+  border: 3px solid #16324f;
+  border-radius: 7px;
+  padding: 12px;
+  color: #16324f;
+  background:
+    linear-gradient(135deg, rgba(76, 213, 138, 0.15), transparent 58%),
+    #fff8df;
+  box-shadow: 0 4px 0 #16324f;
+}
+
+.team-market-card > div:first-child,
+.team-market-traits {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.team-market-card > strong {
+  font-size: 18px;
+  line-height: 1.05;
+}
+
+.team-market-card p {
+  margin: 0;
+  color: #526b7b;
+  font-size: 10px;
+  font-weight: 850;
+  line-height: 1.35;
+}
+
+.team-market-note {
+  color: #718795;
+  font-size: 9px;
+  font-weight: 950;
+  letter-spacing: 0.04em;
+  line-height: 1.35;
+  text-transform: uppercase;
 }
 
 .team-finance-grid {
@@ -2929,6 +3063,7 @@ button.spincore-stick-card:hover {
   .player-profile-grid,
   .team-hq-layout,
   .team-hq-lower-grid,
+  .team-market-grid,
   .team-loadout-layout {
     grid-template-columns: 1fr;
   }
@@ -2956,7 +3091,9 @@ button.spincore-stick-card:hover {
 @media (max-width: 620px) {
   .player-builder-fields,
   .player-cosmetic-grid,
-  .team-identity-fields {
+  .team-identity-fields,
+  .team-roster-grid,
+  .team-market-grid {
     grid-template-columns: 1fr;
   }
 

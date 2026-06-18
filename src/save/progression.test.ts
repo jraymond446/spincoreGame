@@ -86,6 +86,12 @@ function createTestSave(): SaveGame {
       },
       sponsorId: null,
       coachId: 'mara-voss',
+      rosterAssignments: {
+        'a-keeper': null,
+        'a-support': null,
+        'a-striker': null,
+        bench: null,
+      },
       rosterLoadouts: {
         'a-keeper': {
           equipment: {
@@ -104,6 +110,14 @@ function createTestSave(): SaveGame {
           },
         },
         'a-striker': {
+          equipment: {
+            stickId: null,
+            shieldId: null,
+            shoesId: null,
+            armorId: null,
+          },
+        },
+        bench: {
           equipment: {
             stickId: null,
             shieldId: null,

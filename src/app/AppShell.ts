@@ -3,7 +3,16 @@ import {
   equipmentShops,
   getEquipmentItem,
 } from '../equipment/equipmentCatalog'
+import {
+  getInventoryItemCount,
+} from '../equipment/equipmentInventory'
 import type { EquipmentItem } from '../equipment/equipmentTypes'
+import {
+  getCoach,
+  starterCoachId,
+} from '../franchise/coachCatalog'
+import { getFreeAgent } from '../franchise/freeAgentCatalog'
+import { getTeamFinance } from '../franchise/teamFinance'
 import { opponentTeams } from '../game/data/opponentTeams'
 import { defaultLeagues } from '../league/defaultLeagues'
 import {
@@ -46,8 +55,13 @@ import {
   type TeamIdentityChanges,
 } from './TeamManagementScreen'
 import {
-  findLoadoutOwner,
+  getAvailableLoadoutCopies,
+  canCutRosterSlot,
+  createEmptyRosterLoadout,
+  getFirstAvailableRosterSlotForFreeAgent,
   getCreatedPlayerRosterSlot,
+  getTeamRosterReadiness,
+  isFreeAgentSigned,
 } from '../franchise/teamRoster'
 
 export class AppShell {
@@ -131,6 +145,7 @@ export class AppShell {
         save,
         opponents: opponentTeams,
         selectedOpponentId: this.selectedOpponentId,
+        matchReadiness: getTeamRosterReadiness(save),
         rewardNotice: this.rewardNotice,
         onOpponentChange: (id) => {
           this.selectedOpponentId = id
@@ -158,8 +173,10 @@ export class AppShell {
     this.show(
       createPlayerProfileScreen({
         save,
+        matchReadiness: getTeamRosterReadiness(save),
         onBack: () => this.renderMainMenu(),
         onPlay: () => this.startMatch('exhibition'),
+        onTeam: () => this.renderTeamManagement(),
         onStore: () => this.renderStore(),
         onSpendPoint: (key) => this.spendAttributePoint(key),
       }),
@@ -194,6 +211,10 @@ export class AppShell {
         onStore: () => this.renderStore(),
         onEquip: (item) => this.equipItem(item, 'teamManagement'),
         onOpenLoadout: (slotId) => this.renderTeamLoadout(slotId),
+        onSignFreeAgent: (agentId) => this.signFreeAgent(agentId),
+        onCutRosterPlayer: (slotId) => this.cutRosterPlayer(slotId),
+        onSignCoach: (coachId) => this.signCoach(coachId),
+        onFireCoach: () => this.fireCoach(),
         onTeamChange: (changes) => this.updateTeamIdentity(changes),
       }),
     )
@@ -251,7 +272,9 @@ export class AppShell {
         save,
         league,
         nextOpponent,
+        matchReadiness: getTeamRosterReadiness(save),
         onBack: () => this.renderMainMenu(),
+        onTeam: () => this.renderTeamManagement(),
         onPlayNext: () => {
           if (!nextOpponent) {
             return
@@ -299,6 +322,24 @@ export class AppShell {
     opponentId = this.selectedOpponentId,
   ): void {
     const save = this.save
+
+    if (mode !== 'lab') {
+      if (!save) {
+        this.renderCreatePlayer()
+        return
+      }
+
+      const readiness = getTeamRosterReadiness(save)
+
+      if (!readiness.ready) {
+        window.alert(
+          `${readiness.message} Open Team HQ to sign starters before playing.`,
+        )
+        this.renderTeamManagement()
+        return
+      }
+    }
+
     const opponent =
       opponentTeams.find(
         (candidate) => candidate.id === opponentId,
@@ -451,13 +492,119 @@ export class AppShell {
     }
   }
 
+  private signFreeAgent(agentId: string): void {
+    const save = this.requireSave()
+    const agent = getFreeAgent(agentId)
+    const league = this.getCurrentLeague()
+
+    if (!save || !agent || !league || isFreeAgentSigned(save, agent.id)) {
+      return
+    }
+
+    const slotId = getFirstAvailableRosterSlotForFreeAgent(save, agent)
+
+    if (!slotId) {
+      return
+    }
+
+    const coach = getCoach(save.team.coachId ?? starterCoachId)
+    const finance = getTeamFinance(save, league, coach)
+    const replacedSalary =
+      finance.salaryLines.find((line) => line.id === slotId)?.salary ?? 0
+    const projectedPayroll =
+      finance.payroll - replacedSalary + agent.salary
+
+    if (projectedPayroll > finance.salaryCap) {
+      return
+    }
+
+    const next = updateSave((draft) => {
+      draft.team.rosterAssignments[slotId] = agent.id
+    })
+
+    if (next) {
+      this.save = next
+      this.renderTeamManagement()
+    }
+  }
+
+  private cutRosterPlayer(slotId: TeamRosterSlotId): void {
+    const save = this.requireSave()
+
+    if (!save || !canCutRosterSlot(save, slotId)) {
+      return
+    }
+
+    const next = updateSave((draft) => {
+      draft.team.rosterAssignments[slotId] = null
+      draft.team.rosterLoadouts[slotId] = createEmptyRosterLoadout()
+    })
+
+    if (next) {
+      this.save = next
+      this.renderTeamManagement()
+    }
+  }
+
+  private signCoach(coachId: string): void {
+    const save = this.requireSave()
+    const league = this.getCurrentLeague()
+    const candidate = getCoach(coachId)
+
+    if (!save || !league) {
+      return
+    }
+
+    const currentCoach = getCoach(save.team.coachId ?? starterCoachId)
+
+    if (candidate.id === currentCoach.id) {
+      return
+    }
+
+    const finance = getTeamFinance(save, league, currentCoach)
+    const projectedPayroll =
+      finance.payroll - currentCoach.salary + candidate.salary
+
+    if (projectedPayroll > finance.salaryCap) {
+      return
+    }
+
+    const next = updateSave((draft) => {
+      draft.team.coachId = candidate.id
+    })
+
+    if (next) {
+      this.save = next
+      this.renderTeamManagement()
+    }
+  }
+
+  private fireCoach(): void {
+    const save = this.requireSave()
+    const currentCoach = getCoach(save?.team.coachId ?? starterCoachId)
+
+    if (!save || currentCoach.id === starterCoachId) {
+      return
+    }
+
+    const next = updateSave((draft) => {
+      draft.team.coachId = starterCoachId
+    })
+
+    if (next) {
+      this.save = next
+      this.renderTeamManagement()
+    }
+  }
+
   private buyItem(item: EquipmentItem): void {
     const save = this.requireSave()
 
     if (
       !save ||
-      save.equipment.inventory.includes(item.id) ||
-      save.wallet.money < item.price
+      save.wallet.money < item.price ||
+      (item.ultraUnique &&
+        getInventoryItemCount(save.equipment.inventory, item.id) > 0)
     ) {
       return
     }
@@ -484,6 +631,16 @@ export class AppShell {
     }
 
     const slot = `${item.type}Id` as EquipmentSlot
+    const createdPlayerSlotId = getCreatedPlayerRosterSlot(save.player)
+
+    if (
+      getAvailableLoadoutCopies(save, item.id, {
+        excludeSlotId: createdPlayerSlotId,
+      }) <= 0
+    ) {
+      return
+    }
+
     const draft = structuredClone(save)
 
     if (item.ultraUnique) {
@@ -524,9 +681,11 @@ export class AppShell {
       return
     }
 
-    const currentOwner = findLoadoutOwner(save, item.id)
-
-    if (currentOwner && currentOwner !== slotId) {
+    if (
+      getAvailableLoadoutCopies(save, item.id, {
+        excludeSlotId: slotId,
+      }) <= 0
+    ) {
       return
     }
 
@@ -571,6 +730,15 @@ export class AppShell {
     }
 
     const slot = `${item.type}Id` as EquipmentSlot
+
+    if (
+      getAvailableLoadoutCopies(save, item.id, {
+        excludeSlotId: slotId,
+      }) <= 0
+    ) {
+      return
+    }
+
     const next = updateSave((draft) => {
       if (item.ultraUnique) {
         for (const key of Object.keys(draft.equipment.equipped) as EquipmentSlot[]) {
@@ -646,6 +814,22 @@ export class AppShell {
     }
 
     return this.save
+  }
+
+  private getCurrentLeague(): (typeof defaultLeagues)[number] | null {
+    const save = this.save
+
+    if (!save) {
+      return null
+    }
+
+    return (
+      defaultLeagues.find(
+        (candidate) => candidate.id === save.league.currentLeagueId,
+      ) ??
+      defaultLeagues[0] ??
+      null
+    )
   }
 
   private show(screen: HTMLElement): void {

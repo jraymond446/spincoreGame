@@ -1,19 +1,36 @@
 import {
   getEquipmentItem,
 } from '../equipment/equipmentCatalog'
+import {
+  getInventoryItemCount,
+  getUniqueInventoryItemIds,
+} from '../equipment/equipmentInventory'
 import type { EquipmentItem } from '../equipment/equipmentTypes'
 import { getEffectivePlayerAttributes } from '../equipment/equipmentEffects'
 import {
   getCoach,
+  getCoachMarket,
   starterCoachId,
   type Coach,
 } from '../franchise/coachCatalog'
+import {
+  freeAgentCatalog,
+  type FreeAgent,
+} from '../franchise/freeAgentCatalog'
 import {
   getTeamFinance,
   type TeamFinanceSnapshot,
 } from '../franchise/teamFinance'
 import {
   getLoadoutAttributeModifiers,
+  getLoadoutAssignmentCount,
+  getAvailableLoadoutCopies,
+  canCutRosterSlot,
+  getFirstAvailableRosterSlotForFreeAgent,
+  getCreatedPlayerRosterSlot,
+  getSignedRosterPlayer,
+  getTeamRosterReadiness,
+  isFreeAgentSigned,
   getTeamRosterLoadout,
   getTeamRosterSlotProfile,
 } from '../franchise/teamRoster'
@@ -48,6 +65,8 @@ type RosterSlotView = {
   rating: number | null
   salary: number | null
   status: string
+  canManageLoadout: boolean
+  canCut: boolean
   tone: 'active' | 'temporary' | 'open'
 }
 
@@ -65,10 +84,15 @@ export function createTeamManagementScreen(options: {
   onStore: () => void
   onEquip: (item: EquipmentItem) => void
   onOpenLoadout: (slotId: TeamRosterSlotId) => void
+  onSignFreeAgent: (agentId: string) => void
+  onCutRosterPlayer: (slotId: TeamRosterSlotId) => void
+  onSignCoach: (coachId: string) => void
+  onFireCoach: () => void
   onTeamChange: (changes: TeamIdentityChanges) => void
 }): HTMLElement {
   const coach = getCoach(options.save.team.coachId ?? starterCoachId)
   const finance = getTeamFinance(options.save, options.league, coach)
+  const matchReadiness = getTeamRosterReadiness(options.save)
   const teamRating = calculateTeamRating(options.save, coach)
   const leagueStats =
     options.save.leagueStats[options.save.league.currentLeagueId ?? ''] ??
@@ -99,15 +123,17 @@ export function createTeamManagementScreen(options: {
     eyebrow: 'TEAM SHEET',
     title: 'Active Roster',
     copy:
-      'One keeper plus fielders. Open slots will become free-agent signings as the franchise layer comes online.',
+      'Three active match spots plus one bench. You must always roster a keeper; active open spots use house players until you sign upgrades.',
     tone: 'featured',
   })
   rosterPanel.content.append(
     createPlayerIdentityCard(options.save, { expanded: true }),
+    createRosterReadinessStrip(matchReadiness),
     createRosterGrid(
       options.save,
       finance,
       options.onOpenLoadout,
+      options.onCutRosterPlayer,
     ),
   )
   rosterPanel.actions.append(
@@ -120,7 +146,7 @@ export function createTeamManagementScreen(options: {
   rightRail.className = 'team-hq-right-rail'
   rightRail.append(
     createTeamIdentityPanel(options.save, options.onTeamChange).panel,
-    createCoachPanel(coach).panel,
+    createCoachPanel(coach, options.onFireCoach).panel,
     createFinancePanel(finance, options.league).panel,
   )
   hq.append(rosterPanel.panel, rightRail)
@@ -132,6 +158,21 @@ export function createTeamManagementScreen(options: {
     createGearCabinetPanel(options.save, options.onEquip, options.onStore).panel,
     createNewsPanel(options.save, coach, finance).panel,
   )
+  const marketGrid = document.createElement('section')
+  marketGrid.className = 'team-market-grid'
+  marketGrid.append(
+    createFreeAgentMarketPanel(
+      options.save,
+      finance,
+      options.onSignFreeAgent,
+    ).panel,
+    createCoachMarketPanel(
+      options.save,
+      finance,
+      coach,
+      options.onSignCoach,
+    ).panel,
+  )
 
   const actions = document.createElement('div')
   actions.className = 'app-screen-actions'
@@ -141,7 +182,7 @@ export function createTeamManagementScreen(options: {
       tone: 'secondary',
     }),
   )
-  body.append(hq, lowerGrid, actions)
+  body.append(hq, lowerGrid, marketGrid, actions)
   return root
 }
 
@@ -149,18 +190,18 @@ function createRosterGrid(
   save: SaveGame,
   finance: TeamFinanceSnapshot,
   onOpenLoadout: (slotId: TeamRosterSlotId) => void,
+  onCutRosterPlayer: (slotId: TeamRosterSlotId) => void,
 ): HTMLElement {
   const grid = document.createElement('div')
   grid.className = 'team-roster-grid'
-  const slots: RosterSlotView[] = [
-    ...teamRosterSlotIds.map((slotId) =>
-      createRosterSlotView(save, finance, slotId),
-    ),
-    openSlot('Flex Reserve', 'Optional depth slot for future 4v4 and roster fatigue.'),
-  ]
+  const slots = teamRosterSlotIds.map((slotId) =>
+    createRosterSlotView(save, finance, slotId),
+  )
 
   for (const slot of slots) {
-    grid.appendChild(createRosterSlot(slot, onOpenLoadout))
+    grid.appendChild(
+      createRosterSlot(slot, onOpenLoadout, onCutRosterPlayer),
+    )
   }
 
   return grid
@@ -169,6 +210,7 @@ function createRosterGrid(
 function createRosterSlot(
   slot: RosterSlotView,
   onOpenLoadout: (slotId: TeamRosterSlotId) => void,
+  onCutRosterPlayer: (slotId: TeamRosterSlotId) => void,
 ): HTMLElement {
   const card = document.createElement('article')
   card.className = `team-roster-slot is-${slot.tone}`
@@ -191,8 +233,11 @@ function createRosterSlot(
   rating.textContent = slot.rating === null ? 'TBD' : `${slot.rating} OVR`
   card.append(top, name, meta, rating)
 
-  if (slot.slotId) {
-    card.appendChild(
+  const actions = document.createElement('div')
+  actions.className = 'team-roster-actions'
+
+  if (slot.slotId && slot.canManageLoadout) {
+    actions.appendChild(
       createSpincoreButton(
         'Manage Loadout',
         () => onOpenLoadout(slot.slotId as TeamRosterSlotId),
@@ -204,6 +249,203 @@ function createRosterSlot(
     )
   }
 
+  if (slot.slotId && slot.canCut) {
+    actions.appendChild(
+      createSpincoreButton(
+        'Cut',
+        () => onCutRosterPlayer(slot.slotId as TeamRosterSlotId),
+        {
+          tone: 'danger',
+          compact: true,
+        },
+      ),
+    )
+  }
+
+  if (actions.childElementCount > 0) {
+    card.appendChild(actions)
+  }
+
+  return card
+}
+
+function createRosterReadinessStrip(
+  readiness: ReturnType<typeof getTeamRosterReadiness>,
+): HTMLElement {
+  const strip = document.createElement('div')
+  strip.className = `team-roster-readiness ${
+    readiness.ready ? 'is-ready' : 'is-incomplete'
+  }`
+  const copy = document.createElement('div')
+  const title = document.createElement('strong')
+  title.textContent = readiness.ready
+    ? 'Match Eligible'
+    : 'Starting Lineup Incomplete'
+  const detail = document.createElement('span')
+  detail.textContent = readiness.message
+  copy.append(title, detail)
+  strip.append(
+    copy,
+    createSpincoreBadge(
+      `${readiness.activePlayerCount}/${readiness.requiredActivePlayerCount} STARTERS`,
+      readiness.ready ? 'mint' : 'rose',
+    ),
+  )
+  return strip
+}
+
+function createFreeAgentMarketPanel(
+  save: SaveGame,
+  finance: TeamFinanceSnapshot,
+  onSignFreeAgent: (agentId: string) => void,
+): ReturnType<typeof createSpincorePanel> {
+  const panel = createSpincorePanel({
+    eyebrow: 'PLAYER MARKET',
+    title: 'Free Agents',
+    copy:
+      'Prototype pool: sign a player into an open active slot or the bench. Cap room, not cash, controls eligibility.',
+  })
+  const list = document.createElement('div')
+  list.className = 'team-market-list'
+
+  for (const agent of freeAgentCatalog) {
+    list.appendChild(
+      createFreeAgentCard({
+        agent,
+        save,
+        finance,
+        onSign: () => onSignFreeAgent(agent.id),
+      }),
+    )
+  }
+
+  panel.content.appendChild(list)
+  return panel
+}
+
+function createFreeAgentCard(options: {
+  agent: FreeAgent
+  save: SaveGame
+  finance: TeamFinanceSnapshot
+  onSign: () => void
+}): HTMLElement {
+  const { agent, save, finance } = options
+  const slotId = getFirstAvailableRosterSlotForFreeAgent(save, agent)
+  const alreadySigned = isFreeAgentSigned(save, agent.id)
+  const replacedSalary = slotId ? salaryFor(finance, slotId) ?? 0 : 0
+  const projectedPayroll =
+    finance.payroll - replacedSalary + agent.salary
+  const overCap = projectedPayroll > finance.salaryCap
+  const disabled = alreadySigned || !slotId || overCap
+  const card = document.createElement('article')
+  card.className = 'team-market-card'
+  const top = document.createElement('div')
+  top.append(
+    createSpincoreBadge(titleCase(agent.role), agent.role === 'keeper' ? 'gold' : 'blue'),
+    createSpincoreBadge(`$${agent.salary}/match`, 'navy'),
+    createSpincoreBadge(`${overallFromAttributes(agent.attributes)} OVR`, 'mint'),
+  )
+  const name = document.createElement('strong')
+  name.textContent = agent.name
+  const copy = document.createElement('p')
+  copy.textContent = agent.summary
+  const traits = document.createElement('div')
+  traits.className = 'team-market-traits'
+
+  for (const trait of agent.traits) {
+    traits.appendChild(createSpincoreBadge(trait, 'blue'))
+  }
+
+  const destination = document.createElement('span')
+  destination.className = 'team-market-note'
+  destination.textContent = alreadySigned
+    ? 'Already signed to your club.'
+    : slotId
+      ? `Would join ${titleCase(slotIdLabel(slotId))}. Projected payroll $${projectedPayroll}.`
+      : 'Roster full. Cut a signed player to open a slot.'
+  const button = createSpincoreButton(
+    alreadySigned ? 'Signed' : overCap ? 'Over Cap' : !slotId ? 'No Slot' : 'Sign',
+    options.onSign,
+    {
+      tone: disabled ? 'quiet' : 'primary',
+      compact: true,
+      disabled,
+    },
+  )
+  card.append(top, name, copy, traits, destination, button)
+  return card
+}
+
+function createCoachMarketPanel(
+  _save: SaveGame,
+  finance: TeamFinanceSnapshot,
+  currentCoach: Coach,
+  onSignCoach: (coachId: string) => void,
+): ReturnType<typeof createSpincorePanel> {
+  const panel = createSpincorePanel({
+    eyebrow: 'COACH MARKET',
+    title: 'Coach Pool',
+    copy:
+      'Coach salary counts against the cap and their schemes preview the future formation layer.',
+  })
+  const list = document.createElement('div')
+  list.className = 'team-market-list'
+
+  for (const coach of getCoachMarket()) {
+    list.appendChild(
+      createCoachMarketCard({
+        coach,
+        currentCoach,
+        finance,
+        onSign: () => onSignCoach(coach.id),
+      }),
+    )
+  }
+
+  panel.content.appendChild(list)
+  return panel
+}
+
+function createCoachMarketCard(options: {
+  coach: Coach
+  currentCoach: Coach
+  finance: TeamFinanceSnapshot
+  onSign: () => void
+}): HTMLElement {
+  const { coach, currentCoach, finance } = options
+  const isCurrent = coach.id === currentCoach.id
+  const projectedPayroll =
+    finance.payroll - currentCoach.salary + coach.salary
+  const overCap = projectedPayroll > finance.salaryCap
+  const disabled = isCurrent || overCap
+  const card = document.createElement('article')
+  card.className = 'team-market-card'
+  const top = document.createElement('div')
+  top.append(
+    createSpincoreBadge(coach.title, 'gold'),
+    createSpincoreBadge(`${titleCase(coach.tier)} Coach`, 'blue'),
+    createSpincoreBadge(`$${coach.salary}/match`, 'navy'),
+  )
+  const name = document.createElement('strong')
+  name.textContent = coach.name
+  const copy = document.createElement('p')
+  copy.textContent = coach.summary
+  const schemes = document.createElement('span')
+  schemes.className = 'team-market-note'
+  schemes.textContent =
+    `${titleCase(coach.strategy.offenseScheme)} / ` +
+    `${titleCase(coach.strategy.defenseScheme)} / ` +
+    `Projected payroll $${projectedPayroll}`
+  const button = createSpincoreButton(
+    isCurrent ? 'Current' : overCap ? 'Over Cap' : 'Hire',
+    options.onSign,
+    {
+      tone: disabled ? 'quiet' : 'primary',
+      compact: true,
+      disabled,
+    },
+  )
+  card.append(top, name, copy, schemes, button)
   return card
 }
 
@@ -276,7 +518,10 @@ function createTeamIdentityPanel(
   return panel
 }
 
-function createCoachPanel(coach: Coach): ReturnType<typeof createSpincorePanel> {
+function createCoachPanel(
+  coach: Coach,
+  onFireCoach: () => void,
+): ReturnType<typeof createSpincorePanel> {
   const panel = createSpincorePanel({
     eyebrow: 'COACH SPOT',
     title: coach.name,
@@ -326,9 +571,9 @@ function createCoachPanel(coach: Coach): ReturnType<typeof createSpincorePanel> 
   card.append(title, schemes, stats, boosts)
   panel.content.appendChild(card)
   panel.actions.append(
-    createSpincoreButton('Coach Market Soon', () => undefined, {
-      tone: 'quiet',
-      disabled: true,
+    createSpincoreButton('Fire Coach', onFireCoach, {
+      tone: coach.id === starterCoachId ? 'quiet' : 'danger',
+      disabled: coach.id === starterCoachId,
     }),
   )
   return panel
@@ -357,7 +602,9 @@ function createFinancePanel(
   const capNote = document.createElement('p')
   capNote.className = 'team-finance-note'
   capNote.textContent =
-    `${league.name} cap is active. Higher leagues and better sponsors will expand the room.`
+    finance.isOverCap
+      ? `${league.name} cap is active and the club is over cap. Cut salary or hire cheaper staff before entering lower-cap play.`
+      : `${league.name} cap is active. Higher leagues and better sponsors will expand the room.`
   const lines = document.createElement('div')
   lines.className = 'team-salary-list'
 
@@ -420,9 +667,8 @@ function createGearCabinetPanel(
       'Owned gear lives here. This is the first alternate path to equip without visiting the shop.',
   })
   const equipped = new Set(Object.values(save.equipment.equipped))
-  const inventory = [
-    ...new Set(save.equipment.inventory),
-  ]
+  const createdPlayerSlotId = getCreatedPlayerRosterSlot(save.player)
+  const inventory = getUniqueInventoryItemIds(save.equipment.inventory)
     .map((id) => getEquipmentItem(id))
     .filter((item): item is EquipmentItem => item !== null)
   const list = document.createElement('div')
@@ -438,6 +684,13 @@ function createGearCabinetPanel(
         createGearRow({
           item,
           equipped: equipped.has(item.id),
+          ownedCount: getInventoryItemCount(save.equipment.inventory, item.id),
+          assignedCount: getLoadoutAssignmentCount(save, item.id),
+          canEquip:
+            !equipped.has(item.id) &&
+            getAvailableLoadoutCopies(save, item.id, {
+              excludeSlotId: createdPlayerSlotId,
+            }) > 0,
           onEquip: () => onEquip(item),
         }),
       )
@@ -454,6 +707,9 @@ function createGearCabinetPanel(
 function createGearRow(options: {
   item: EquipmentItem
   equipped: boolean
+  ownedCount: number
+  assignedCount: number
+  canEquip: boolean
   onEquip: () => void
 }): HTMLElement {
   const { item } = options
@@ -474,15 +730,16 @@ function createGearRow(options: {
   name.textContent = item.name
   const meta = document.createElement('span')
   meta.textContent =
-    `${titleCase(item.type)} / ${titleCase(item.rarity)} / ${item.statBudget} pts`
+    `Own ${options.ownedCount}x / ${options.assignedCount} assigned / ` +
+    `${titleCase(item.type)} / ${titleCase(item.rarity)}`
   copy.append(name, meta)
   const action = createSpincoreButton(
-    options.equipped ? 'Equipped' : 'Equip',
+    options.equipped ? 'Equipped' : options.canEquip ? 'Equip' : 'No Copy',
     options.onEquip,
     {
-      tone: options.equipped ? 'quiet' : 'secondary',
+      tone: options.equipped || !options.canEquip ? 'quiet' : 'secondary',
       compact: true,
-      disabled: options.equipped,
+      disabled: options.equipped || !options.canEquip,
     },
   )
   row.append(icon, copy, action)
@@ -502,16 +759,14 @@ function createNewsPanel(
   })
   const feed = document.createElement('div')
   feed.className = 'team-news-feed'
-  const assignedItemIds = new Set(
-    teamRosterSlotIds.flatMap((slotId) =>
-      Object.values(getTeamRosterLoadout(save, slotId)).filter(
-        (id): id is string => Boolean(id),
-      ),
+  const assignedCopyCount = teamRosterSlotIds.flatMap((slotId) =>
+    Object.values(getTeamRosterLoadout(save, slotId)).filter(
+      (id): id is string => Boolean(id),
     ),
-  )
+  ).length
   const unequippedCount = Math.max(
     0,
-    new Set(save.equipment.inventory).size - assignedItemIds.size,
+    save.equipment.inventory.length - assignedCopyCount,
   )
   const entries = [
     {
@@ -529,7 +784,7 @@ function createNewsPanel(
     {
       tag: 'Roster Board',
       text:
-        'Free agents, player signings, salaries, and rival coach firings are queued for the next franchise pass.',
+        'Player and coach markets are live in prototype form. Rival transactions and coach firings come next.',
     },
   ]
 
@@ -578,22 +833,23 @@ function temporarySlot(
     rating,
     salary,
     status: 'Temp',
+    canManageLoadout: true,
+    canCut: false,
     tone: 'temporary',
   }
 }
 
-function openSlot(
-  role: string,
-  meta: string,
-): RosterSlotView {
+function openSlot(slotId: TeamRosterSlotId, meta: string): RosterSlotView {
   return {
-    slotId: null,
-    role,
+    slotId,
+    role: slotIdLabel(slotId),
     name: 'Open Slot',
     meta,
     rating: null,
     salary: null,
     status: 'Open',
+    canManageLoadout: false,
+    canCut: false,
     tone: 'open',
   }
 }
@@ -616,6 +872,31 @@ function createRosterSlotView(
       ),
       salary: salaryFor(finance, slotId),
       status: 'Signed',
+      canManageLoadout: true,
+      canCut: false,
+      tone: 'active',
+    }
+  }
+
+  if (profile.isOpen) {
+    return openSlot(slotId, profile.meta)
+  }
+
+  if (profile.isSignedPlayer) {
+    const signedPlayer = getSignedRosterPlayer(save, slotId)
+
+    return {
+      slotId,
+      role: profile.roleLabel,
+      name: profile.name,
+      meta: profile.meta,
+      rating: signedPlayer
+        ? overallFromAttributes(signedPlayer.attributes)
+        : null,
+      salary: salaryFor(finance, slotId),
+      status: 'Signed',
+      canManageLoadout: true,
+      canCut: canCutRosterSlot(save, slotId),
       tone: 'active',
     }
   }
@@ -673,6 +954,12 @@ function attributeOverall(values: number[]): number {
   return Math.min(99, Math.max(1, average(values) * 4))
 }
 
+function overallFromAttributes(
+  attributes: Record<string, number>,
+): number {
+  return attributeOverall(Object.values(attributes))
+}
+
 function salaryFor(
   finance: TeamFinanceSnapshot,
   id: string,
@@ -693,6 +980,19 @@ function calculateTemporaryRosterRating(
   )
 
   return Math.min(95, 58 + Math.round(positiveBoost / 2))
+}
+
+function slotIdLabel(slotId: TeamRosterSlotId): string {
+  switch (slotId) {
+    case 'a-keeper':
+      return 'Keeper'
+    case 'a-support':
+      return 'Support'
+    case 'a-striker':
+      return 'Striker'
+    case 'bench':
+      return 'Bench'
+  }
 }
 
 function createNameField(

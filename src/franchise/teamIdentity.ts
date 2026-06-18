@@ -2,6 +2,7 @@ import {
   starterCoachId,
 } from './coachCatalog.ts'
 import {
+  createDefaultRosterAssignments,
   createDefaultRosterLoadouts,
 } from './teamRoster.ts'
 import type {
@@ -37,6 +38,7 @@ export function createDefaultTeamIdentity(
     },
     sponsorId: null,
     coachId: starterCoachId,
+    rosterAssignments: createDefaultRosterAssignments(),
     rosterLoadouts: createDefaultRosterLoadouts(),
   }
 }

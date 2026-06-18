@@ -1,6 +1,8 @@
 import { equipmentCatalog } from '../equipment/equipmentCatalog.ts'
+import { getInventoryItemCount } from '../equipment/equipmentInventory.ts'
 import { getEffectivePlayerAttributes } from '../equipment/equipmentEffects.ts'
-import { playerArchetypes } from '../game/data/playerArchetypes.ts'
+import { getFreeAgent } from '../franchise/freeAgentCatalog.ts'
+import { getTeamRosterReadiness } from '../franchise/teamRoster.ts'
 import type { PlayerRosterEntry } from '../game/data/matchTypes.ts'
 import { mapCreatedPlayerAttributesToMatchAttributes } from '../player/playerAttributeAdapter.ts'
 import { defaultPlayerCosmetics } from '../player/playerCosmetics.ts'
@@ -14,6 +16,7 @@ import {
   type CreatedPlayerAttributes,
   type PlayerAttributeKey,
 } from '../save/saveTypes.ts'
+import { validateSave } from '../save/saveValidation.ts'
 import { applyMatchRosterOverrides } from './buildRosterFromSave.ts'
 
 const baseline = attributes()
@@ -52,15 +55,37 @@ const beforeGear = getEffectivePlayerAttributes(save)
 save.equipment.inventory.push(
   'quick-whip',
   'apex-runners',
+  'apex-runners',
   'crash-padding',
   'spin-sling',
 )
 save.equipment.equipped.stickId = 'quick-whip'
 save.equipment.equipped.shoesId = 'apex-runners'
 save.equipment.equipped.armorId = 'crash-padding'
+save.team.rosterAssignments['a-support'] = 'miko-banks'
 save.team.rosterLoadouts['a-support'].equipment.stickId = 'spin-sling'
 save.team.rosterLoadouts['a-support'].equipment.shoesId = 'apex-runners'
 const afterGear = getEffectivePlayerAttributes(save)
+const incompleteReadiness = getTeamRosterReadiness(save)
+
+assertEqual(
+  incompleteReadiness.ready,
+  false,
+  'lineup should not be match-ready without a signed keeper',
+)
+assertEqual(
+  incompleteReadiness.missingActiveSlotIds.includes('a-keeper'),
+  true,
+  'lineup readiness should identify the missing keeper',
+)
+
+save.team.rosterAssignments['a-keeper'] = 'rhea-stone'
+
+assertEqual(
+  getTeamRosterReadiness(save).ready,
+  true,
+  'lineup should be match-ready once all active slots are filled',
+)
 
 assertGreater(
   afterGear.speed,
@@ -104,6 +129,33 @@ assertEqual(
   'endgame shot power should reach effective cap',
 )
 
+const duplicateInventorySave = createNewSave(
+  createCreatedPlayer({
+    name: 'Copy Tester',
+    jerseyNumber: 12,
+    handedness: 'right',
+    archetype: 'support',
+    cosmetics: defaultPlayerCosmetics,
+    attributes: baseline,
+    selectedStickId: 'balanced-cesta',
+  }),
+)
+duplicateInventorySave.equipment.inventory.push('balanced-cesta')
+const validatedDuplicateInventory = validateSave(duplicateInventorySave)
+
+if (!validatedDuplicateInventory) {
+  throw new Error('duplicate inventory save failed validation')
+}
+
+assertEqual(
+  getInventoryItemCount(
+    validatedDuplicateInventory.equipment.inventory,
+    'balanced-cesta',
+  ),
+  2,
+  'duplicate inventory copies should survive validation',
+)
+
 const teamA = createTeamARoster()
 const teamB: PlayerRosterEntry[] = []
 const overrides = applyMatchRosterOverrides(
@@ -114,6 +166,8 @@ const overrides = applyMatchRosterOverrides(
 )
 const createdPlayerRuntime = overrides.archetypes.get('a-striker')
 const supportRuntime = overrides.archetypes.get('a-support')
+const supportEntry = teamA.find((entry) => entry.id === 'a-support')
+const signedSupport = getFreeAgent('miko-banks')
 
 if (!createdPlayerRuntime) {
   throw new Error('created player runtime archetype was not applied')
@@ -123,10 +177,24 @@ if (!supportRuntime) {
   throw new Error('teammate runtime archetype was not applied')
 }
 
+if (!signedSupport) {
+  throw new Error('signed support free agent missing from catalog')
+}
+
 assertEqual(
   teamA.find((entry) => entry.id === 'a-striker')?.controllerType,
   'human',
   'created player should control the matching roster slot',
+)
+assertEqual(
+  supportEntry?.displayName,
+  'Miko Banks',
+  'signed free agent should replace the live teammate identity',
+)
+assertEqual(
+  supportEntry?.handedness,
+  'left',
+  'signed free agent handedness should reach the live roster',
 )
 assertGreater(
   createdPlayerRuntime.attributes.speed,
@@ -145,11 +213,16 @@ assertGreater(
 )
 assertGreater(
   supportRuntime.attributes.speed,
-  playerArchetypes.support.attributes.speed,
-  'teammate shoes should affect the live match archetype',
+  mapCreatedPlayerAttributesToMatchAttributes(signedSupport.attributes).speed,
+  'signed teammate shoes should affect the live match archetype',
+)
+assertGreater(
+  supportRuntime.attributes.passing,
+  neutral.passing,
+  'signed teammate attributes should affect the live match archetype',
 )
 assertEqual(
-  teamA.find((entry) => entry.id === 'a-support')?.stickStyle,
+  supportEntry?.stickStyle,
   'fork',
   'teammate stick assignment should reach the live roster',
 )
@@ -166,7 +239,7 @@ for (const itemId of [
   }
 }
 
-console.info('Attribute gameplay bridge cases passed: 16')
+console.info('Attribute gameplay bridge cases passed: 23')
 
 function attributes(value = playerAttributeDefault): CreatedPlayerAttributes {
   const result = {} as CreatedPlayerAttributes

@@ -2,11 +2,15 @@ import { getEffectivePlayerAttributes } from '../equipment/equipmentEffects'
 import type { Coach } from './coachCatalog'
 import {
   getCreatedPlayerRosterSlot,
+  getSignedRosterPlayer,
   getTeamRosterSlotProfile,
 } from './teamRoster'
 import type { League } from '../league/leagueTypes'
 import type { SaveGame, TeamRosterSlotId } from '../save/saveTypes'
-import { teamRosterSlotIds } from '../save/saveTypes'
+import {
+  activeTeamRosterSlotIds,
+  teamRosterSlotIds,
+} from '../save/saveTypes'
 
 export type SalaryLine = {
   id: string
@@ -24,6 +28,7 @@ export type TeamFinanceSnapshot = {
   capRoom: number
   salaryLines: SalaryLine[]
   sponsorName: string
+  isOverCap: boolean
 }
 
 const leagueSalaryCaps: Record<string, number> = {
@@ -73,6 +78,7 @@ export function getTeamFinance(
     capRoom: salaryCap - payroll,
     salaryLines,
     sponsorName: sponsor?.name ?? 'No Sponsor',
+    isOverCap: payroll > salaryCap,
   }
 }
 
@@ -90,12 +96,19 @@ function createSalaryLines(save: SaveGame, coach: Coach): SalaryLine[] {
     }
 
     const profile = getTeamRosterSlotProfile(save, slotId)
+    const signedPlayer = getSignedRosterPlayer(save, slotId)
+    const isActiveSlot = activeTeamRosterSlotIds.some(
+      (activeSlotId) => activeSlotId === slotId,
+    )
+
     return {
       id: slotId,
       label: profile.name,
       role: profile.role,
-      salary: temporaryRosterSalary(slotId),
-      committed: true,
+      salary:
+        signedPlayer?.salary ??
+        (isActiveSlot ? temporaryRosterSalary(slotId) : 0),
+      committed: Boolean(signedPlayer) || isActiveSlot,
     }
   })
 

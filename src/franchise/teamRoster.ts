@@ -1,7 +1,14 @@
 import {
   getEquipmentItem,
 } from '../equipment/equipmentCatalog.ts'
+import {
+  getInventoryItemCount,
+} from '../equipment/equipmentInventory.ts'
 import { getStickType } from '../equipment/stickTypes.ts'
+import {
+  getFreeAgent,
+  type FreeAgent,
+} from './freeAgentCatalog.ts'
 import type {
   EquipmentItem,
 } from '../equipment/equipmentTypes'
@@ -16,9 +23,11 @@ import type {
   SaveGame,
   TeamRosterLoadout,
   TeamRosterLoadouts,
+  TeamRosterAssignments,
   TeamRosterSlotId,
 } from '../save/saveTypes'
 import {
+  activeTeamRosterSlotIds,
   equipmentSlotKeys,
   playerAttributeDefault,
   playerAttributeKeys,
@@ -34,6 +43,18 @@ export type TeamRosterSlotProfile = {
   name: string
   meta: string
   isCreatedPlayer: boolean
+  isSignedPlayer: boolean
+  isOpen: boolean
+  signedPlayerId: string | null
+}
+
+export type TeamRosterReadiness = {
+  ready: boolean
+  activePlayerCount: number
+  requiredActivePlayerCount: number
+  missingActiveSlotIds: TeamRosterSlotId[]
+  missingActiveSlotLabels: string[]
+  message: string
 }
 
 export function createEmptyRosterLoadout(): TeamRosterLoadout {
@@ -52,6 +73,13 @@ export function createDefaultRosterLoadouts(): TeamRosterLoadouts {
     loadouts[slotId] = createEmptyRosterLoadout()
     return loadouts
   }, {} as TeamRosterLoadouts)
+}
+
+export function createDefaultRosterAssignments(): TeamRosterAssignments {
+  return teamRosterSlotIds.reduce((assignments, slotId) => {
+    assignments[slotId] = null
+    return assignments
+  }, {} as TeamRosterAssignments)
 }
 
 export function getCreatedPlayerRosterSlot(
@@ -89,6 +117,7 @@ export function getTeamRosterSlotProfile(
   slotId: TeamRosterSlotId,
 ): TeamRosterSlotProfile {
   const createdPlayerSlotId = getCreatedPlayerRosterSlot(save.player)
+  const signedPlayer = getSignedRosterPlayer(save, slotId)
 
   if (slotId === createdPlayerSlotId) {
     return {
@@ -104,6 +133,40 @@ export function getTeamRosterSlotProfile(
         `${titleCase(save.player.archetype)} / ` +
         `${titleCase(save.player.handedness)} handed`,
       isCreatedPlayer: true,
+      isSignedPlayer: false,
+      isOpen: false,
+      signedPlayerId: null,
+    }
+  }
+
+  if (signedPlayer) {
+    return {
+      slotId,
+      role: signedPlayer.role,
+      roleLabel: rosterRoleLabel(slotId, signedPlayer.role),
+      name: signedPlayer.name,
+      meta:
+        `#${signedPlayer.jerseyNumber} / ` +
+        `${titleCase(signedPlayer.playStyle)} / ` +
+        `${titleCase(signedPlayer.handedness)} handed`,
+      isCreatedPlayer: false,
+      isSignedPlayer: true,
+      isOpen: false,
+      signedPlayerId: signedPlayer.id,
+    }
+  }
+
+  if (slotId === 'bench') {
+    return {
+      slotId,
+      role: 'support',
+      roleLabel: 'Bench',
+      name: 'Open Bench',
+      meta: 'Optional reserve slot. Bench players do not enter 3v3 matches yet.',
+      isCreatedPlayer: false,
+      isSignedPlayer: false,
+      isOpen: true,
+      signedPlayerId: null,
     }
   }
 
@@ -116,6 +179,9 @@ export function getTeamRosterSlotProfile(
         name: 'House Keeper',
         meta: 'AI keeper until keeper signings exist.',
         isCreatedPlayer: false,
+        isSignedPlayer: false,
+        isOpen: false,
+        signedPlayerId: null,
       }
     case 'a-support':
       return {
@@ -125,6 +191,9 @@ export function getTeamRosterSlotProfile(
         name: 'House Support',
         meta: 'AI support slot until the free-agent pool lands.',
         isCreatedPlayer: false,
+        isSignedPlayer: false,
+        isOpen: false,
+        signedPlayerId: null,
       }
     case 'a-striker':
       return {
@@ -134,8 +203,107 @@ export function getTeamRosterSlotProfile(
         name: 'House Striker',
         meta: 'AI scoring slot until field signings exist.',
         isCreatedPlayer: false,
+        isSignedPlayer: false,
+        isOpen: false,
+        signedPlayerId: null,
       }
   }
+}
+
+export function getSignedRosterPlayer(
+  save: SaveGame,
+  slotId: TeamRosterSlotId,
+): FreeAgent | null {
+  return getFreeAgent(save.team.rosterAssignments[slotId])
+}
+
+export function getSignedRosterSlotIds(save: SaveGame): TeamRosterSlotId[] {
+  return teamRosterSlotIds.filter((slotId) =>
+    Boolean(getSignedRosterPlayer(save, slotId)),
+  )
+}
+
+export function isFreeAgentSigned(
+  save: SaveGame,
+  agentId: string,
+): boolean {
+  return teamRosterSlotIds.some(
+    (slotId) => save.team.rosterAssignments[slotId] === agentId,
+  )
+}
+
+export function getFirstAvailableRosterSlotForFreeAgent(
+  save: SaveGame,
+  agent: FreeAgent,
+): TeamRosterSlotId | null {
+  const createdPlayerSlotId = getCreatedPlayerRosterSlot(save.player)
+
+  if (
+    agent.role === 'keeper' &&
+    createdPlayerSlotId !== 'a-keeper' &&
+    !save.team.rosterAssignments['a-keeper']
+  ) {
+    return 'a-keeper'
+  }
+
+  if (agent.role !== 'keeper') {
+    for (const slotId of activeTeamRosterSlotIds) {
+      if (
+        slotId !== 'a-keeper' &&
+        slotId !== createdPlayerSlotId &&
+        !save.team.rosterAssignments[slotId]
+      ) {
+        return slotId
+      }
+    }
+  }
+
+  if (!save.team.rosterAssignments.bench) {
+    return 'bench'
+  }
+
+  return null
+}
+
+export function canCutRosterSlot(
+  save: SaveGame,
+  slotId: TeamRosterSlotId,
+): boolean {
+  return (
+    slotId !== getCreatedPlayerRosterSlot(save.player) &&
+    Boolean(getSignedRosterPlayer(save, slotId))
+  )
+}
+
+export function getTeamRosterReadiness(
+  save: SaveGame,
+): TeamRosterReadiness {
+  const createdPlayerSlotId = getCreatedPlayerRosterSlot(save.player)
+  const missingActiveSlotIds = activeTeamRosterSlotIds.filter(
+    (slotId) =>
+      slotId !== createdPlayerSlotId &&
+      !getSignedRosterPlayer(save, slotId),
+  )
+  const missingActiveSlotLabels = missingActiveSlotIds.map(
+    readinessSlotLabel,
+  )
+  const ready = missingActiveSlotIds.length === 0
+
+  return {
+    ready,
+    activePlayerCount:
+      activeTeamRosterSlotIds.length - missingActiveSlotIds.length,
+    requiredActivePlayerCount: activeTeamRosterSlotIds.length,
+    missingActiveSlotIds,
+    missingActiveSlotLabels,
+    message: ready
+      ? 'Starting lineup ready.'
+      : `Sign ${formatList(missingActiveSlotLabels)} before playing.`,
+  }
+}
+
+export function getActiveRosterSlotIds(): readonly TeamRosterSlotId[] {
+  return activeTeamRosterSlotIds
 }
 
 export function getLoadoutItemIds(
@@ -206,13 +374,42 @@ export function findLoadoutOwner(
   save: SaveGame,
   itemId: string,
 ): TeamRosterSlotId | null {
-  for (const slotId of teamRosterSlotIds) {
-    if (getLoadoutItemIds(getTeamRosterLoadout(save, slotId)).includes(itemId)) {
-      return slotId
-    }
-  }
+  return getLoadoutOwners(save, itemId)[0] ?? null
+}
 
-  return null
+export function getLoadoutOwners(
+  save: SaveGame,
+  itemId: string,
+): TeamRosterSlotId[] {
+  return teamRosterSlotIds.filter((slotId) =>
+    getLoadoutItemIds(getTeamRosterLoadout(save, slotId)).includes(itemId),
+  )
+}
+
+export function getLoadoutAssignmentCount(
+  save: SaveGame,
+  itemId: string,
+  options?: {
+    excludeSlotId?: TeamRosterSlotId
+  },
+): number {
+  return getLoadoutOwners(save, itemId).filter(
+    (slotId) => slotId !== options?.excludeSlotId,
+  ).length
+}
+
+export function getAvailableLoadoutCopies(
+  save: SaveGame,
+  itemId: string,
+  options?: {
+    excludeSlotId?: TeamRosterSlotId
+  },
+): number {
+  return Math.max(
+    0,
+    getInventoryItemCount(save.equipment.inventory, itemId) -
+      getLoadoutAssignmentCount(save, itemId, options),
+  )
 }
 
 function addModifiers(
@@ -236,4 +433,48 @@ function titleCase(value: string): string {
   return value
     .replace(/([a-z])([A-Z])/g, '$1 $2')
     .replace(/^./, (character) => character.toUpperCase())
+}
+
+function rosterRoleLabel(
+  slotId: TeamRosterSlotId,
+  role: PlayerRole,
+): string {
+  if (slotId === 'bench') {
+    return 'Bench'
+  }
+
+  if (role === 'keeper') {
+    return 'Keeper'
+  }
+
+  if (role === 'brute') {
+    return 'Power Fielder'
+  }
+
+  return role === 'striker' ? 'Lead Fielder' : 'Support Fielder'
+}
+
+function readinessSlotLabel(slotId: TeamRosterSlotId): string {
+  switch (slotId) {
+    case 'a-keeper':
+      return 'a keeper'
+    case 'a-support':
+      return 'a support fielder'
+    case 'a-striker':
+      return 'a lead fielder'
+    case 'bench':
+      return 'a bench player'
+  }
+}
+
+function formatList(values: string[]): string {
+  if (values.length <= 1) {
+    return values[0] ?? 'a starter'
+  }
+
+  if (values.length === 2) {
+    return `${values[0]} and ${values[1]}`
+  }
+
+  return `${values.slice(0, -1).join(', ')}, and ${values.at(-1)}`
 }

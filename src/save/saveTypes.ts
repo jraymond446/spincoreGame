@@ -139,9 +139,19 @@ export const teamRosterSlotIds = [
   'a-keeper',
   'a-support',
   'a-striker',
+  'bench',
 ] as const
 
 export type TeamRosterSlotId = (typeof teamRosterSlotIds)[number]
+
+export const activeTeamRosterSlotIds = [
+  'a-keeper',
+  'a-support',
+  'a-striker',
+] as const
+
+export type ActiveTeamRosterSlotId =
+  (typeof activeTeamRosterSlotIds)[number]
 
 export type TeamRosterLoadout = {
   equipment: Record<EquipmentSlot, string | null>
@@ -150,6 +160,11 @@ export type TeamRosterLoadout = {
 export type TeamRosterLoadouts = Record<
   TeamRosterSlotId,
   TeamRosterLoadout
+>
+
+export type TeamRosterAssignments = Record<
+  TeamRosterSlotId,
+  string | null
 >
 
 export const teamColorKeys = [
@@ -174,6 +189,7 @@ export type TeamIdentity = {
   }
   sponsorId: string | null
   coachId: string | null
+  rosterAssignments: TeamRosterAssignments
   rosterLoadouts: TeamRosterLoadouts
 }
 

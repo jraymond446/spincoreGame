@@ -1,5 +1,12 @@
 import type { EquipmentItem } from '../equipment/equipmentTypes'
 import { equipmentRarityInfo } from '../equipment/equipmentTypes'
+import {
+  getInventoryItemCount,
+} from '../equipment/equipmentInventory'
+import {
+  getAvailableLoadoutCopies,
+  getCreatedPlayerRosterSlot,
+} from '../franchise/teamRoster'
 import type { SaveGame } from '../save/saveTypes'
 import { createSpincoreBadge } from './SpincoreBadge'
 import { createSpincoreButton } from './SpincoreButton'
@@ -84,26 +91,77 @@ export function createSpincoreEquipmentCard(options: {
     modifiers.appendChild(hint)
   }
 
-  const owned = save.equipment.inventory.includes(item.id)
+  const ownedCount = getInventoryItemCount(save.equipment.inventory, item.id)
+  const owned = ownedCount > 0
   const equipped = Object.values(save.equipment.equipped).includes(item.id)
+  const canAfford = save.wallet.money >= item.price
+  const canBuyCopy = canAfford && (!item.ultraUnique || !owned)
+  const canEquip =
+    owned &&
+    !equipped &&
+    getAvailableLoadoutCopies(save, item.id, {
+      excludeSlotId: getCreatedPlayerRosterSlot(save.player),
+    }) > 0
   const footer = document.createElement('div')
   footer.className = 'store-item-footer'
+  const priceBlock = document.createElement('div')
+  priceBlock.className = 'store-price-block'
   const price = document.createElement('strong')
-  price.textContent = item.price === 0 ? 'ISSUED' : `$${item.price}`
-  const action = owned
-    ? createSpincoreButton(
-        equipped ? 'Equipped' : 'Equip',
+  price.className = `store-price ${
+    owned ? 'is-owned' : canAfford ? 'is-affordable' : 'is-unaffordable'
+  }`
+  price.textContent = owned
+    ? `Own ${ownedCount}x`
+    : priceLabel(item.price)
+  priceBlock.appendChild(price)
+
+  if (owned) {
+    const copyPrice = document.createElement('span')
+    copyPrice.className =
+      `store-copy-price ${canAfford ? 'is-affordable' : 'is-unaffordable'}`
+    copyPrice.textContent = item.ultraUnique
+      ? 'Unique item'
+      : `Copy ${priceLabel(item.price)}`
+    priceBlock.appendChild(copyPrice)
+  }
+
+  const actions = document.createElement('div')
+  actions.className = 'store-item-actions'
+
+  if (owned) {
+    actions.appendChild(
+      createSpincoreButton(
+        equipped ? 'Equipped' : canEquip ? 'Equip' : 'No Copy',
         options.onEquip,
         {
-          tone: equipped ? 'quiet' : 'secondary',
-          disabled: equipped,
+          tone: equipped || !canEquip ? 'quiet' : 'secondary',
+          compact: true,
+          disabled: equipped || !canEquip,
         },
-      )
-    : createSpincoreButton('Buy', options.onBuy, {
-        tone: 'primary',
-        disabled: save.wallet.money < item.price,
-      })
-  footer.append(price, action)
+      ),
+    )
+  }
+
+  actions.appendChild(
+    createSpincoreButton(
+      owned
+        ? item.ultraUnique
+          ? 'Unique'
+          : item.price === 0
+            ? 'Claim Copy'
+            : 'Buy Copy'
+        : item.price === 0
+          ? 'Claim'
+          : 'Buy',
+      options.onBuy,
+      {
+        tone: canBuyCopy ? 'primary' : 'quiet',
+        compact: owned,
+        disabled: !canBuyCopy,
+      },
+    ),
+  )
+  footer.append(priceBlock, actions)
   card.append(meta, icon, name, description, modifiers, footer)
   return card
 }
@@ -131,4 +189,8 @@ function titleCase(value: string): string {
   return value
     .replace(/([a-z])([A-Z])/g, '$1 $2')
     .replace(/^./, (character) => character.toUpperCase())
+}
+
+function priceLabel(price: number): string {
+  return price === 0 ? 'Free' : `$${price}`
 }
