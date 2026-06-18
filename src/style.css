@@ -4464,7 +4464,7 @@ button.spincore-stick-card:hover {
     left: auto;
     width: auto;
     min-width: 0;
-    height: 48px;
+    height: 38px;
     margin: 0;
   }
 
@@ -4481,31 +4481,32 @@ button.spincore-stick-card:hover {
     left: auto;
     min-width: 0;
     width: 100%;
-    grid-template-columns: 38px minmax(0, 1fr) 32px;
-    border-width: 3px;
-    border-radius: 8px;
+    grid-template-columns: 30px minmax(0, 1fr) 24px;
+    border-width: 2px;
+    border-radius: 7px;
     box-shadow:
-      0 3px 0 #082448,
-      0 0 0 2px rgba(255, 217, 131, 0.8);
+      0 2px 0 #082448,
+      0 0 0 1px rgba(255, 217, 131, 0.78);
     transform: none;
   }
 
   .world-map-plaque strong {
-    height: 38px;
-    font-size: 20px;
+    height: 30px;
+    font-size: 16px;
   }
 
   .world-map-plaque span {
-    padding: 0 8px;
-    font-size: 13px;
+    padding: 0 5px;
+    font-size: 11px;
     letter-spacing: -0.055em;
   }
 
   .world-map-plaque small {
-    width: 26px;
-    height: 26px;
+    width: 20px;
+    height: 20px;
     border-width: 2px;
-    font-size: 8px;
+    border-radius: 5px;
+    font-size: 7px;
   }
 
   .world-map-location em {
@@ -4514,44 +4515,44 @@ button.spincore-stick-card:hover {
 
   .world-map-location.is-arena {
     top: 13%;
-    left: calc(50% - 92px);
-    width: 184px;
-    height: 48px;
+    left: calc(50% - 72px);
+    width: 144px;
+    height: 38px;
   }
 
   .world-map-location.is-player-room {
     top: 36%;
-    left: 14px;
-    width: calc(50% - 20px);
-    height: 48px;
+    left: 18px;
+    width: calc(50% - 36px);
+    height: 38px;
   }
 
   .world-map-location.is-league-office {
     top: 36%;
-    right: 14px;
-    width: calc(50% - 20px);
-    height: 48px;
+    right: 18px;
+    width: calc(50% - 36px);
+    height: 38px;
   }
 
   .world-map-location.is-team-office {
     top: 68%;
-    left: 14px;
-    width: calc(50% - 20px);
-    height: 48px;
+    left: 18px;
+    width: calc(50% - 36px);
+    height: 38px;
   }
 
   .world-map-location.is-store-row {
     top: 68%;
-    right: 14px;
-    width: calc(50% - 20px);
-    height: 48px;
+    right: 18px;
+    width: calc(50% - 36px);
+    height: 38px;
   }
 
   .world-map-hud {
     position: absolute;
-    right: 12px;
-    bottom: 12px;
-    left: 12px;
+    right: 30px;
+    bottom: 14px;
+    left: 30px;
     width: auto;
     grid-template-columns: 1fr;
     justify-items: center;
@@ -4569,8 +4570,17 @@ button.spincore-stick-card:hover {
 
   .world-map-next-card {
     width: 100%;
-    border-radius: 9px;
-    padding: 10px 12px;
+    gap: 4px;
+    border-width: 3px;
+    border-radius: 8px;
+    padding: 7px 9px 8px;
+    box-shadow:
+      0 3px 0 rgba(18, 54, 89, 0.45),
+      0 10px 18px rgba(6, 31, 62, 0.18);
+  }
+
+  .world-map-next-card > strong {
+    font-size: 13px;
   }
 
   .world-map-next-card > span {
@@ -4578,16 +4588,35 @@ button.spincore-stick-card:hover {
   }
 
   .world-map-matchup {
-    grid-template-columns: 42px 24px 42px;
+    grid-template-columns: 32px 20px 32px;
+    gap: 5px;
+  }
+
+  .world-map-matchup > b {
+    font-size: 10px;
   }
 
   .world-map-mini-crest {
-    width: 40px;
-    height: 43px;
+    width: 30px;
+    height: 32px;
+    border-width: 2px;
+    box-shadow:
+      inset 0 0 0 3px rgba(6, 31, 62, 0.3),
+      0 2px 0 rgba(6, 31, 62, 0.38);
+    font-size: 8px;
   }
 
   .world-map-next-actions {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 5px;
+  }
+
+  .world-map-next-actions .app-button {
+    min-height: 34px;
+    border-width: 2px;
+    padding: 0 9px;
+    box-shadow: 0 3px 0 #091f38;
+    font-size: 10px;
   }
 
   .world-map-reward-toast {
