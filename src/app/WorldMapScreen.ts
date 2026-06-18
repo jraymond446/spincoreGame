@@ -258,7 +258,14 @@ function createBottomHud(options: {
       compact: true,
     },
   )
-  next.appendChild(play)
+  const status = createSpincoreButton('Status', options.onStatus, {
+    tone: 'quiet',
+    compact: true,
+  })
+  const nextActions = document.createElement('div')
+  nextActions.className = 'world-map-next-actions'
+  nextActions.append(play, status)
+  next.appendChild(nextActions)
 
   hud.append(compass, tagline, controls, next)
   return hud

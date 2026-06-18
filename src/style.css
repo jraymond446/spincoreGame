@@ -1784,22 +1784,21 @@ body {
 
 .world-map-hud {
   position: absolute;
-  right: 0;
-  bottom: 0;
-  left: 0;
+  right: 22px;
+  bottom: 22px;
+  left: auto;
   z-index: 17;
   display: grid;
-  grid-template-columns: 126px minmax(230px, 1fr) minmax(300px, 0.95fr) 286px;
+  grid-template-columns: minmax(220px, 286px);
   align-items: center;
-  gap: 22px;
-  min-height: 126px;
+  gap: 0;
+  min-height: 0;
+  width: min(286px, 31%);
   box-sizing: border-box;
-  padding: 14px 22px 16px;
+  padding: 0;
   color: #fff8df;
-  background:
-    linear-gradient(115deg, rgba(255, 248, 223, 0.18) 0 9%, transparent 9.2% 36%, rgba(255, 248, 223, 0.14) 36.2% 37%, transparent 37.2%),
-    linear-gradient(180deg, rgba(6, 31, 62, 0.96), #06152c);
-  box-shadow: 0 -5px 0 rgba(6, 31, 62, 0.72);
+  background: transparent;
+  box-shadow: none;
   pointer-events: none;
 }
 
@@ -1808,8 +1807,8 @@ body {
 }
 
 .world-map-compass {
+  display: none;
   position: relative;
-  display: grid;
   width: 96px;
   height: 96px;
   place-items: center;
@@ -1841,7 +1840,7 @@ body {
 }
 
 .world-map-tagline {
-  display: grid;
+  display: none;
   gap: 2px;
   align-content: center;
   font-style: italic;
@@ -1855,7 +1854,7 @@ body {
 }
 
 .world-map-controls {
-  display: flex;
+  display: none;
   flex-wrap: wrap;
   align-items: center;
   justify-content: center;
@@ -1889,16 +1888,19 @@ body {
   display: grid;
   justify-items: center;
   gap: 7px;
-  align-self: stretch;
+  align-self: auto;
   box-sizing: border-box;
   border: 4px solid #123659;
-  border-radius: 9px 0 0 9px;
+  border-radius: 9px;
   padding: 13px 16px 12px;
   color: var(--world-navy);
   background:
     radial-gradient(circle at 8% 15%, rgba(22, 50, 79, 0.09) 0 2px, transparent 3px),
-    #fff8df;
-  box-shadow: 0 5px 0 rgba(0, 0, 0, 0.22);
+    rgba(255, 248, 223, 0.94);
+  box-shadow:
+    0 5px 0 rgba(18, 54, 89, 0.45),
+    0 16px 26px rgba(6, 31, 62, 0.22);
+  pointer-events: auto;
   text-align: center;
 }
 
@@ -1915,6 +1917,17 @@ body {
   font-size: 10px;
   font-weight: 850;
   line-height: 1.25;
+}
+
+.world-map-next-actions {
+  display: grid;
+  width: 100%;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.world-map-next-actions .app-button {
+  min-width: 0;
 }
 
 .world-map-matchup {
@@ -4287,24 +4300,25 @@ button.spincore-stick-card:hover {
   }
 
   .world-map-hud {
-    grid-template-columns: 76px minmax(0, 1fr) 250px;
-    gap: 12px;
-    min-height: 118px;
-    padding: 10px 16px 12px;
+    right: 16px;
+    bottom: 16px;
+    width: min(250px, 32%);
+    grid-template-columns: 1fr;
+    gap: 0;
+    min-height: 0;
+    padding: 0;
   }
 
   .world-map-compass {
-    width: 72px;
-    height: 72px;
+    display: none;
   }
 
   .world-map-controls {
     display: none;
   }
 
-  .world-map-tagline strong,
-  .world-map-tagline span {
-    font-size: 19px;
+  .world-map-tagline {
+    display: none;
   }
 
   .world-map-next-card {
@@ -4423,6 +4437,9 @@ button.spincore-stick-card:hover {
 
   .world-map-hud {
     position: absolute;
+    right: 12px;
+    bottom: 12px;
+    width: min(220px, 42%);
     grid-template-columns: 1fr;
     justify-items: center;
     min-height: 0;

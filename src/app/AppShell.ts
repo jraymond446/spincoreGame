@@ -478,13 +478,7 @@ export class AppShell {
       createMatchResultsScreen({
         result,
         player: save.player,
-        onContinue: () => {
-          if (result.mode === 'league') {
-            this.renderLeagueHub()
-          } else {
-            this.renderWorldMap()
-          }
-        },
+        onContinue: () => this.renderWorldMap(),
         onRematch: () => {
           this.selectedOpponentId = result.opponentTeamId
           this.startMatch(launch.mode, result.opponentTeamId)

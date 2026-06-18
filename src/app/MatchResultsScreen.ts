@@ -132,7 +132,7 @@ export function createMatchResultsScreen(options: {
   const actions = document.createElement('div')
   actions.className = 'app-screen-actions results-actions'
   actions.append(
-    createSpincoreButton('Main Menu', options.onMainMenu, {
+    createSpincoreButton('World Map', options.onMainMenu, {
       tone: 'quiet',
     }),
     createSpincoreButton('Player Profile', options.onPlayerProfile, {
