@@ -107,11 +107,19 @@ function createMapCanvas(options: {
   const canvas = document.createElement('div')
   canvas.className = 'world-map-canvas'
 
+  const artFrame = document.createElement('picture')
+  artFrame.className = 'world-map-art-frame'
+
+  const mobileArt = document.createElement('source')
+  mobileArt.media = '(max-width: 620px)'
+  mobileArt.srcset = '/assets/world-map/world_map_background_mobile.png'
+
   const art = document.createElement('img')
   art.className = 'world-map-art'
   art.src = '/assets/world-map/world_map_background.png'
   art.alt = ''
   art.decoding = 'async'
+  artFrame.append(mobileArt, art)
 
   const destinations: WorldMapDestination[] = [
     {
@@ -156,7 +164,7 @@ function createMapCanvas(options: {
     },
   ]
 
-  canvas.appendChild(art)
+  canvas.appendChild(artFrame)
 
   if (options.rewardNotice) {
     canvas.appendChild(createRewardToast(options.rewardNotice))
