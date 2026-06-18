@@ -9,12 +9,13 @@ import {
 import type { EquipmentItem } from '../equipment/equipmentTypes'
 import {
   getCoach,
-  starterCoachId,
+  getOptionalCoach,
 } from '../franchise/coachCatalog'
 import { getFreeAgent } from '../franchise/freeAgentCatalog'
 import { getTeamFinance } from '../franchise/teamFinance'
 import { opponentTeams } from '../game/data/opponentTeams'
 import { defaultLeagues } from '../league/defaultLeagues'
+import { buildLeagueStandings } from '../league/leagueStandings'
 import {
   createMatchResult,
   type MatchResult,
@@ -273,6 +274,7 @@ export class AppShell {
         league,
         nextOpponent,
         matchReadiness: getTeamRosterReadiness(save),
+        standings: buildLeagueStandings(league, save),
         onBack: () => this.renderMainMenu(),
         onTeam: () => this.renderTeamManagement(),
         onPlayNext: () => {
@@ -507,7 +509,7 @@ export class AppShell {
       return
     }
 
-    const coach = getCoach(save.team.coachId ?? starterCoachId)
+    const coach = getOptionalCoach(save.team.coachId)
     const finance = getTeamFinance(save, league, coach)
     const replacedSalary =
       finance.salaryLines.find((line) => line.id === slotId)?.salary ?? 0
@@ -555,15 +557,15 @@ export class AppShell {
       return
     }
 
-    const currentCoach = getCoach(save.team.coachId ?? starterCoachId)
+    const currentCoach = getOptionalCoach(save.team.coachId)
 
-    if (candidate.id === currentCoach.id) {
+    if (candidate.id === currentCoach?.id) {
       return
     }
 
     const finance = getTeamFinance(save, league, currentCoach)
     const projectedPayroll =
-      finance.payroll - currentCoach.salary + candidate.salary
+      finance.payroll - (currentCoach?.salary ?? 0) + candidate.salary
 
     if (projectedPayroll > finance.salaryCap) {
       return
@@ -581,14 +583,14 @@ export class AppShell {
 
   private fireCoach(): void {
     const save = this.requireSave()
-    const currentCoach = getCoach(save?.team.coachId ?? starterCoachId)
+    const currentCoach = getOptionalCoach(save?.team.coachId)
 
-    if (!save || currentCoach.id === starterCoachId) {
+    if (!save || !currentCoach) {
       return
     }
 
     const next = updateSave((draft) => {
-      draft.team.coachId = starterCoachId
+      draft.team.coachId = null
     })
 
     if (next) {

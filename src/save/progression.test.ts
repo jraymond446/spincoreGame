@@ -3,6 +3,8 @@ import {
   calculateMatchRewards,
   recordMatchResult,
 } from './progression.ts'
+import { defaultLeagues } from '../league/defaultLeagues.ts'
+import { buildLeagueStandings } from '../league/leagueStandings.ts'
 import {
   createEmptyMatchPlayerStats,
   type MatchResult,
@@ -53,7 +55,29 @@ assertEqual(
   'defeated opponent record',
 )
 
-console.info('Progression regression cases passed: 8')
+const rookieLeague = defaultLeagues.find(
+  (league) => league.id === 'rookie_circuit',
+)
+const apexLeague = defaultLeagues.find(
+  (league) => league.id === 'apex_league',
+)
+
+if (!rookieLeague || !apexLeague) {
+  throw new Error('expected default league tables are missing')
+}
+
+assertEqual(rookieLeague.teams.length, 6, 'rookie league team table')
+assertEqual(apexLeague.teams.length, 30, 'apex league team table')
+
+const standings = buildLeagueStandings(rookieLeague, leagueSave)
+assertEqual(standings.length, 7, 'rookie standings include user club')
+assertEqual(
+  standings.some((row) => row.isUserTeam),
+  true,
+  'standings should include the player club',
+)
+
+console.info('Progression regression cases passed: 12')
 
 function createTestSave(): SaveGame {
   const stats = createEmptyStats()

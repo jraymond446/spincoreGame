@@ -147,7 +147,7 @@ export function createMainMenu(options: {
   )
   const league = createSpincoreCard(
     'League',
-    'Beat five clubs in sequence and claim the Rookie Circuit.',
+    'Beat six clubs in sequence and claim the Rookie Circuit.',
   )
   league.actions.append(
     createSpincoreButton('League Hub', options.onLeague),

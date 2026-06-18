@@ -2,7 +2,11 @@ import { equipmentCatalog } from '../equipment/equipmentCatalog.ts'
 import { getInventoryItemCount } from '../equipment/equipmentInventory.ts'
 import { getEffectivePlayerAttributes } from '../equipment/equipmentEffects.ts'
 import { getFreeAgent } from '../franchise/freeAgentCatalog.ts'
-import { getTeamRosterReadiness } from '../franchise/teamRoster.ts'
+import {
+  canCutRosterSlot,
+  getCreatedPlayerRosterSlot,
+  getTeamRosterReadiness,
+} from '../franchise/teamRoster.ts'
 import type { PlayerRosterEntry } from '../game/data/matchTypes.ts'
 import { mapCreatedPlayerAttributesToMatchAttributes } from '../player/playerAttributeAdapter.ts'
 import { defaultPlayerCosmetics } from '../player/playerCosmetics.ts'
@@ -66,7 +70,14 @@ save.team.rosterAssignments['a-support'] = 'miko-banks'
 save.team.rosterLoadouts['a-support'].equipment.stickId = 'spin-sling'
 save.team.rosterLoadouts['a-support'].equipment.shoesId = 'apex-runners'
 const afterGear = getEffectivePlayerAttributes(save)
+const createdPlayerRosterSlot = getCreatedPlayerRosterSlot(save.player)
 const incompleteReadiness = getTeamRosterReadiness(save)
+
+assertEqual(
+  canCutRosterSlot(save, createdPlayerRosterSlot),
+  false,
+  'created player roster slot should never be cuttable',
+)
 
 assertEqual(
   incompleteReadiness.ready,
@@ -156,6 +167,30 @@ assertEqual(
   'duplicate inventory copies should survive validation',
 )
 
+const coachlessSave = createNewSave(
+  createCreatedPlayer({
+    name: 'Coach Tester',
+    jerseyNumber: 5,
+    handedness: 'right',
+    archetype: 'striker',
+    cosmetics: defaultPlayerCosmetics,
+    attributes: baseline,
+    selectedStickId: 'balanced-cesta',
+  }),
+)
+coachlessSave.team.coachId = null
+const validatedCoachlessSave = validateSave(coachlessSave)
+
+if (!validatedCoachlessSave) {
+  throw new Error('coachless save failed validation')
+}
+
+assertEqual(
+  validatedCoachlessSave.team.coachId,
+  null,
+  'fired coach vacancy should survive validation',
+)
+
 const teamA = createTeamARoster()
 const teamB: PlayerRosterEntry[] = []
 const overrides = applyMatchRosterOverrides(
@@ -239,7 +274,7 @@ for (const itemId of [
   }
 }
 
-console.info('Attribute gameplay bridge cases passed: 23')
+console.info('Attribute gameplay bridge cases passed: 25')
 
 function attributes(value = playerAttributeDefault): CreatedPlayerAttributes {
   const result = {} as CreatedPlayerAttributes

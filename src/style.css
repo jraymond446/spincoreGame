@@ -1173,6 +1173,94 @@ body {
   gap: 6px;
 }
 
+.league-standings-table {
+  display: grid;
+  overflow-x: auto;
+  border: 3px solid #16324f;
+  border-radius: 7px;
+  background: #eef5f3;
+  box-shadow: 0 4px 0 #16324f;
+}
+
+.league-standings-row {
+  display: grid;
+  min-width: 820px;
+  grid-template-columns:
+    42px
+    minmax(180px, 1.4fr)
+    42px
+    42px
+    64px
+    58px
+    64px
+    minmax(180px, 1fr);
+  align-items: center;
+  gap: 8px;
+  border-top: 2px solid rgba(22, 50, 79, 0.16);
+  padding: 9px 11px;
+  color: #16324f;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.league-standings-row:first-child {
+  border-top: 0;
+}
+
+.league-standings-row.is-header {
+  color: #fff8df;
+  background: #16324f;
+  font-size: 8px;
+  font-weight: 950;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.league-standings-row.is-user-team {
+  background:
+    linear-gradient(90deg, rgba(242, 200, 75, 0.28), transparent 72%),
+    #fff8df;
+}
+
+.league-standings-row > strong {
+  color: #198bd5;
+  font-size: 16px;
+}
+
+.league-standings-club {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+.league-standings-club span {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 2px solid #16324f;
+  border-radius: 50%;
+  color: #fff8df;
+  background: #198bd5;
+  font-size: 9px;
+  font-weight: 950;
+  letter-spacing: -0.03em;
+}
+
+.league-standings-club b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.league-standings-identity {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
 .menu-navigation-grid {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
@@ -1672,7 +1760,7 @@ body {
 .team-roster-actions {
   align-self: end;
   display: grid !important;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
   gap: 6px !important;
 }
 

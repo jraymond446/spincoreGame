@@ -2,6 +2,9 @@ export type LeagueStanding = {
   teamId: string
   wins: number
   losses: number
+  pointsFor?: number
+  pointsAgainst?: number
+  streak?: string
 }
 
 export type ScheduleMatch = {
@@ -18,8 +21,25 @@ export type LeagueMatchResult = {
 }
 
 export type LeagueTeam = {
+  id: string
   opponentTeamId: string
   seed: number
+  name: string
+  shortName: string
+  marketProfile:
+    | 'patient'
+    | 'balanced'
+    | 'starHunters'
+    | 'development'
+    | 'budget'
+    | 'volatile'
+  style:
+    | 'balanced'
+    | 'bankHunter'
+    | 'bruiser'
+    | 'speed'
+    | 'keeperFirst'
+    | 'showtime'
 }
 
 export type League = {

@@ -98,6 +98,27 @@ export const opponentTeams: OpponentTeam[] = [
     }),
   },
   {
+    id: 'canal-sparks',
+    name: 'Canal Sparks',
+    shortName: 'SPK',
+    primaryColor: 0xf2c84b,
+    secondaryColor: 0x198bd5,
+    difficulty: 3,
+    formation: 'aggressive',
+    strategy: {
+      formation: 'aggressive',
+      offenseScheme: 'giveAndGo',
+      defenseScheme: 'manMark',
+      transitionScheme: 'counterAttack',
+    },
+    tacticalQuality: quality(0.68),
+    players: roster('spark', {
+      keeper: [52, 60, 58, 40, 66, 50, 62, 70, 62, 58],
+      support: [70, 72, 76, 58, 58, 50, 72, 68, 76, 52],
+      striker: [76, 70, 60, 76, 54, 64, 76, 68, 72, 54],
+    }),
+  },
+  {
     id: 'net-ghosts',
     name: 'Net Ghosts',
     shortName: 'NGH',
@@ -238,4 +259,3 @@ function quality(value: number): TeamTacticalQuality {
 function titleCase(value: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1)
 }
-

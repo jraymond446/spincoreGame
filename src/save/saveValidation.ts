@@ -539,7 +539,10 @@ function validateTeamIdentity(
         fallback.colors.homeField,
     },
     sponsorId: nullableString(values.sponsorId),
-    coachId: nullableString(values.coachId) ?? fallback.coachId,
+    coachId:
+      values.coachId === null
+        ? null
+        : nullableString(values.coachId) ?? fallback.coachId,
     rosterAssignments: validateRosterAssignments(
       values.rosterAssignments,
       player,

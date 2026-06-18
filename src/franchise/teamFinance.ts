@@ -56,7 +56,7 @@ const sponsorCapBonuses: Record<string, { name: string; capBonus: number }> = {
 export function getTeamFinance(
   save: SaveGame,
   league: League,
-  coach: Coach,
+  coach: Coach | null,
 ): TeamFinanceSnapshot {
   const baseCap = leagueSalaryCaps[league.id] ?? leagueSalaryCaps.rookie_circuit
   const sponsor = save.team.sponsorId
@@ -82,7 +82,10 @@ export function getTeamFinance(
   }
 }
 
-function createSalaryLines(save: SaveGame, coach: Coach): SalaryLine[] {
+function createSalaryLines(
+  save: SaveGame,
+  coach: Coach | null,
+): SalaryLine[] {
   const createdPlayerSlotId = getCreatedPlayerRosterSlot(save.player)
   const rosterLines = teamRosterSlotIds.map((slotId) => {
     if (slotId === createdPlayerSlotId) {
@@ -116,10 +119,10 @@ function createSalaryLines(save: SaveGame, coach: Coach): SalaryLine[] {
     ...rosterLines,
     {
       id: 'coach',
-      label: coach.name,
+      label: coach?.name ?? 'Vacant Coach Spot',
       role: 'coach',
-      salary: coach.salary,
-      committed: true,
+      salary: coach?.salary ?? 0,
+      committed: Boolean(coach),
     },
   ]
 }

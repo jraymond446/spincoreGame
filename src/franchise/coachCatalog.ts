@@ -154,6 +154,12 @@ export function getCoach(id: string | null | undefined): Coach {
   )
 }
 
+export function getOptionalCoach(
+  id: string | null | undefined,
+): Coach | null {
+  return coachCatalog.find((coach) => coach.id === id) ?? null
+}
+
 export function getCoachMarket(): Coach[] {
   return coachMarketIds.map((id) => getCoach(id))
 }
