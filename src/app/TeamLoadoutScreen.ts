@@ -25,6 +25,8 @@ import {
   playerEffectiveAttributeMax,
 } from '../save/saveTypes'
 import {
+  characterPortraitOptionsFromAppearance,
+  createCharacterPortrait,
   createSpincoreBadge,
   createSpincoreButton,
   createSpincoreMetric,
@@ -37,20 +39,26 @@ import {
 export function createTeamLoadoutScreen(options: {
   save: SaveGame
   slotId: TeamRosterSlotId
+  origin?: 'team' | 'playerRoom'
   onBack: () => void
   onStore: () => void
   onEquip: (slotId: TeamRosterSlotId, item: EquipmentItem) => void
   onClear: (slotId: TeamRosterSlotId, slot: EquipmentSlot) => void
 }): HTMLElement {
+  const fromPlayerRoom = options.origin === 'playerRoom'
   const profile = getTeamRosterSlotProfile(options.save, options.slotId)
   const equipment = getTeamRosterLoadout(options.save, options.slotId)
   const { root, body, header } = createSpincoreScreenFrame({
-    eyebrow: 'TEAM HQ / LOCKER ASSIGNMENT',
+    eyebrow: fromPlayerRoom
+      ? 'PLAYER ROOM / GEAR CHEST'
+      : 'TEAM HQ / LOCKER ASSIGNMENT',
     title: `${profile.name} Loadout`,
     subtitle:
-      profile.isCreatedPlayer
-        ? 'Your player still belongs in the Player Room, but Team HQ can jump straight to their match gear.'
-        : 'Assign owned locker gear to AI teammates so the whole roster can start reflecting the build.',
+      fromPlayerRoom
+        ? 'Build your match loadout from every owned item in the team locker.'
+        : profile.isCreatedPlayer
+          ? 'Your player still belongs in the Player Room, but Team HQ can jump straight to their match gear.'
+          : 'Assign owned locker gear to AI teammates so the whole roster can start reflecting the build.',
   })
   const assignedItems = equipmentSlotKeys.filter((slot) => equipment[slot])
   const headerMetrics = document.createElement('div')
@@ -76,9 +84,13 @@ export function createTeamLoadoutScreen(options: {
   const actions = document.createElement('div')
   actions.className = 'app-screen-actions'
   actions.append(
-    createSpincoreButton('Back to Team HQ', options.onBack, {
-      tone: 'quiet',
-    }),
+    createSpincoreButton(
+      fromPlayerRoom ? 'Back to Player Room' : 'Back to Team HQ',
+      options.onBack,
+      {
+        tone: 'quiet',
+      },
+    ),
     createSpincoreButton('Visit Shop Row', options.onStore, {
       tone: 'secondary',
     }),
@@ -113,10 +125,22 @@ function createLoadoutOverviewPanel(
   })
   const card = document.createElement('div')
   card.className = 'team-loadout-player-card'
-  const crest = document.createElement('div')
-  crest.textContent = profile.isCreatedPlayer
-    ? String(save.player.jerseyNumber)
-    : slotInitials(profile.roleLabel)
+  const crest = profile.appearance
+    ? createCharacterPortrait({
+        ...characterPortraitOptionsFromAppearance(profile.appearance),
+        animated: false,
+        selected: false,
+        size: 'sm',
+        className: 'team-loadout-portrait',
+        label: `${profile.name} portrait`,
+      }).element
+    : document.createElement('div')
+
+  if (!profile.appearance) {
+    crest.textContent = profile.isCreatedPlayer
+      ? String(save.player.jerseyNumber)
+      : slotInitials(profile.roleLabel)
+  }
   const copy = document.createElement('div')
   const name = document.createElement('strong')
   name.textContent = profile.name

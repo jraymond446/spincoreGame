@@ -19,8 +19,8 @@ export function createSettingsScreen(options: {
     eyebrow: 'INPUT',
     title: 'Current Controls',
     copy:
-      'Desktop: WASD to move, pointer to aim, primary action to gather ' +
-      'and shoot, Space or Shift to truck. Mobile controls remain live in match.',
+      'Desktop: WASD moves and aims, Space gathers/charges/releases, ' +
+      'Shift trucks, and E slashes. Mobile controls remain live in match.',
   })
   controls.content.append(
     createSpincoreBadge('DESKTOP', 'blue'),

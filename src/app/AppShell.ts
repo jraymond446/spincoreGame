@@ -14,6 +14,7 @@ import {
 import { getFreeAgent } from '../franchise/freeAgentCatalog'
 import { getTeamFinance } from '../franchise/teamFinance'
 import { opponentTeams } from '../game/data/opponentTeams'
+import type { PlayerAppearance } from '../player/playerAppearanceTypes.ts'
 import { defaultLeagues } from '../league/defaultLeagues'
 import { buildLeagueStandings } from '../league/leagueStandings'
 import {
@@ -47,7 +48,11 @@ import { createLeagueHubScreen } from './LeagueHubScreen'
 import { createMainMenu } from './MainMenu'
 import type { RewardNotice } from './MainMenu'
 import { createMatchResultsScreen } from './MatchResultsScreen'
-import { createPlayerProfileScreen } from './PlayerProfileScreen'
+import {
+  createPlayerProfileScreen,
+  type PlayerProfileSection,
+} from './PlayerProfileScreen'
+import { createPlayerRoomScreen } from './PlayerRoomScreen'
 import { createSettingsScreen } from './SettingsScreen'
 import { createStoreScreen } from './StoreScreen'
 import { createTeamLoadoutScreen } from './TeamLoadoutScreen'
@@ -59,6 +64,7 @@ import { createWorldMapScreen } from './WorldMapScreen'
 import {
   getAvailableLoadoutCopies,
   canCutRosterSlot,
+  canSwapRosterSlotWithBench,
   createEmptyRosterLoadout,
   getFirstAvailableRosterSlotForFreeAgent,
   getCreatedPlayerRosterSlot,
@@ -173,7 +179,7 @@ export class AppShell {
 
           this.startMatch('exhibition')
         },
-        onPlayer: () => this.renderPlayerProfile(),
+        onPlayer: () => this.renderPlayerRoom(),
         onLeague: () => this.renderLeagueHub(),
         onTeam: () => this.renderTeamManagement(),
         onStore: () => this.renderStore(),
@@ -201,7 +207,7 @@ export class AppShell {
           this.selectedOpponentId = id
         },
         onPlay: () => this.startMatch('exhibition'),
-        onPlayer: () => this.renderPlayerProfile(),
+        onPlayer: () => this.renderPlayerRoom(),
         onTeam: () => this.renderTeamManagement(),
         onLeague: () => this.renderLeagueHub(),
         onStore: () => this.renderStore(),
@@ -213,7 +219,33 @@ export class AppShell {
     )
   }
 
-  private renderPlayerProfile(): void {
+  private renderPlayerRoom(): void {
+    const save = this.requireSave()
+
+    if (!save) {
+      return
+    }
+
+    this.screen = 'playerRoom'
+    this.show(
+      createPlayerRoomScreen({
+        save,
+        onBack: () => this.renderWorldMap(),
+        onCloset: () => this.renderPlayerProfile('appearance'),
+        onAttributes: () => this.renderPlayerProfile('attributes'),
+        onItems: () =>
+          this.renderTeamLoadout(
+            getCreatedPlayerRosterSlot(save.player),
+            'playerRoom',
+          ),
+        onStats: () => this.renderPlayerProfile('stats'),
+      }),
+    )
+  }
+
+  private renderPlayerProfile(
+    section: PlayerProfileSection = 'appearance',
+  ): void {
     const save = this.requireSave()
 
     if (!save) {
@@ -224,12 +256,14 @@ export class AppShell {
     this.show(
       createPlayerProfileScreen({
         save,
+        section,
         matchReadiness: getTeamRosterReadiness(save),
-        onBack: () => this.renderWorldMap(),
+        onBack: () => this.renderPlayerRoom(),
         onPlay: () => this.startMatch('exhibition'),
         onTeam: () => this.renderTeamManagement(),
-        onStore: () => this.renderStore(),
-        onSpendPoint: (key) => this.spendAttributePoint(key),
+        onSpendPoint: (key) => this.spendAttributePoint(key, section),
+        onAppearanceChange: (appearance) =>
+          this.updatePlayerAppearance(appearance),
       }),
     )
   }
@@ -258,12 +292,14 @@ export class AppShell {
         league,
         onBack: () => this.renderWorldMap(),
         onLeague: () => this.renderLeagueHub(),
-        onPlayer: () => this.renderPlayerProfile(),
+        onPlayer: () => this.renderPlayerRoom(),
         onStore: () => this.renderStore(),
         onEquip: (item) => this.equipItem(item, 'teamManagement'),
         onOpenLoadout: (slotId) => this.renderTeamLoadout(slotId),
         onSignFreeAgent: (agentId) => this.signFreeAgent(agentId),
         onCutRosterPlayer: (slotId) => this.cutRosterPlayer(slotId),
+        onSwapRosterPlayer: (slotId) =>
+          this.swapRosterPlayerWithBench(slotId),
         onSignCoach: (coachId) => this.signCoach(coachId),
         onFireCoach: () => this.fireCoach(),
         onTeamChange: (changes) => this.updateTeamIdentity(changes),
@@ -271,7 +307,10 @@ export class AppShell {
     )
   }
 
-  private renderTeamLoadout(slotId: TeamRosterSlotId): void {
+  private renderTeamLoadout(
+    slotId: TeamRosterSlotId,
+    origin: 'team' | 'playerRoom' = 'team',
+  ): void {
     const save = this.requireSave()
 
     if (!save) {
@@ -283,7 +322,11 @@ export class AppShell {
       createTeamLoadoutScreen({
         save,
         slotId,
-        onBack: () => this.renderTeamManagement(),
+        origin,
+        onBack: () =>
+          origin === 'playerRoom'
+            ? this.renderPlayerRoom()
+            : this.renderTeamManagement(),
         onStore: () => this.renderStore(),
         onEquip: (selectedSlotId, item) =>
           this.equipRosterItem(selectedSlotId, item),
@@ -484,12 +527,15 @@ export class AppShell {
           this.startMatch(launch.mode, result.opponentTeamId)
         },
         onMainMenu: () => this.renderWorldMap(),
-        onPlayerProfile: () => this.renderPlayerProfile(),
+        onPlayerProfile: () => this.renderPlayerRoom(),
       }),
     )
   }
 
-  private spendAttributePoint(key: PlayerAttributeKey): void {
+  private spendAttributePoint(
+    key: PlayerAttributeKey,
+    section: PlayerProfileSection = 'attributes',
+  ): void {
     const next = updateSave((draft) => {
       if (
         draft.progression.unspentAttributePoints <= 0 ||
@@ -504,7 +550,17 @@ export class AppShell {
 
     if (next) {
       this.save = next
-      this.renderPlayerProfile()
+      this.renderPlayerProfile(section)
+    }
+  }
+
+  private updatePlayerAppearance(appearance: PlayerAppearance): void {
+    const next = updateSave((draft) => {
+      draft.player.appearance = structuredClone(appearance)
+    })
+
+    if (next) {
+      this.save = next
     }
   }
 
@@ -578,6 +634,32 @@ export class AppShell {
     const next = updateSave((draft) => {
       draft.team.rosterAssignments[slotId] = null
       draft.team.rosterLoadouts[slotId] = createEmptyRosterLoadout()
+    })
+
+    if (next) {
+      this.save = next
+      this.renderTeamManagement()
+    }
+  }
+
+  private swapRosterPlayerWithBench(slotId: TeamRosterSlotId): void {
+    const save = this.requireSave()
+
+    if (!save || !canSwapRosterSlotWithBench(save, slotId)) {
+      return
+    }
+
+    const next = updateSave((draft) => {
+      const activePlayerId = draft.team.rosterAssignments[slotId]
+      const benchPlayerId = draft.team.rosterAssignments.bench
+      const activeLoadout = structuredClone(draft.team.rosterLoadouts[slotId])
+      const benchLoadout = structuredClone(draft.team.rosterLoadouts.bench)
+
+      draft.team.rosterAssignments.bench = activePlayerId
+      draft.team.rosterLoadouts.bench = activeLoadout
+      draft.team.rosterAssignments[slotId] = benchPlayerId
+      draft.team.rosterLoadouts[slotId] =
+        benchPlayerId ? benchLoadout : createEmptyRosterLoadout()
     })
 
     if (next) {

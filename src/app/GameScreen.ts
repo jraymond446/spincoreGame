@@ -1,6 +1,7 @@
 export type AppScreen =
   | 'boot'
   | 'worldMap'
+  | 'playerRoom'
   | 'mainMenu'
   | 'createPlayer'
   | 'playerProfile'

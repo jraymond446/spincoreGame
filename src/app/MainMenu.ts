@@ -72,7 +72,7 @@ export function createMainMenu(options: {
     copy:
       options.matchReadiness.ready
         ? 'Take your created player into the tuned 3v3 match. Every run earns circuit XP and cash.'
-        : `${options.matchReadiness.message} House players can hold the board in Team HQ, but sanctioned matches need a full starting lineup.`,
+        : `${options.matchReadiness.message} Use Team HQ to set three starters before play.`,
     tone: 'featured',
   })
   playPanel.content.append(

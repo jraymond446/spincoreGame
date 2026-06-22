@@ -8,6 +8,10 @@ import type {
   TeamTacticalQuality,
 } from './matchTypes'
 import type { TeamStrategy } from '../tactics/TeamStrategy'
+import {
+  generateAppearanceForId,
+} from '../../player/generateRandomAppearance.ts'
+import type { PlayerAppearance } from '../../player/playerAppearanceTypes.ts'
 
 export type OpponentPlayer = {
   id: string
@@ -18,6 +22,7 @@ export type OpponentPlayer = {
   playStyle: PlayerPlayStyle
   stickStyle: StickStyle
   attributes: PlayerAttributes
+  appearance: PlayerAppearance
 }
 
 export type OpponentTeam = {
@@ -227,6 +232,7 @@ function player(
             ? 'cradle'
             : 'whip',
     attributes: tupleToAttributes(values),
+    appearance: generateAppearanceForId(`${prefix}-${role}`),
   }
 }
 

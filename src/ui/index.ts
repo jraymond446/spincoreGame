@@ -1,4 +1,10 @@
 export { createSpincoreAttributeRow } from './SpincoreAttributeRow'
+export {
+  characterPortraitOptionsFromAppearance,
+  createCharacterPortrait,
+  type CharacterPortraitOptions,
+  type CharacterPortraitSize,
+} from './CharacterPortrait'
 export { createSpincoreBadge } from './SpincoreBadge'
 export { createSpincoreButton } from './SpincoreButton'
 export {

@@ -1,5 +1,9 @@
 import { getEffectivePlayerAttributes } from '../equipment/equipmentEffects'
 import type { SaveGame } from '../save/saveTypes'
+import {
+  characterPortraitOptionsFromAppearance,
+  createCharacterPortrait,
+} from './CharacterPortrait'
 import { createSpincoreBadge } from './SpincoreBadge'
 
 export function createSpincoreCard(
@@ -44,11 +48,14 @@ export function createPlayerIdentityCard(
     '--player-skin',
     cosmeticSkin(save.player.cosmetics.skinTone),
   )
-  const avatar = document.createElement('div')
-  avatar.className = 'spincore-player-avatar'
-  const jersey = document.createElement('strong')
-  jersey.textContent = String(save.player.jerseyNumber)
-  avatar.appendChild(jersey)
+  const portrait = createCharacterPortrait({
+    ...characterPortraitOptionsFromAppearance(save.player.appearance),
+    animated: false,
+    selected: false,
+    size: 'md',
+    className: 'spincore-player-portrait',
+    label: `${save.player.name} portrait`,
+  })
   const identity = document.createElement('div')
   identity.className = 'spincore-player-identity'
   const badges = document.createElement('div')
@@ -82,7 +89,7 @@ export function createPlayerIdentityCard(
     ratings.appendChild(rating)
   }
 
-  card.append(avatar, identity, ratings)
+  card.append(portrait.element, identity, ratings)
   return card
 }
 

@@ -2,6 +2,7 @@ import type {
   PlayerHandedness,
   PlayerRole,
 } from '../game/data/matchTypes'
+import type { PlayerAppearance } from '../player/playerAppearanceTypes.ts'
 
 export const playerAttributeKeys = [
   'speed',
@@ -87,6 +88,7 @@ export type CreatedPlayer = {
   handedness: PlayerHandedness
   primaryRole: PlayerRole
   archetype: CreatedPlayerArchetype
+  appearance: PlayerAppearance
   cosmetics: PlayerCosmetics
   attributes: CreatedPlayerAttributes
   selectedStickId: string

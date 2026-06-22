@@ -25,6 +25,7 @@ import {
   getLoadoutAssignmentCount,
   getAvailableLoadoutCopies,
   canCutRosterSlot,
+  canSwapRosterSlotWithBench,
   getFirstAvailableRosterSlotForFreeAgent,
   getCreatedPlayerRosterSlot,
   getSignedRosterPlayer,
@@ -46,8 +47,11 @@ import type {
   TeamRosterSlotId,
 } from '../save/saveTypes'
 import { teamRosterSlotIds } from '../save/saveTypes'
+import type { PlayerAppearance } from '../player/playerAppearanceTypes.ts'
 import {
+  characterPortraitOptionsFromAppearance,
   createPlayerIdentityCard,
+  createCharacterPortrait,
   createSpincoreBadge,
   createSpincoreButton,
   createSpincoreMetric,
@@ -66,8 +70,10 @@ type RosterSlotView = {
   status: string
   canManageLoadout: boolean
   canCut: boolean
+  canSwap: boolean
   canFindFreeAgent: boolean
   tone: 'active' | 'temporary' | 'open'
+  appearance: PlayerAppearance | null
 }
 
 export type TeamIdentityChanges = {
@@ -86,6 +92,7 @@ export function createTeamManagementScreen(options: {
   onOpenLoadout: (slotId: TeamRosterSlotId) => void
   onSignFreeAgent: (agentId: string) => void
   onCutRosterPlayer: (slotId: TeamRosterSlotId) => void
+  onSwapRosterPlayer: (slotId: TeamRosterSlotId) => void
   onSignCoach: (coachId: string) => void
   onFireCoach: () => void
   onTeamChange: (changes: TeamIdentityChanges) => void
@@ -123,7 +130,7 @@ export function createTeamManagementScreen(options: {
     eyebrow: 'TEAM SHEET',
     title: 'Active Roster',
     copy:
-      'Three active match spots plus one bench. You must always roster a keeper; active open spots use house players until you sign upgrades.',
+      'Three starting spots plus one bench. Unsigned active slots use house fill-ins for test matches; Swap appears only when the reserve can enter that active slot.',
     tone: 'featured',
   })
   const jumpToFreeAgents = (): void => {
@@ -139,6 +146,7 @@ export function createTeamManagementScreen(options: {
       finance,
       options.onOpenLoadout,
       options.onCutRosterPlayer,
+      options.onSwapRosterPlayer,
       jumpToFreeAgents,
     ),
   )
@@ -197,6 +205,7 @@ function createRosterGrid(
   finance: TeamFinanceSnapshot,
   onOpenLoadout: (slotId: TeamRosterSlotId) => void,
   onCutRosterPlayer: (slotId: TeamRosterSlotId) => void,
+  onSwapRosterPlayer: (slotId: TeamRosterSlotId) => void,
   onFindFreeAgents: () => void,
 ): HTMLElement {
   const grid = document.createElement('div')
@@ -211,6 +220,7 @@ function createRosterGrid(
         slot,
         onOpenLoadout,
         onCutRosterPlayer,
+        onSwapRosterPlayer,
         onFindFreeAgents,
       ),
     )
@@ -223,6 +233,7 @@ function createRosterSlot(
   slot: RosterSlotView,
   onOpenLoadout: (slotId: TeamRosterSlotId) => void,
   onCutRosterPlayer: (slotId: TeamRosterSlotId) => void,
+  onSwapRosterPlayer: (slotId: TeamRosterSlotId) => void,
   onFindFreeAgents: () => void,
 ): HTMLElement {
   const card = document.createElement('article')
@@ -244,7 +255,26 @@ function createRosterSlot(
   const rating = document.createElement('span')
   rating.className = 'team-roster-rating'
   rating.textContent = slot.rating === null ? 'TBD' : `${slot.rating} OVR`
-  card.append(top, name, meta, rating)
+  const identity = document.createElement('div')
+  identity.className = 'team-roster-identity'
+  const copy = document.createElement('div')
+  copy.append(name, meta, rating)
+
+  if (slot.appearance) {
+    const portrait = createCharacterPortrait({
+      ...characterPortraitOptionsFromAppearance(slot.appearance),
+      animated: false,
+      selected: false,
+      size: 'sm',
+      className: 'team-roster-portrait',
+      label: `${slot.name} portrait`,
+    })
+    identity.append(portrait.element, copy)
+  } else {
+    identity.appendChild(copy)
+  }
+
+  card.append(top, identity)
 
   const actions = document.createElement('div')
   actions.className = 'team-roster-actions'
@@ -273,6 +303,35 @@ function createRosterSlot(
         },
       ),
     )
+  }
+
+  if (slot.slotId && slot.canSwap) {
+    actions.appendChild(
+      createSpincoreButton(
+        'Swap',
+        () => onSwapRosterPlayer(slot.slotId as TeamRosterSlotId),
+        {
+          tone: 'quiet',
+          compact: true,
+        },
+      ),
+    )
+  }
+
+  const isLockedStarter =
+    slot.slotId !== null &&
+    slot.slotId !== 'bench' &&
+    slot.tone === 'active' &&
+    !slot.canSwap
+
+  if (isLockedStarter) {
+    const startingState = createSpincoreButton('Starting', () => {}, {
+      tone: 'quiet',
+      compact: true,
+      disabled: true,
+    })
+    startingState.classList.add('is-roster-state')
+    actions.appendChild(startingState)
   }
 
   if (slot.canFindFreeAgent) {
@@ -370,6 +429,17 @@ function createFreeAgentCard(options: {
   )
   const name = document.createElement('strong')
   name.textContent = agent.name
+  const identity = document.createElement('div')
+  identity.className = 'team-market-identity'
+  const portrait = createCharacterPortrait({
+    ...characterPortraitOptionsFromAppearance(agent.appearance),
+    animated: false,
+    selected: false,
+    size: 'sm',
+    className: 'team-market-portrait',
+    label: `${agent.name} portrait`,
+  })
+  identity.append(portrait.element, name)
   const copy = document.createElement('p')
   copy.textContent = agent.summary
   const traits = document.createElement('div')
@@ -395,7 +465,7 @@ function createFreeAgentCard(options: {
       disabled,
     },
   )
-  card.append(top, name, copy, traits, destination, button)
+  card.append(top, identity, copy, traits, destination, button)
   return card
 }
 
@@ -872,6 +942,7 @@ function temporarySlot(
   meta: string,
   salary: number | null,
   rating: number,
+  appearance: PlayerAppearance | null,
 ): RosterSlotView {
   return {
     slotId,
@@ -880,11 +951,13 @@ function temporarySlot(
     meta,
     rating,
     salary,
-    status: 'Temp',
+    status: 'Unsigned',
     canManageLoadout: true,
     canCut: false,
+    canSwap: false,
     canFindFreeAgent: true,
     tone: 'temporary',
+    appearance,
   }
 }
 
@@ -899,8 +972,10 @@ function openSlot(slotId: TeamRosterSlotId, meta: string): RosterSlotView {
     status: 'Open',
     canManageLoadout: false,
     canCut: false,
+    canSwap: false,
     canFindFreeAgent: true,
     tone: 'open',
+    appearance: null,
   }
 }
 
@@ -921,11 +996,13 @@ function createRosterSlotView(
         Object.values(getEffectivePlayerAttributes(save)),
       ),
       salary: salaryFor(finance, slotId),
-      status: 'Signed',
+      status: rosterStatusForSlot(slotId),
       canManageLoadout: true,
       canCut: false,
+      canSwap: false,
       canFindFreeAgent: false,
       tone: 'active',
+      appearance: profile.appearance,
     }
   }
 
@@ -945,11 +1022,13 @@ function createRosterSlotView(
         ? overallFromAttributes(signedPlayer.attributes)
         : null,
       salary: salaryFor(finance, slotId),
-      status: 'Signed',
+      status: rosterStatusForSlot(slotId),
       canManageLoadout: true,
       canCut: canCutRosterSlot(save, slotId),
+      canSwap: canSwapRosterSlotWithBench(save, slotId),
       canFindFreeAgent: false,
       tone: 'active',
+      appearance: profile.appearance,
     }
   }
 
@@ -960,7 +1039,12 @@ function createRosterSlotView(
     profile.meta,
     salaryFor(finance, slotId),
     calculateTemporaryRosterRating(save, slotId),
+    profile.appearance,
   )
+}
+
+function rosterStatusForSlot(slotId: TeamRosterSlotId): string {
+  return slotId === 'bench' ? 'Bench' : 'Starting'
 }
 
 function calculateTeamRating(save: SaveGame, coach: Coach | null): number {

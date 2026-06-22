@@ -9,6 +9,18 @@ import {
   roleForArchetype,
 } from './defaultSave.ts'
 import {
+  appearanceFromCosmetics,
+  bodyAssetIds,
+  hairAssetIds,
+  presentationGenderIds,
+  type PlayerAppearance,
+} from '../player/playerAppearanceTypes.ts'
+import {
+  legacyHairColorPalette,
+  legacySkinTonePalette,
+  normalizeAppearanceColor,
+} from '../player/playerAppearancePalettes.ts'
+import {
   createDefaultTeamIdentity,
 } from '../franchise/teamIdentity.ts'
 import {
@@ -413,10 +425,69 @@ function validatePlayer(raw: unknown): CreatedPlayer | null {
     handedness: hand,
     primaryRole: roleForArchetype(archetype),
     archetype,
+    appearance: validateAppearance(raw.appearance, raw.cosmetics),
     cosmetics: validateCosmetics(raw.cosmetics),
     attributes: validateAttributes(raw.attributes),
     selectedStickId: migrateStickId(raw.selectedStickId),
   }
+}
+
+function validateAppearance(
+  raw: unknown,
+  rawCosmetics: unknown,
+): PlayerAppearance {
+  const values = record(raw)
+  const fallback = appearanceFromCosmetics(validateCosmetics(rawCosmetics))
+  return {
+    presentation:
+      presentationGenderIds.find((value) => value === values.presentation) ??
+      fallback.presentation,
+    bodyId:
+      bodyAssetIds.find((value) => value === values.bodyId) ??
+      fallback.bodyId,
+    hairId:
+      hairAssetIds.find((value) => value === values.hairId) ??
+      fallback.hairId,
+    skinColor: normalizeAppearanceColor(
+      values.skinColor,
+      legacyAppearanceColor(
+        values.skinTone,
+        legacySkinTonePalette,
+        fallback.skinColor,
+      ),
+    ),
+    hairColor: normalizeAppearanceColor(
+      values.hairColor,
+      legacyAppearanceColor(
+        values.hairColor,
+        legacyHairColorPalette,
+        fallback.hairColor,
+      ),
+    ),
+    uniformPrimaryColor: normalizeAppearanceColor(
+      values.uniformPrimaryColor,
+      fallback.uniformPrimaryColor,
+    ),
+    uniformAccentColor: normalizeAppearanceColor(
+      values.uniformAccentColor,
+      fallback.uniformAccentColor,
+    ),
+    faceId:
+      typeof values.faceId === 'string' && values.faceId.trim()
+        ? values.faceId.trim().slice(0, 80)
+        : undefined,
+    accessoryIds: stringArray(values.accessoryIds).slice(0, 8),
+  }
+}
+
+function legacyAppearanceColor(
+  value: unknown,
+  palette: Record<string, string>,
+  fallback: string,
+): string {
+  return typeof value === 'string' && palette[value]
+    ? palette[value]
+    : fallback
 }
 
 function validateAttributes(raw: unknown): CreatedPlayerAttributes {

@@ -42,6 +42,7 @@ type TouchPoint = {
 export class PlayerInputController {
   private scene: Phaser.Scene
   private keys: MovementKeys
+  private primaryKey: Phaser.Input.Keyboard.Key
   private debugKey: Phaser.Input.Keyboard.Key
   private modeKey: Phaser.Input.Keyboard.Key
   private truckKeys: Phaser.Input.Keyboard.Key[]
@@ -89,13 +90,26 @@ export class PlayerInputController {
       arrowLeft: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.LEFT),
       arrowRight: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.RIGHT),
     }
-    this.debugKey = this.keys.right
+    this.primaryKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE)
+    this.debugKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.F3)
     this.modeKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.L)
     this.truckKeys = [
-      keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE),
       keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT),
     ]
     this.slashKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E)
+    keyboard.addCapture([
+      Phaser.Input.Keyboard.KeyCodes.W,
+      Phaser.Input.Keyboard.KeyCodes.A,
+      Phaser.Input.Keyboard.KeyCodes.S,
+      Phaser.Input.Keyboard.KeyCodes.D,
+      Phaser.Input.Keyboard.KeyCodes.UP,
+      Phaser.Input.Keyboard.KeyCodes.DOWN,
+      Phaser.Input.Keyboard.KeyCodes.LEFT,
+      Phaser.Input.Keyboard.KeyCodes.RIGHT,
+      Phaser.Input.Keyboard.KeyCodes.SPACE,
+      Phaser.Input.Keyboard.KeyCodes.SHIFT,
+      Phaser.Input.Keyboard.KeyCodes.E,
+    ])
     this.touchRoot = document.createElement('div')
     this.touchRoot.className = 'touch-controls'
     this.joystickBase = document.createElement('div')
@@ -177,7 +191,8 @@ export class PlayerInputController {
     const primaryStickAction =
       this.mode === 'touch'
         ? this.rightTouch !== null
-        : pointer.leftButtonDown() && !pointer.wasTouch
+        : this.primaryKey.isDown ||
+          (pointer.leftButtonDown() && !pointer.wasTouch)
     const primaryStickActionStarted =
       primaryStickAction && !this.previousPrimaryAction
     const releasePrimaryStickAction =
@@ -534,7 +549,7 @@ export class PlayerInputController {
     )
   }
 
-  private getTargetAimAngle(origin: Point, fallbackAngle: number): number {
+  private getTargetAimAngle(_origin: Point, fallbackAngle: number): number {
     if (this.mode === 'touch') {
       if (!this.rightTouch) {
         return fallbackAngle
@@ -552,17 +567,16 @@ export class PlayerInputController {
       return Math.atan2(drag.y, drag.x)
     }
 
-    const pointer = this.scene.input.activePointer
-    const distanceToPointer = Math.hypot(pointer.worldX - origin.x, pointer.worldY - origin.y)
+    const keyboardAim = this.getKeyboardMovement()
 
-    if (distanceToPointer < stickConfig.aimDeadzone) {
-      return fallbackAngle
+    if (keyboardAim.lengthSq() > 0) {
+      return Math.atan2(keyboardAim.y, keyboardAim.x)
     }
 
-    return Phaser.Math.Angle.Between(origin.x, origin.y, pointer.worldX, pointer.worldY)
+    return fallbackAngle
   }
 
-  private getDebugAimVector(origin: Point, fallbackAngle: number): Point {
+  private getDebugAimVector(_origin: Point, fallbackAngle: number): Point {
     if (this.mode === 'touch') {
       if (!this.rightTouch) {
         return { x: 0, y: 0 }
@@ -580,20 +594,19 @@ export class PlayerInputController {
       )
     }
 
-    const pointer = this.scene.input.activePointer
-    const vector = {
-      x: pointer.worldX - origin.x,
-      y: pointer.worldY - origin.y,
-    }
+    const keyboardAim = this.getKeyboardMovement()
 
-    if (Math.hypot(vector.x, vector.y) < stickConfig.aimDeadzone) {
+    if (keyboardAim.lengthSq() === 0) {
       return {
         x: Math.cos(fallbackAngle),
         y: Math.sin(fallbackAngle),
       }
     }
 
-    return normalizedWithMagnitude(vector, 0, Math.hypot(vector.x, vector.y))
+    return {
+      x: keyboardAim.x,
+      y: keyboardAim.y,
+    }
   }
 
   private getPrimaryIntensity(pointer: Phaser.Input.Pointer): number {
@@ -610,7 +623,14 @@ export class PlayerInputController {
     const dragIntensity =
       dragDistance / Math.max(1, possessionFeelConfig.hardChargeDragThreshold)
 
-    return Phaser.Math.Clamp(Math.max(pressure, dragIntensity), 0, 1)
+    const keyboardIntensity =
+      this.mode === 'keyboardMouse' && this.primaryKey.isDown ? 1 : 0
+
+    return Phaser.Math.Clamp(
+      Math.max(pressure, dragIntensity, keyboardIntensity),
+      0,
+      1,
+    )
   }
 
   private hasKeyboardMovement(): boolean {

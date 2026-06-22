@@ -52,7 +52,7 @@ export function createLeagueHubScreen(options: {
       options.nextOpponent
         ? options.matchReadiness.ready
           ? 'Beat each club in sequence to claim the Rookie Circuit.'
-          : `${options.matchReadiness.message} League fixtures need a complete active lineup.`
+          : `${options.matchReadiness.message} League fixtures need three active starters.`
         : `All ${options.league.teams.length} Rookie Circuit opponents have been defeated.`,
     tone: 'featured',
   })

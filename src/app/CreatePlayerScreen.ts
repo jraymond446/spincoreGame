@@ -3,10 +3,22 @@ import {
   accentColorOptions,
   defaultPlayerCosmetics,
   hairColorOptions,
-  hairStyleOptions,
   shirtColorOptions,
   skinToneOptions,
 } from '../player/playerCosmetics'
+import {
+  appearanceFromCosmetics,
+  cosmeticHairStyleFromHairAsset,
+  hairAssetIds,
+  type HairAssetId,
+  type PlayerAppearance,
+} from '../player/playerAppearanceTypes.ts'
+import {
+  legacyAccentColorPalette,
+  legacyHairColorPalette,
+  legacyShirtColorPalette,
+  legacySkinTonePalette,
+} from '../player/playerAppearancePalettes.ts'
 import {
   createStartingAttributes,
 } from '../save/defaultSave'
@@ -23,8 +35,10 @@ import {
   playerAttributeKeys,
 } from '../save/saveTypes'
 import {
+  characterPortraitOptionsFromAppearance,
   createSpincoreBadge,
   createSpincoreButton,
+  createCharacterPortrait,
   createSpincorePanel,
   createSpincorePlayerPreview,
   createSpincoreScreenFrame,
@@ -41,6 +55,7 @@ export type CreatePlayerValues = {
   jerseyNumber: number
   handedness: CreatedPlayer['handedness']
   archetype: CreatedPlayerArchetype
+  appearance: PlayerAppearance
   cosmetics: PlayerCosmetics
   attributes: CreatedPlayerAttributes
   selectedStickId: string
@@ -63,8 +78,16 @@ export function createCreatePlayerScreen(options: {
   let attributes = structuredClone(baseline)
   let pointsRemaining = startingPointBudget
   let cosmetics = structuredClone(defaultPlayerCosmetics)
+  let appearance = appearanceFromCosmetics(cosmetics)
   let selectedStickId = startingStickTypes[0].id
 
+  const portrait = createCharacterPortrait({
+    ...characterPortraitOptionsFromAppearance(appearance),
+    animated: true,
+    selected: true,
+    size: 'lg',
+    label: 'Created player portrait preview',
+  })
   const preview = createSpincorePlayerPreview({
     name: 'ROOKIE',
     jerseyNumber: 13,
@@ -76,10 +99,13 @@ export function createCreatePlayerScreen(options: {
   const previewPanel = createSpincorePanel({
     eyebrow: 'LIVE PREVIEW',
     title: 'Your Circuit Look',
-    copy: 'Every choice below updates this card immediately.',
+    copy: 'Portrait layers are the card/profile pipeline; court preview still reflects match readability.',
     tone: 'featured',
   })
-  previewPanel.content.appendChild(preview.element)
+  const previewStack = document.createElement('div')
+  previewStack.className = 'player-builder-preview-stack'
+  previewStack.append(portrait.element, preview.element)
+  previewPanel.content.appendChild(previewStack)
   previewPanel.panel.classList.add('player-builder-preview-panel')
 
   const setupPanel = createSpincorePanel({
@@ -137,9 +163,10 @@ export function createCreatePlayerScreen(options: {
   )
 
   const cosmeticPanel = createSpincorePanel({
-    eyebrow: 'COSMETICS',
-    title: 'Court Style',
-    copy: 'Simple now, saved permanently, ready for richer art later.',
+    eyebrow: 'APPEARANCE',
+    title: 'Portrait & Uniform Style',
+    copy:
+      'Pick the portrait layers and colors. Uniform choices also feed the current court preview.',
   })
   cosmeticPanel.panel.classList.add('player-builder-cosmetics')
   const cosmeticFields = document.createElement('div')
@@ -148,9 +175,9 @@ export function createCreatePlayerScreen(options: {
     'Skin tone',
     skinToneOptions.map((value) => [value, titleCase(value)]),
   )
-  const hairStyle = createSelect(
-    'Hair style',
-    hairStyleOptions.map((value) => [value, titleCase(value)]),
+  const portraitHair = createSelect(
+    'Portrait hair',
+    hairAssetIds.map((value, index) => [value, `Hair ${index + 1}`]),
   )
   const hairColor = createSelect(
     'Hair color',
@@ -168,15 +195,15 @@ export function createCreatePlayerScreen(options: {
     'Shorts color',
     shirtColorOptions.map((value) => [value, titleCase(value)]),
   )
+  portraitHair.select.value = appearance.hairId
   skin.select.value = cosmetics.skinTone
-  hairStyle.select.value = cosmetics.hairStyle
   hairColor.select.value = cosmetics.hairColor
   shirtColor.select.value = cosmetics.shirtColor
   accentColor.select.value = cosmetics.accentColor
   shortsColor.select.value = cosmetics.shortsColor
   cosmeticFields.append(
+    portraitHair.label,
     skin.label,
-    hairStyle.label,
     hairColor.label,
     shirtColor.label,
     accentColor.label,
@@ -275,9 +302,29 @@ export function createCreatePlayerScreen(options: {
   }
 
   const syncCosmetics = (): void => {
+    appearance = {
+      ...appearance,
+      hairId: portraitHair.select.value as HairAssetId,
+      skinColor:
+        legacySkinTonePalette[
+          skin.select.value as keyof typeof legacySkinTonePalette
+        ],
+      hairColor:
+        legacyHairColorPalette[
+          hairColor.select.value as keyof typeof legacyHairColorPalette
+        ],
+      uniformPrimaryColor:
+        legacyShirtColorPalette[
+          shirtColor.select.value as keyof typeof legacyShirtColorPalette
+        ],
+      uniformAccentColor:
+        legacyAccentColorPalette[
+          accentColor.select.value as keyof typeof legacyAccentColorPalette
+        ],
+    }
     cosmetics = {
       skinTone: skin.select.value as PlayerCosmetics['skinTone'],
-      hairStyle: hairStyle.select.value as PlayerCosmetics['hairStyle'],
+      hairStyle: cosmeticHairStyleFromHairAsset(appearance.hairId),
       hairColor: hairColor.select.value as PlayerCosmetics['hairColor'],
       shirtColor:
         shirtColor.select.value as PlayerCosmetics['shirtColor'],
@@ -286,12 +333,19 @@ export function createCreatePlayerScreen(options: {
       shortsColor:
         shortsColor.select.value as PlayerCosmetics['shortsColor'],
     }
+    portrait.update({
+      ...characterPortraitOptionsFromAppearance(appearance),
+      animated: true,
+      selected: true,
+      size: 'lg',
+      label: 'Created player portrait preview',
+    })
     preview.update(currentPreviewData())
   }
 
   for (const field of [
+    portraitHair.select,
     skin.select,
-    hairStyle.select,
     hairColor.select,
     shirtColor.select,
     accentColor.select,
@@ -362,6 +416,7 @@ export function createCreatePlayerScreen(options: {
       handedness:
         handedness.select.value as CreatedPlayer['handedness'],
       archetype,
+      appearance,
       cosmetics,
       attributes,
       selectedStickId,

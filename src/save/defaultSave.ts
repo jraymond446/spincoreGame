@@ -1,4 +1,8 @@
 import { defaultPlayerCosmetics } from '../player/playerCosmetics.ts'
+import {
+  appearanceFromCosmetics,
+  type PlayerAppearance,
+} from '../player/playerAppearanceTypes.ts'
 import { createDefaultTeamIdentity } from '../franchise/teamIdentity.ts'
 import type {
   CreatedPlayer,
@@ -85,9 +89,12 @@ export function createCreatedPlayer(input: {
   handedness: CreatedPlayer['handedness']
   archetype: CreatedPlayerArchetype
   cosmetics: PlayerCosmetics
+  appearance?: PlayerAppearance
   attributes: CreatedPlayerAttributes
   selectedStickId: string
 }): CreatedPlayer {
+  const cosmetics = structuredClone(input.cosmetics)
+
   return {
     id:
       typeof crypto.randomUUID === 'function'
@@ -98,7 +105,10 @@ export function createCreatedPlayer(input: {
     handedness: input.handedness,
     primaryRole: roleForArchetype(input.archetype),
     archetype: input.archetype,
-    cosmetics: structuredClone(input.cosmetics),
+    appearance: structuredClone(
+      input.appearance ?? appearanceFromCosmetics(cosmetics),
+    ),
+    cosmetics,
     attributes: structuredClone(input.attributes),
     selectedStickId: input.selectedStickId,
   }

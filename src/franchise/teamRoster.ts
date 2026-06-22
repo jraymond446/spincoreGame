@@ -15,6 +15,10 @@ import type {
 import type {
   PlayerRole,
 } from '../game/data/matchTypes'
+import {
+  generateAppearanceForId,
+} from '../player/generateRandomAppearance.ts'
+import type { PlayerAppearance } from '../player/playerAppearanceTypes.ts'
 import type {
   CreatedPlayer,
   CreatedPlayerAttributes,
@@ -46,6 +50,7 @@ export type TeamRosterSlotProfile = {
   isSignedPlayer: boolean
   isOpen: boolean
   signedPlayerId: string | null
+  appearance: PlayerAppearance | null
 }
 
 export type TeamRosterReadiness = {
@@ -136,6 +141,7 @@ export function getTeamRosterSlotProfile(
       isSignedPlayer: false,
       isOpen: false,
       signedPlayerId: null,
+      appearance: save.player.appearance,
     }
   }
 
@@ -153,6 +159,7 @@ export function getTeamRosterSlotProfile(
       isSignedPlayer: true,
       isOpen: false,
       signedPlayerId: signedPlayer.id,
+      appearance: signedPlayer.appearance,
     }
   }
 
@@ -162,11 +169,12 @@ export function getTeamRosterSlotProfile(
       role: 'support',
       roleLabel: 'Bench',
       name: 'Open Bench',
-      meta: 'Optional reserve slot. Bench players do not enter 3v3 matches yet.',
+      meta: 'Reserve slot. A matching bench player can swap into the active lineup.',
       isCreatedPlayer: false,
       isSignedPlayer: false,
       isOpen: true,
       signedPlayerId: null,
+      appearance: null,
     }
   }
 
@@ -177,11 +185,12 @@ export function getTeamRosterSlotProfile(
         role: 'keeper',
         roleLabel: 'Keeper',
         name: 'House Keeper',
-        meta: 'AI keeper until keeper signings exist.',
+        meta: 'Unsigned keeper slot. A house fill-in covers test matches.',
         isCreatedPlayer: false,
         isSignedPlayer: false,
         isOpen: false,
         signedPlayerId: null,
+        appearance: generateAppearanceForId('house-a-keeper'),
       }
     case 'a-support':
       return {
@@ -189,11 +198,12 @@ export function getTeamRosterSlotProfile(
         role: 'support',
         roleLabel: 'Support Fielder',
         name: 'House Support',
-        meta: 'AI support slot until the free-agent pool lands.',
+        meta: 'Unsigned support slot. A house fill-in covers test matches.',
         isCreatedPlayer: false,
         isSignedPlayer: false,
         isOpen: false,
         signedPlayerId: null,
+        appearance: generateAppearanceForId('house-a-support'),
       }
     case 'a-striker':
       return {
@@ -201,11 +211,12 @@ export function getTeamRosterSlotProfile(
         role: 'striker',
         roleLabel: 'Lead Fielder',
         name: 'House Striker',
-        meta: 'AI scoring slot until field signings exist.',
+        meta: 'Unsigned scoring slot. A house fill-in covers test matches.',
         isCreatedPlayer: false,
         isSignedPlayer: false,
         isOpen: false,
         signedPlayerId: null,
+        appearance: generateAppearanceForId('house-a-striker'),
       }
   }
 }
@@ -275,14 +286,32 @@ export function canCutRosterSlot(
   )
 }
 
+export function canSwapRosterSlotWithBench(
+  save: SaveGame,
+  slotId: TeamRosterSlotId,
+): boolean {
+  if (
+    slotId === 'bench' ||
+    slotId === getCreatedPlayerRosterSlot(save.player) ||
+    !getSignedRosterPlayer(save, slotId)
+  ) {
+    return false
+  }
+
+  const benchPlayer = getSignedRosterPlayer(save, 'bench')
+
+  if (!benchPlayer) {
+    return false
+  }
+
+  return isAgentAllowedInSlot(benchPlayer.role, slotId)
+}
+
 export function getTeamRosterReadiness(
   save: SaveGame,
 ): TeamRosterReadiness {
-  const createdPlayerSlotId = getCreatedPlayerRosterSlot(save.player)
   const missingActiveSlotIds = activeTeamRosterSlotIds.filter(
-    (slotId) =>
-      slotId !== createdPlayerSlotId &&
-      !getSignedRosterPlayer(save, slotId),
+    (slotId) => getTeamRosterSlotProfile(save, slotId).isOpen,
   )
   const missingActiveSlotLabels = missingActiveSlotIds.map(
     readinessSlotLabel,
@@ -297,8 +326,8 @@ export function getTeamRosterReadiness(
     missingActiveSlotIds,
     missingActiveSlotLabels,
     message: ready
-      ? 'Starting lineup ready.'
-      : `Sign ${formatList(missingActiveSlotLabels)} before playing.`,
+      ? 'Lineup is match eligible. House fill-ins cover unsigned active slots.'
+      : `Start ${formatList(missingActiveSlotLabels)} before playing.`,
   }
 }
 
@@ -452,6 +481,21 @@ function rosterRoleLabel(
   }
 
   return role === 'striker' ? 'Lead Fielder' : 'Support Fielder'
+}
+
+function isAgentAllowedInSlot(
+  role: PlayerRole,
+  slotId: TeamRosterSlotId,
+): boolean {
+  if (slotId === 'bench') {
+    return true
+  }
+
+  if (slotId === 'a-keeper') {
+    return role === 'keeper'
+  }
+
+  return role !== 'keeper'
 }
 
 function readinessSlotLabel(slotId: TeamRosterSlotId): string {

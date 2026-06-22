@@ -4,6 +4,7 @@ import { getEffectivePlayerAttributes } from '../equipment/equipmentEffects.ts'
 import { getFreeAgent } from '../franchise/freeAgentCatalog.ts'
 import {
   canCutRosterSlot,
+  canSwapRosterSlotWithBench,
   getCreatedPlayerRosterSlot,
   getTeamRosterReadiness,
 } from '../franchise/teamRoster.ts'
@@ -72,6 +73,58 @@ save.team.rosterLoadouts['a-support'].equipment.shoesId = 'apex-runners'
 const afterGear = getEffectivePlayerAttributes(save)
 const createdPlayerRosterSlot = getCreatedPlayerRosterSlot(save.player)
 const incompleteReadiness = getTeamRosterReadiness(save)
+const customAppearanceSave = structuredClone(save)
+customAppearanceSave.player.appearance = {
+  ...customAppearanceSave.player.appearance,
+  hairId: 'hair04',
+  hairColor: '#5d3fb4',
+  skinColor: '#a96f52',
+  uniformPrimaryColor: '#198bd5',
+  uniformAccentColor: '#f2c84b',
+}
+const validatedCustomAppearance = validateSave(customAppearanceSave)
+
+assertEqual(
+  validatedCustomAppearance?.player.appearance.hairId,
+  'hair04',
+  'custom hairstyle should survive save validation',
+)
+assertEqual(
+  validatedCustomAppearance?.player.appearance.hairColor,
+  '#5d3fb4',
+  'custom hair color should survive save validation',
+)
+
+const legacyAppearanceSave = structuredClone(save) as unknown as Record<
+  string,
+  unknown
+>
+const legacyPlayer = legacyAppearanceSave.player as Record<string, unknown>
+legacyPlayer.appearance = {
+  presentation: 'masc',
+  bodyId: 'body01',
+  faceId: 'face01',
+  hairId: 'hair03',
+  skinTone: 'dark',
+  hairColor: 'blue',
+}
+const validatedLegacyAppearance = validateSave(legacyAppearanceSave)
+
+assertEqual(
+  validatedLegacyAppearance?.player.appearance.bodyId,
+  'mascStriker01',
+  'legacy body id should migrate to the registered menu body',
+)
+assertEqual(
+  validatedLegacyAppearance?.player.appearance.hairId,
+  'hair03',
+  'legacy hairstyle should remain valid',
+)
+assertEqual(
+  validatedLegacyAppearance?.player.appearance.hairColor,
+  '#3c78c4',
+  'legacy hair palette id should migrate to its hex color',
+)
 
 assertEqual(
   canCutRosterSlot(save, createdPlayerRosterSlot),
@@ -81,21 +134,45 @@ assertEqual(
 
 assertEqual(
   incompleteReadiness.ready,
-  false,
-  'lineup should not be match-ready without a signed keeper',
+  true,
+  'house active slots should count as match-ready starters',
 )
 assertEqual(
-  incompleteReadiness.missingActiveSlotIds.includes('a-keeper'),
-  true,
-  'lineup readiness should identify the missing keeper',
+  incompleteReadiness.activePlayerCount,
+  3,
+  'lineup readiness should count created, signed, and house starters',
 )
 
 save.team.rosterAssignments['a-keeper'] = 'rhea-stone'
+save.team.rosterAssignments.bench = 'tavi-rush'
 
 assertEqual(
   getTeamRosterReadiness(save).ready,
   true,
   'lineup should be match-ready once all active slots are filled',
+)
+assertEqual(
+  canSwapRosterSlotWithBench(save, 'a-support'),
+  true,
+  'active fielder should be swappable when the bench player can enter that slot',
+)
+assertEqual(
+  canSwapRosterSlotWithBench(save, 'a-keeper'),
+  false,
+  'active keeper should not swap with a fielder bench player',
+)
+
+save.team.rosterAssignments.bench = 'juno-reed'
+
+assertEqual(
+  canSwapRosterSlotWithBench(save, 'a-keeper'),
+  true,
+  'active keeper should be swappable when a keeper is on the bench',
+)
+assertEqual(
+  canSwapRosterSlotWithBench(save, 'a-support'),
+  false,
+  'active fielder should not swap with a keeper bench player',
 )
 
 assertGreater(
@@ -274,7 +351,7 @@ for (const itemId of [
   }
 }
 
-console.info('Attribute gameplay bridge cases passed: 25')
+console.info('Attribute gameplay bridge cases passed: 34')
 
 function attributes(value = playerAttributeDefault): CreatedPlayerAttributes {
   const result = {} as CreatedPlayerAttributes

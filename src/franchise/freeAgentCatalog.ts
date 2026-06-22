@@ -6,6 +6,10 @@ import type {
 import type {
   CreatedPlayerAttributes,
 } from '../save/saveTypes'
+import {
+  generateAppearanceForId,
+} from '../player/generateRandomAppearance.ts'
+import type { PlayerAppearance } from '../player/playerAppearanceTypes.ts'
 
 export type FreeAgent = {
   id: string
@@ -16,6 +20,7 @@ export type FreeAgent = {
   playStyle: PlayerPlayStyle
   salary: number
   attributes: CreatedPlayerAttributes
+  appearance: PlayerAppearance
   traits: string[]
   summary: string
 }
@@ -28,7 +33,8 @@ export const freeAgentCatalog: FreeAgent[] = [
     role: 'striker',
     handedness: 'right',
     playStyle: 'direct',
-    salary: 135,
+    salary: 35,
+    appearance: generateAppearanceForId('tavi-rush'),
     attributes: {
       speed: 17,
       reaction: 14,
@@ -48,7 +54,8 @@ export const freeAgentCatalog: FreeAgent[] = [
     role: 'support',
     handedness: 'left',
     playStyle: 'creative',
-    salary: 155,
+    salary: 38,
+    appearance: generateAppearanceForId('miko-banks'),
     attributes: {
       speed: 13,
       reaction: 16,
@@ -68,7 +75,8 @@ export const freeAgentCatalog: FreeAgent[] = [
     role: 'keeper',
     handedness: 'right',
     playStyle: 'tight',
-    salary: 170,
+    salary: 42,
+    appearance: generateAppearanceForId('rhea-stone'),
     attributes: {
       speed: 11,
       reaction: 19,
@@ -80,6 +88,48 @@ export const freeAgentCatalog: FreeAgent[] = [
     traits: ['Stable crease', 'Hard clears', 'Calm rebounds'],
     summary:
       'A reliable keeper upgrade who keeps the floor under control.',
+  },
+  {
+    id: 'pax-vale',
+    name: 'Pax Vale',
+    jerseyNumber: 19,
+    role: 'brute',
+    handedness: 'right',
+    playStyle: 'bodyguard',
+    salary: 36,
+    appearance: generateAppearanceForId('pax-vale'),
+    attributes: {
+      speed: 12,
+      reaction: 13,
+      shotPower: 17,
+      shotAccuracy: 11,
+      shotSpin: 10,
+      toughness: 19,
+    },
+    traits: ['Cheap bruiser', 'Truck tester', 'Loose-ball pressure'],
+    summary:
+      'A low-cost contact fielder for bench swaps and toughness testing.',
+  },
+  {
+    id: 'juno-reed',
+    name: 'Juno Reed',
+    jerseyNumber: 31,
+    role: 'keeper',
+    handedness: 'left',
+    playStyle: 'sweeper',
+    salary: 34,
+    appearance: generateAppearanceForId('juno-reed'),
+    attributes: {
+      speed: 14,
+      reaction: 16,
+      shotPower: 12,
+      shotAccuracy: 13,
+      shotSpin: 15,
+      toughness: 13,
+    },
+    traits: ['Cheap keeper', 'Sweeper clears', 'Bench swap tester'],
+    summary:
+      'A mobile reserve keeper built to prove keeper-to-keeper swaps.',
   },
 ]
 
