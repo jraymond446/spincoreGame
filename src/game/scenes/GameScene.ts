@@ -38,6 +38,7 @@ import {
   type ArenaMatchPresentation,
 } from '../arena/ArenaPresentation'
 import { createArenaLayout } from '../arena/ArenaLayout'
+import { arenaCharacterDefaults } from '../arena/ArenaCharacterAssets'
 import { ArenaRenderer } from '../rendering/ArenaRenderer'
 import { ScoreboardOverlay } from '../rendering/ScoreboardOverlay'
 import { preloadVisualAssetOverrides } from '../rendering/VisualAssetOverrides'
@@ -300,7 +301,7 @@ export class GameScene extends Phaser.Scene {
     if (!this.matchFlowSystem.isPlaying()) {
       this.currentInputIntent = 'WAIT'
       this.freezeEntities(players)
-      this.core.update()
+      this.updateCorePresentation(delta, players)
       this.updateDebugHud(controlledPlayer)
       return
     }
@@ -478,7 +479,7 @@ export class GameScene extends Phaser.Scene {
       controlledPlayer.id,
       this.stickInteractionSystem.getCarrierId() !== null,
     )
-    this.core.update()
+    this.updateCorePresentation(delta, players)
 
     let goalScored = false
 
@@ -1415,6 +1416,44 @@ export class GameScene extends Phaser.Scene {
     }
 
     return hudRoot
+  }
+
+  private updateCorePresentation(
+    deltaMs: number,
+    players: Player[],
+  ): void {
+    const launch = getMatchLaunchConfig()
+    const arena = getLabState().arenaVisual
+    const isLab = launch.mode === 'lab'
+    const carrierId = this.stickInteractionSystem.getCarrierId()
+    const carrier = players.find((player) => player.id === carrierId)
+    const attachToPocket =
+      Boolean(carrier) && (!isLab || arena.corePocketAttachment)
+    const prefersReducedMotion =
+      typeof window !== 'undefined' &&
+      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    const chargeOverride =
+      isLab && (arena.forceFullyCharged || arena.chargePreview > 0)
+        ? arena.forceFullyCharged
+          ? 1
+          : arena.chargePreview
+        : null
+
+    this.core.setVisualAttachment(
+      attachToPocket && carrier
+        ? carrier.getVisualCorePocketAnchor()
+        : null,
+    )
+    this.core.setPresentationSettings({
+      chargeOverride,
+      forceFullyCharged: isLab && arena.forceFullyCharged,
+      spinEnabled: isLab ? arena.coreSpin : arenaCharacterDefaults.coreSpin,
+      chargeVfx: isLab ? arena.chargeVfx : arenaCharacterDefaults.chargeVfx,
+      reducedMotion:
+        (isLab && arena.reducedMotion) || Boolean(prefersReducedMotion),
+      contractOverlay: isLab && arena.contractOverlay,
+    })
+    this.core.update(deltaMs)
   }
 
   private updateHud(): void {

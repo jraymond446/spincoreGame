@@ -135,24 +135,23 @@ export class TeamSystem {
 
   getStrategies(): Record<TeamSide, TeamStrategy> {
     return {
-      A: structuredClone(this.getTeam('A').strategy),
-      B: structuredClone(this.getTeam('B').strategy),
+      A: structuredClone(this.getRuntimeOrBaselineTeam('A').strategy),
+      B: structuredClone(this.getRuntimeOrBaselineTeam('B').strategy),
     }
   }
 
   getTacticalQualities(): Record<TeamSide, TeamTacticalQuality> {
     return {
-      A: { ...this.getTeam('A').tacticalQuality },
-      B: { ...this.getTeam('B').tacticalQuality },
+      A: { ...this.getRuntimeOrBaselineTeam('A').tacticalQuality },
+      B: { ...this.getRuntimeOrBaselineTeam('B').tacticalQuality },
     }
   }
 
   applyArenaVisualPresentation(
     presentation: ArenaMatchPresentation,
   ): void {
-    for (const side of ['A', 'B'] as const) {
-      const team = this.getTeam(side)
-      const identity = presentation.teams[side]
+    for (const team of this.teams) {
+      const identity = presentation.teams[team.side]
       team.name = identity.name
       team.color = identity.primaryColor
       team.accentColor = identity.accentColor
@@ -185,6 +184,8 @@ export class TeamSystem {
               hairStyle: mapMenuHairToArena(
                 arenaVisual.playerHairStyle,
               ),
+              arenaBodyId: arenaVisual.arenaBodyId,
+              arenaHairId: arenaVisual.arenaHairId,
               hairColor: parseHexColor(
                 arenaVisual.playerHairColor,
                 0x674536,
@@ -197,6 +198,18 @@ export class TeamSystem {
         accent: uniform.accentColor,
       })
     }
+  }
+
+  private getRuntimeOrBaselineTeam(side: TeamSide): Team {
+    const team =
+      this.teams.find((candidate) => candidate.side === side) ??
+      teams.find((candidate) => candidate.side === side)
+
+    if (!team) {
+      throw new Error(`Missing team definition for side ${side}`)
+    }
+
+    return team
   }
 }
 

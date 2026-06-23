@@ -27,6 +27,7 @@ export const arenaPresentationConfig = {
     bobAmplitude: 0.55,
     bobSpeed: 0.0022,
     redrawIntervalMs: 450,
+    uniformMaskRate: 0.78,
     shirtColors: [
       0x35a5dc,
       0xef6376,

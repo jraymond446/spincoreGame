@@ -266,6 +266,7 @@ export class StickInteractionSystem {
       this.isCradled() ? this.getChargeNormalized() : 0,
       this.isCradled() && this.isHardChargeVisualActive(),
       this.coreState === 'CRADLED_OVERCHARGED',
+      this.isCradled(),
     )
     this.drawReleaseSwing(players)
     this.drawDebug(core, players)
@@ -1856,6 +1857,7 @@ export class StickInteractionSystem {
     core.setVelocity(velocity)
     if (nextState === 'FUMBLED') {
       core.setReleaseVisualCharge(0.35, true)
+      core.setDisruptedVisual()
     }
     this.coreState = nextState
     this.carrierId = null

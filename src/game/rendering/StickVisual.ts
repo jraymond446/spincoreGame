@@ -79,4 +79,9 @@ export class StickVisual {
     this.cestaBat?.destroy()
     this.keeperShield?.destroy()
   }
+
+  setVisible(visible: boolean): void {
+    this.cestaBat?.setVisible(visible)
+    this.keeperShield?.setVisible(visible)
+  }
 }

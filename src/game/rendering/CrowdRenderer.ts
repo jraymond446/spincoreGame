@@ -9,6 +9,7 @@ import {
 } from '../arena/ArenaAttendance'
 import type { ArenaMatchPresentation } from '../arena/ArenaPresentation'
 import type { ArenaTheme } from '../arena/ArenaTheme'
+import { spectatorUniformMaskAsset } from '../arena/ArenaCharacterAssets'
 import { arenaPresentationConfig } from '../config/arenaPresentationConfig'
 import {
   crowdVariants,
@@ -41,6 +42,7 @@ export type CrowdDebugState = {
 export class CrowdRenderer {
   private readonly graphics: Phaser.GameObjects.Graphics
   private assetSprites: Phaser.GameObjects.Image[] = []
+  private assetMaskSprites: Phaser.GameObjects.Image[] = []
   private members: CrowdMember[] = []
   private simplified = false
   private lastRedrawBucket = -1
@@ -90,11 +92,17 @@ export class CrowdRenderer {
     if (!arenaPresentationConfig.showCrowd) {
       this.graphics.setVisible(false)
       this.assetSprites.forEach((sprite) => sprite.setVisible(false))
+      this.assetMaskSprites.forEach((sprite) => sprite.setVisible(false))
       return
     }
 
     this.graphics.setVisible(!this.usingAssetSprites)
     this.assetSprites.forEach((sprite, index) =>
+      sprite.setVisible(
+        this.usingAssetSprites && index < this.members.length,
+      ),
+    )
+    this.assetMaskSprites.forEach((sprite, index) =>
       sprite.setVisible(
         this.usingAssetSprites && index < this.members.length,
       ),
@@ -139,6 +147,7 @@ export class CrowdRenderer {
 
   private rebuild(): void {
     this.assetSprites.forEach((sprite) => sprite.setVisible(false))
+    this.assetMaskSprites.forEach((sprite) => sprite.setVisible(false))
     this.members = this.generateMembers()
     this.lastRedrawBucket = -1
 
@@ -216,6 +225,16 @@ export class CrowdRenderer {
       .get(atlas.key)
       .getFrameNames()
       .filter((frameName) => frameName !== '__BASE')
+    const maskAvailable = hasVisualAsset(
+      this.scene,
+      spectatorUniformMaskAsset.key,
+    )
+    const maskFrameNames = maskAvailable
+      ? this.scene.textures
+          .get(spectatorUniformMaskAsset.key)
+          .getFrameNames()
+          .filter((frameName) => frameName !== '__BASE')
+      : []
 
     if (frameNames.length === 0) {
       return false
@@ -241,8 +260,53 @@ export class CrowdRenderer {
         .setAlpha(arenaPresentationConfig.crowd.alpha)
         .setRotation(0)
         .setVisible(true)
+
+      if (!maskAvailable || maskFrameNames.length === 0) {
+        this.assetMaskSprites[index]?.setVisible(false)
+      } else {
+        const maskFrame =
+          maskFrameNames[member.atlasFrame % maskFrameNames.length]
+        const maskSprite = this.assetMaskSprites[index] ??
+          this.scene.add
+            .image(
+              member.x,
+              member.y,
+              spectatorUniformMaskAsset.key,
+              maskFrame,
+            )
+            .setDepth(arenaLayers.spectators + 0.05)
+
+        if (!this.assetMaskSprites[index]) {
+          this.assetMaskSprites[index] = maskSprite
+        } else {
+          maskSprite.setTexture(
+            spectatorUniformMaskAsset.key,
+            maskFrame,
+          )
+        }
+        const usesTeamTint =
+          seededUnit(this.presentation.crowdSeed + 131, index) <
+          arenaPresentationConfig.crowd.uniformMaskRate
+        maskSprite
+          .setPosition(member.x, member.y)
+          .setDisplaySize(34 * member.scale, 39 * member.scale)
+          .setTint(
+            usesTeamTint
+              ? member.variant.shirtColor
+              : 0xd7d7d7,
+          )
+          .setBlendMode(Phaser.BlendModes.MULTIPLY)
+          .setAlpha(arenaPresentationConfig.crowd.alpha)
+          .setRotation(0)
+          .setVisible(true)
+      }
     })
     this.assetSprites.forEach((sprite, index) => {
+      if (index >= this.members.length) {
+        sprite.setVisible(false)
+      }
+    })
+    this.assetMaskSprites.forEach((sprite, index) => {
       if (index >= this.members.length) {
         sprite.setVisible(false)
       }
@@ -264,6 +328,10 @@ export class CrowdRenderer {
           ) * arenaPresentationConfig.crowd.bobAmplitude
         : 0
       sprite.setPosition(member.x, member.y + bob)
+      this.assetMaskSprites[index]?.setPosition(
+        member.x,
+        member.y + bob,
+      )
     })
   }
 
@@ -288,7 +356,9 @@ export class CrowdRenderer {
 
   private destroyAssetSprites(): void {
     this.assetSprites.forEach((sprite) => sprite.destroy())
+    this.assetMaskSprites.forEach((sprite) => sprite.destroy())
     this.assetSprites = []
+    this.assetMaskSprites = []
   }
 }
 

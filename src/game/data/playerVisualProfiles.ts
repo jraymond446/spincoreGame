@@ -7,6 +7,11 @@ import type {
 } from './matchTypes'
 
 export type PlayerVisualProfile = {
+  presentation: 'masc' | 'fem'
+  bodyId: 'mascStriker01'
+  arenaBodyId: 'field-player-01'
+  arenaHairId: 'arena-hair-01'
+  faceId?: string
   hairStyle: HairStyleId
   hairColor: number
   stickStyle: StickStyle
@@ -16,6 +21,17 @@ export type PlayerVisualProfile = {
   shirtShadeColor?: number
   trimColor?: number
   shortsColor?: number
+}
+
+export const arenaHairIdByMenuStyle: Record<
+  HairStyleId,
+  PlayerVisualProfile['arenaHairId']
+> = {
+  crop: 'arena-hair-01',
+  spikes: 'arena-hair-01',
+  swoop: 'arena-hair-01',
+  tuft: 'arena-hair-01',
+  bob: 'arena-hair-01',
 }
 
 export function createPlayerVisualProfile(
@@ -31,12 +47,19 @@ export function createPlayerVisualProfile(
   )
 
   const preset = getVisualPreset(visualPreset)
+  const hairStyle =
+    override?.hairStyle ??
+    preset?.hairStyle ??
+    hairStyleOrder[hash % hairStyleOrder.length]
 
   return {
-    hairStyle:
-      override?.hairStyle ??
-      preset?.hairStyle ??
-      hairStyleOrder[hash % hairStyleOrder.length],
+    presentation: override?.presentation ?? 'masc',
+    bodyId: override?.bodyId ?? 'mascStriker01',
+    arenaBodyId: override?.arenaBodyId ?? 'field-player-01',
+    arenaHairId:
+      override?.arenaHairId ?? arenaHairIdByMenuStyle[hairStyle],
+    faceId: override?.faceId,
+    hairStyle,
     hairColor:
       override?.hairColor ??
       preset?.hairColor ??

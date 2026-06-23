@@ -835,6 +835,53 @@ export class LabPanel {
         this.previewArenaVisuals()
       }),
       this.createSelect(
+        'Gameplay character renderer',
+        arena.characterRendererMode,
+        [
+          { value: 'legacy', label: 'Legacy renderer' },
+          { value: 'asset', label: 'New renderer / procedural fallback' },
+          { value: 'automatic', label: 'Automatic asset fallback' },
+        ],
+        (value) => {
+          arena.characterRendererMode =
+            value as LabTuningState['arenaVisual']['characterRendererMode']
+          this.previewArenaVisuals()
+        },
+      ),
+      this.createSelect(
+        'Character renderer scope',
+        arena.characterRendererScope,
+        [
+          { value: 'controlled', label: 'Controlled player only' },
+          { value: 'all', label: 'All players' },
+        ],
+        (value) => {
+          arena.characterRendererScope =
+            value as LabTuningState['arenaVisual']['characterRendererScope']
+          this.previewArenaVisuals()
+        },
+      ),
+      this.createSelect(
+        'Arena body asset',
+        arena.arenaBodyId,
+        [{ value: 'field-player-01', label: 'Field Player 01' }],
+        (value) => {
+          arena.arenaBodyId =
+            value as LabTuningState['arenaVisual']['arenaBodyId']
+          this.previewArenaVisuals()
+        },
+      ),
+      this.createSelect(
+        'Arena hair asset',
+        arena.arenaHairId,
+        [{ value: 'arena-hair-01', label: 'Arena Hair 01' }],
+        (value) => {
+          arena.arenaHairId =
+            value as LabTuningState['arenaVisual']['arenaHairId']
+          this.previewArenaVisuals()
+        },
+      ),
+      this.createSelect(
         'Appearance preview role',
         arena.playerRole,
         stringOptions(labOptions.roles),
@@ -867,6 +914,117 @@ export class LabPanel {
         arena.playerHairColor = value
         this.previewArenaVisuals()
       }),
+      this.createSelect(
+        'Player handedness',
+        arena.playerHandedness,
+        stringOptions(labOptions.handedness),
+        (value) => {
+          arena.playerHandedness =
+            value as LabTuningState['arenaVisual']['playerHandedness']
+          this.previewArenaVisuals()
+        },
+      ),
+      this.createSelect(
+        'Arena stick asset',
+        arena.arenaStickId,
+        [{ value: 'rookie-cesta-01', label: 'Rookie Cesta 01' }],
+        (value) => {
+          arena.arenaStickId =
+            value as LabTuningState['arenaVisual']['arenaStickId']
+          this.previewArenaVisuals()
+        },
+      ),
+      this.createImmediateRange(
+        'Gameplay sprite scale',
+        arena.spriteScale,
+        { min: 0.65, max: 1.45, step: 0.05, digits: 2 },
+        (value) => {
+          arena.spriteScale = value
+          this.previewArenaVisuals()
+        },
+      ),
+      this.createImmediateRange(
+        'Arena stick scale',
+        arena.arenaStickScale,
+        { min: 0.65, max: 1.4, step: 0.05, digits: 2 },
+        (value) => {
+          arena.arenaStickScale = value
+          this.previewArenaVisuals()
+        },
+      ),
+      this.createImmediateRange(
+        'Arena stick angle',
+        arena.arenaStickAngle,
+        { min: -1.5, max: 1.5, step: 0.05, digits: 2 },
+        (value) => {
+          arena.arenaStickAngle = value
+          this.previewArenaVisuals()
+        },
+      ),
+      this.createSelect(
+        'Stick layer',
+        arena.stickLayerMode,
+        [
+          { value: 'automatic', label: 'Automatic front / behind' },
+          { value: 'above', label: 'Force above body' },
+          { value: 'below', label: 'Force below body' },
+        ],
+        (value) => {
+          arena.stickLayerMode =
+            value as LabTuningState['arenaVisual']['stickLayerMode']
+          this.previewArenaVisuals()
+        },
+      ),
+      this.createCheckbox('Stick anchor overlay', arena.anchorOverlay, (checked) => {
+        arena.anchorOverlay = checked
+        this.previewArenaVisuals()
+      }),
+      this.createCheckbox('Contract overlay', arena.contractOverlay, (checked) => {
+        arena.contractOverlay = checked
+        this.previewArenaVisuals()
+      }),
+      this.createCheckbox(
+        'Core pocket attachment',
+        arena.corePocketAttachment,
+        (checked) => {
+          arena.corePocketAttachment = checked
+          this.previewArenaVisuals()
+        },
+      ),
+      this.createImmediateRange(
+        'Charge visual preview',
+        arena.chargePreview,
+        { min: 0, max: 1, step: 0.05, digits: 2 },
+        (value) => {
+          arena.chargePreview = value
+          this.previewArenaVisuals()
+        },
+      ),
+      this.createCheckbox(
+        'Force fully charged',
+        arena.forceFullyCharged,
+        (checked) => {
+          arena.forceFullyCharged = checked
+          this.previewArenaVisuals()
+        },
+      ),
+      this.createCheckbox('Core spin', arena.coreSpin, (checked) => {
+        arena.coreSpin = checked
+        this.previewArenaVisuals()
+      }),
+      this.createCheckbox('Charge VFX', arena.chargeVfx, (checked) => {
+        arena.chargeVfx = checked
+        this.previewArenaVisuals()
+      }),
+      this.createImmediateRange(
+        'Character animation speed',
+        arena.animationSpeed,
+        { min: 0.25, max: 2, step: 0.05, digits: 2 },
+        (value) => {
+          arena.animationSpeed = value
+          this.previewArenaVisuals()
+        },
+      ),
       this.createCheckbox('Geometry overlay', arena.geometryOverlay, (checked) => {
         arena.geometryOverlay = checked
         this.previewArenaVisuals()
@@ -924,6 +1082,10 @@ export class LabPanel {
           'hair04',
         ] as const)
         arena.playerRole = randomItem(labOptions.roles)
+        arena.playerHandedness = randomItem(labOptions.handedness)
+        arena.spriteScale = randomBetween(0.88, 1.16)
+        arena.arenaStickScale = randomBetween(0.88, 1.14)
+        arena.arenaStickAngle = randomBetween(-0.22, 0.22)
         this.previewArenaVisuals()
       },
     )
@@ -2781,4 +2943,8 @@ function randomItem<T>(values: readonly T[]): T {
 
 function numberToHex(value: number): string {
   return `#${value.toString(16).padStart(6, '0')}`
+}
+
+function randomBetween(minimum: number, maximum: number): number {
+  return Math.round((minimum + Math.random() * (maximum - minimum)) * 100) / 100
 }

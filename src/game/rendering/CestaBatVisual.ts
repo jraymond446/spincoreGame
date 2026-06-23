@@ -125,6 +125,12 @@ export class CestaBatVisual {
     this.foreground.destroy()
   }
 
+  setVisible(visible: boolean): void {
+    this.image.setVisible(visible)
+    this.effects.setVisible(visible)
+    this.foreground.setVisible(visible)
+  }
+
   private ensureGeneratedTexture(): string {
     const style = this.style
     const config = stickVisualConfig

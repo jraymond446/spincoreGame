@@ -34,6 +34,11 @@ const numericRules: Record<string, NumericRule> = {
   'field.scoringPlaneTolerance': { min: 0, max: 18 },
   'field.goalScoreCooldownMs': { min: 250, max: 2000 },
   'arenaVisual.manualAttendance': { min: 0, max: 1 },
+  'arenaVisual.spriteScale': { min: 0.65, max: 1.45 },
+  'arenaVisual.arenaStickScale': { min: 0.65, max: 1.4 },
+  'arenaVisual.arenaStickAngle': { min: -1.57, max: 1.57 },
+  'arenaVisual.chargePreview': { min: 0, max: 1 },
+  'arenaVisual.animationSpeed': { min: 0.25, max: 2 },
   'keeper.keeperMoveSpeedMultiplier': { min: 0.2, max: 1.2 },
   'keeper.keeperAccelerationMultiplier': { min: 0.2, max: 1.2 },
   'keeper.keeperTurnRateMultiplier': { min: 0.2, max: 1.2 },
@@ -312,6 +317,27 @@ function allowedStringValues(path: string): Set<string> | null {
   }
   if (path === 'arenaVisual.playerRole') {
     return new Set(labOptions.roles)
+  }
+  if (path === 'arenaVisual.playerHandedness') {
+    return new Set(labOptions.handedness)
+  }
+  if (path === 'arenaVisual.characterRendererMode') {
+    return new Set(['legacy', 'asset', 'automatic'])
+  }
+  if (path === 'arenaVisual.characterRendererScope') {
+    return new Set(['controlled', 'all'])
+  }
+  if (path === 'arenaVisual.arenaBodyId') {
+    return new Set(['field-player-01'])
+  }
+  if (path === 'arenaVisual.arenaHairId') {
+    return new Set(['arena-hair-01'])
+  }
+  if (path === 'arenaVisual.arenaStickId') {
+    return new Set(['rookie-cesta-01'])
+  }
+  if (path === 'arenaVisual.stickLayerMode') {
+    return new Set(['automatic', 'above', 'below'])
   }
 
   return null

@@ -1,57 +1,58 @@
 import Phaser from 'phaser'
 import { coreConfig } from '../config/entityConfig'
-import { possessionFeelConfig } from '../config/possessionFeelConfig'
 import type { Point } from '../data/geometry'
-import { arenaLayers } from '../arena/ArenaLayers'
+import { resolveArenaCoreVisualState } from '../arena/ArenaCharacterAssets'
+import { ArenaCoreRenderer } from '../rendering/ArenaCoreRenderer'
+
+export type CorePresentationSettings = {
+  chargeOverride: number | null
+  forceFullyCharged: boolean
+  spinEnabled: boolean
+  chargeVfx: boolean
+  reducedMotion: boolean
+  contractOverlay: boolean
+}
+
+const defaultPresentationSettings: CorePresentationSettings = {
+  chargeOverride: null,
+  forceFullyCharged: false,
+  spinEnabled: true,
+  chargeVfx: true,
+  reducedMotion: false,
+  contractOverlay: false,
+}
 
 export class Core {
   readonly body: MatterJS.BodyType
 
-  private scene: Phaser.Scene
-  private glow: Phaser.GameObjects.Arc
-  private shell: Phaser.GameObjects.Arc
-  private trail: Phaser.GameObjects.Graphics
-  private chargeAccent: Phaser.GameObjects.Graphics
+  private readonly scene: Phaser.Scene
+  private readonly renderer: ArenaCoreRenderer
+  private visualAttachment: Point | null = null
   private possessionCharge = 0
   private possessionHardCharge = false
   private possessionOvercharged = false
+  private possessionActive = false
   private releaseVisualCharge = 0
   private releaseVisualUntil = 0
   private releaseVisualOvercharged = false
+  private disruptedVisualUntil = 0
+  private presentation = { ...defaultPresentationSettings }
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene
-    this.body = scene.matter.add.circle(coreConfig.spawn.x, coreConfig.spawn.y, coreConfig.radius, {
-      label: 'core',
-      restitution: coreConfig.restitution,
-      friction: coreConfig.friction,
-      frictionAir: coreConfig.frictionAir,
-      density: coreConfig.density,
-    })
-
-    this.trail = scene.add.graphics().setDepth(arenaLayers.gameplayVfx)
-    this.chargeAccent = scene.add
-      .graphics()
-      .setDepth(arenaLayers.gameplayVfx + 1)
-    this.glow = scene.add.circle(
-      coreConfig.spawn.x,
-      coreConfig.spawn.y,
-      coreConfig.radius * 2.15,
-      coreConfig.glowColor,
-      0.16,
-    )
-    this.glow.setDepth(arenaLayers.core - 1)
-    this.shell = scene.add.circle(
+    this.body = scene.matter.add.circle(
       coreConfig.spawn.x,
       coreConfig.spawn.y,
       coreConfig.radius,
-      coreConfig.fillColor,
-      1,
+      {
+        label: 'core',
+        restitution: coreConfig.restitution,
+        friction: coreConfig.friction,
+        frictionAir: coreConfig.frictionAir,
+        density: coreConfig.density,
+      },
     )
-    this.shell.setDepth(arenaLayers.core)
-
-    this.glow.setBlendMode(Phaser.BlendModes.ADD)
-    this.shell.setStrokeStyle(3, coreConfig.strokeColor, 1)
+    this.renderer = new ArenaCoreRenderer(scene)
   }
 
   get position(): Point {
@@ -69,79 +70,83 @@ export class Core {
   }
 
   get renderedPosition(): Point {
-    return {
-      x: this.shell.x,
-      y: this.shell.y,
-    }
+    return this.renderer.getPosition()
   }
 
-  update(): void {
-    const position = this.position
-    const velocity = this.body.velocity
-    const speed = Math.hypot(velocity.x, velocity.y)
-    const releaseCharge =
-      this.scene.time.now < this.releaseVisualUntil
-        ? this.releaseVisualCharge
-        : 0
-    const unstableFlicker =
-      this.releaseVisualOvercharged && releaseCharge > 0
-        ? 0.72 + Math.sin(this.scene.time.now * 0.065) * 0.28
-        : 1
-    const trailAlpha =
-      Phaser.Math.Clamp(speed / 10, 0, 0.55) *
-      Phaser.Math.Linear(1, 1.55, releaseCharge) *
-      unstableFlicker
-    const trailLength = Phaser.Math.Linear(5, 8.5, releaseCharge)
+  update(deltaMs = this.scene.game.loop.delta): void {
+    const now = this.scene.time.now
+    const released = now < this.releaseVisualUntil
+    const disrupted = now < this.disruptedVisualUntil
+    const overrideCharge = this.presentation.chargeOverride
+    const charge = this.presentation.forceFullyCharged
+      ? 1
+      : overrideCharge === null
+        ? released
+          ? this.releaseVisualCharge
+          : this.possessionCharge
+        : Phaser.Math.Clamp(overrideCharge, 0, 1)
+    const fullyCharged =
+      this.presentation.forceFullyCharged ||
+      (this.possessionActive && charge >= 0.995)
+    const state = resolveArenaCoreVisualState({
+      possessed: this.possessionActive || overrideCharge !== null,
+      charge,
+      fullyCharged,
+      released,
+      disrupted,
+    })
 
-    this.trail.clear()
-    this.trail.lineStyle(
-      Phaser.Math.Linear(5, 8, releaseCharge),
-      coreConfig.trailColor,
-      trailAlpha,
-    )
-    this.trail.lineBetween(
-      position.x - velocity.x * trailLength,
-      position.y - velocity.y * trailLength,
-      position.x,
-      position.y,
-    )
-
-    this.glow.setPosition(position.x, position.y)
-    this.shell.setPosition(position.x, position.y)
-    this.drawChargeAccent(position)
+    this.renderer.update({
+      position: this.visualAttachment ?? this.position,
+      velocity: this.velocity,
+      angularVelocity: this.body.angularVelocity,
+      state,
+      charge,
+      hardCharge:
+        this.presentation.forceFullyCharged || this.possessionHardCharge,
+      overcharged:
+        this.possessionOvercharged ||
+        (released && this.releaseVisualOvercharged),
+      spinEnabled: this.presentation.spinEnabled,
+      chargeVfx: this.presentation.chargeVfx,
+      reducedMotion: this.presentation.reducedMotion,
+      contractOverlay: this.presentation.contractOverlay,
+      deltaMs: Math.min(50, Math.max(0, deltaMs)),
+      now,
+    })
   }
 
   reset(): void {
     this.setSensor(false)
-    this.setPosition({
-      x: coreConfig.spawn.x,
-      y: coreConfig.spawn.y,
-    })
+    this.setPosition({ ...coreConfig.spawn })
     this.setVelocity({ x: 0, y: 0 })
+    this.visualAttachment = null
     this.possessionCharge = 0
     this.possessionHardCharge = false
     this.possessionOvercharged = false
+    this.possessionActive = false
     this.releaseVisualCharge = 0
     this.releaseVisualUntil = 0
+    this.disruptedVisualUntil = 0
+    this.presentation = { ...defaultPresentationSettings }
     this.update()
   }
 
   holdAt(position: Point): void {
     this.setPosition(position)
     this.setVelocity({ x: 0, y: 0 })
-    this.trail.clear()
-    this.glow.setPosition(position.x, position.y)
-    this.shell.setPosition(position.x, position.y)
   }
 
   setPossessionVisual(
     charge: number,
     hardCharge: boolean,
     overcharged: boolean,
+    possessed = false,
   ): void {
     this.possessionCharge = Phaser.Math.Clamp(charge, 0, 1)
     this.possessionHardCharge = hardCharge
     this.possessionOvercharged = overcharged
+    this.possessionActive = possessed
   }
 
   setReleaseVisualCharge(charge: number, overcharged: boolean): void {
@@ -151,6 +156,21 @@ export class Core {
     this.possessionCharge = 0
     this.possessionHardCharge = false
     this.possessionOvercharged = false
+    this.possessionActive = false
+    this.visualAttachment = null
+  }
+
+  setDisruptedVisual(): void {
+    this.disruptedVisualUntil = this.scene.time.now + 220
+    this.visualAttachment = null
+  }
+
+  setVisualAttachment(position: Point | null): void {
+    this.visualAttachment = position ? { ...position } : null
+  }
+
+  setPresentationSettings(settings: CorePresentationSettings): void {
+    this.presentation = { ...settings }
   }
 
   setPosition(position: Point): void {
@@ -172,70 +192,5 @@ export class Core {
 
   applyForce(force: Point): void {
     this.scene.matter.body.applyForce(this.body, this.body.position, force)
-  }
-
-  private drawChargeAccent(position: Point): void {
-    this.chargeAccent.clear()
-
-    if (this.possessionCharge <= 0) {
-      this.glow.setFillStyle(coreConfig.glowColor, 0.16)
-      this.shell.setFillStyle(coreConfig.fillColor, 1)
-      return
-    }
-
-    const pulse =
-      1 + Math.sin(this.scene.time.now * 0.018) * 0.08
-    const instability =
-      this.possessionOvercharged
-        ? Math.sin(this.scene.time.now * 0.055) * 2
-        : 0
-    const radius =
-      coreConfig.radius *
-      Phaser.Math.Linear(1.35, 1.9, this.possessionCharge) *
-      pulse
-    const color = this.possessionOvercharged
-      ? possessionFeelConfig.chargeCoreColorOvercharged
-      : this.possessionHardCharge
-        ? possessionFeelConfig.chargeCoreColorHard
-        : this.possessionCharge >= 0.4
-          ? possessionFeelConfig.chargeCoreColorCharging
-          : possessionFeelConfig.chargeCoreColorStable
-
-    this.glow.setFillStyle(
-      color,
-      Phaser.Math.Linear(0.16, 0.34, this.possessionCharge),
-    )
-    this.shell.setFillStyle(
-      Phaser.Display.Color.Interpolate.ColorWithColor(
-        Phaser.Display.Color.ValueToColor(coreConfig.fillColor),
-        Phaser.Display.Color.ValueToColor(color),
-        100,
-        Math.round(this.possessionCharge * 42),
-      ).color,
-      1,
-    )
-
-    this.chargeAccent.lineStyle(
-      2 + this.possessionCharge * 2,
-      color,
-      0.42 + this.possessionCharge * 0.45,
-    )
-    this.chargeAccent.strokeCircle(
-      position.x + instability,
-      position.y - instability,
-      radius,
-    )
-    this.chargeAccent.fillStyle(color, 0.75)
-
-    for (let index = 0; index < 3; index += 1) {
-      const angle =
-        this.scene.time.now * 0.006 +
-        (Math.PI * 2 * index) / 3
-      this.chargeAccent.fillCircle(
-        position.x + Math.cos(angle) * radius,
-        position.y + Math.sin(angle) * radius,
-        2 + this.possessionCharge,
-      )
-    }
   }
 }

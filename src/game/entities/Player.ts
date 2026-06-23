@@ -532,6 +532,10 @@ export class Player {
       : this.getBaseCradleSocket()
   }
 
+  getVisualCorePocketAnchor(): Point {
+    return this.visual.getCorePocketAnchor()
+  }
+
   setCarrySocket(socket: Point | null): void {
     this.carrySocket = socket ? { ...socket } : null
     this.syncVisuals()

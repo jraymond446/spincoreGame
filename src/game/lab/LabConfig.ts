@@ -1,5 +1,13 @@
 import type { GameMode } from '../config/gameplayConfig'
 import type { ArenaThemeId } from '../arena/ArenaTheme'
+import type {
+  ArenaBodyId,
+  ArenaCharacterRendererMode,
+  ArenaCharacterRendererScope,
+  ArenaHairId,
+  ArenaStickId,
+  ArenaStickLayerMode,
+} from '../arena/ArenaCharacterAssets'
 import type { KeeperEquipmentType } from '../config/keeperShieldConfig'
 import type {
   FormationId,
@@ -468,6 +476,24 @@ export type LabArenaVisualTuning = {
   playerHairStyle: HairAssetId
   playerHairColor: string
   playerRole: PlayerRole
+  playerHandedness: PlayerHandedness
+  characterRendererMode: ArenaCharacterRendererMode
+  characterRendererScope: ArenaCharacterRendererScope
+  arenaBodyId: ArenaBodyId
+  arenaHairId: ArenaHairId
+  arenaStickId: ArenaStickId
+  spriteScale: number
+  arenaStickScale: number
+  arenaStickAngle: number
+  stickLayerMode: ArenaStickLayerMode
+  anchorOverlay: boolean
+  contractOverlay: boolean
+  corePocketAttachment: boolean
+  chargePreview: number
+  forceFullyCharged: boolean
+  coreSpin: boolean
+  chargeVfx: boolean
+  animationSpeed: number
   geometryOverlay: boolean
   crowdAnimation: boolean
   reducedMotion: boolean

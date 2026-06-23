@@ -29,6 +29,14 @@ import {
   hasVisualAsset,
 } from './VisualAssetOverrides'
 import { arenaLayers } from '../arena/ArenaLayers'
+import {
+  arenaCharacterDefaults,
+  type ArenaCharacterRendererMode,
+  type ArenaStickLayerMode,
+} from '../arena/ArenaCharacterAssets'
+import { getLabState } from '../lab/LabState'
+import { getMatchLaunchConfig } from '../../match/MatchLaunchConfig'
+import { ArenaCharacterRenderer } from './ArenaCharacterRenderer'
 
 type Point = { x: number; y: number }
 
@@ -73,6 +81,7 @@ export class PlayerVisual {
   private readonly roleLabel: Phaser.GameObjects.Text
   private readonly aiStateLabel: Phaser.GameObjects.Text
   private readonly stick: StickVisual
+  private readonly arenaCharacter: ArenaCharacterRenderer
   private readonly assetLayers: Phaser.GameObjects.Image[] = []
   private readonly animation = new PlayerAnimationController()
   private palette: TeamVisualPalette
@@ -81,6 +90,7 @@ export class PlayerVisual {
   private controlled = false
   private debugVisible = false
   private aiState = 'IDLE'
+  private corePocketAnchor: Point = { x: 0, y: 0 }
 
   constructor(scene: Phaser.Scene, options: PlayerVisualOptions) {
     this.scene = scene
@@ -121,6 +131,14 @@ export class PlayerVisual {
           .setDepth(arenaLayers.players + index * 0.1),
       )
     })
+    this.arenaCharacter = new ArenaCharacterRenderer(
+      scene,
+      options.profile,
+      this.palette,
+      options.profile.arenaBodyId,
+      options.profile.arenaHairId,
+      arenaCharacterDefaults.stickId,
+    )
     this.controlledIndicator = scene.add
       .graphics()
       .setDepth(arenaLayers.gameplayVfx + 1)
@@ -171,9 +189,16 @@ export class PlayerVisual {
         (primary !== undefined ? shade(primary, 0.58) : teamPalette.shorts),
     }
     this.hairStyle = hairStyles[this.options.profile.hairStyle]
+    this.arenaCharacter.applyAppearance(
+      this.options.profile,
+      this.palette,
+    )
   }
 
   update(data: PlayerVisualUpdate): void {
+    const settings = this.resolveArenaVisualSettings(data)
+    const handednessFrame = getHandednessFrame(settings.handedness)
+    const chargeVisual = settings.chargeVisual
     const speed = Math.hypot(data.velocity.x, data.velocity.y)
     const movementFactor = Phaser.Math.Clamp(speed / 9, 0, 1)
     const bobAmplitude = Phaser.Math.Linear(
@@ -181,22 +206,26 @@ export class PlayerVisual {
       visualConfig.movementBobAmplitude,
       movementFactor,
     ) * (data.stickState === 'IDLE' ? 0.72 : 0.42)
-    const bob =
-      Math.sin(
-        this.scene.time.now * visualConfig.idleBobSpeed + this.animationPhase,
-      ) * bobAmplitude
+    const bob = settings.reducedMotion
+      ? 0
+      : Math.sin(
+          this.scene.time.now *
+            visualConfig.idleBobSpeed *
+            settings.animationSpeed +
+            this.animationPhase,
+        ) * bobAmplitude
     const pose = this.animation.update(
       data.stickState,
       data.defenseState,
-      data.handednessMountSign,
-      data.pocketFacingSign,
+      handednessFrame.mountSign,
+      handednessFrame.pocketFacingSign,
       this.scene.time.now,
     )
-    if (data.chargeVisual.normalized > 0) {
-      const charge = data.chargeVisual.normalized
+    if (chargeVisual.normalized > 0) {
+      const charge = chargeVisual.normalized
       pose.bodyForwardOffset -= charge * 3.5
       pose.bodySideOffset -=
-        charge * 2.2 * data.handednessMountSign
+        charge * 2.2 * handednessFrame.mountSign
       pose.bodyScaleX *= Phaser.Math.Linear(1, 1.06, charge)
       pose.bodyScaleY *= Phaser.Math.Linear(1, 0.95, charge)
       pose.anticipation = Math.max(pose.anticipation, charge)
@@ -219,27 +248,81 @@ export class PlayerVisual {
         right.y * pose.bodySideOffset,
     }
 
-    this.drawChargeAura(data.position, data.chargeVisual)
+    if (settings.chargeVfx) {
+      this.drawChargeAura(
+        data.position,
+        chargeVisual,
+        settings.reducedMotion,
+      )
+    } else {
+      this.chargeAura.clear()
+    }
     this.drawShadow(data.position, speed, pose)
     this.drawControlledIndicator(data.position)
-    if (this.assetLayers.length > 0) {
-      this.character.clear()
-      this.updateAssetCharacter(visualPosition, bodyRotation, pose)
-    } else {
-      this.drawCharacter(visualPosition, forward, right, pose)
-    }
-    this.stick.update(
-      data.stickMountPoint,
-      data.stickForward,
-      data.stickSide,
-      data.visualMirrorSign,
-      data.cradleSocket,
-      data.stickState,
-      data.defenseState,
-      pose,
-      data.chargeVisual,
-      this.scene.time.now,
+    const useArenaRenderer = this.shouldUseArenaRenderer(
+      settings.rendererMode,
+      settings.inScope,
     )
+    this.character.setVisible(!useArenaRenderer)
+    this.assetLayers.forEach((layer) => layer.setVisible(!useArenaRenderer))
+    this.stick.setVisible(!useArenaRenderer)
+    this.arenaCharacter.setVisible(useArenaRenderer)
+
+    if (useArenaRenderer) {
+      this.character.clear()
+      this.arenaCharacter.update({
+        position: visualPosition,
+        playerOrigin: data.position,
+        velocity: data.velocity,
+        bodyRotation,
+        mountPoint: data.stickMountPoint,
+        stickForward: data.stickForward,
+        cradleSocket: data.cradleSocket,
+        mirrorSign: handednessFrame.mountSign,
+        handedness: settings.handedness,
+        role: settings.role,
+        state: data.stickState,
+        defenseState: data.defenseState,
+        pose,
+        charge: {
+          normalized: chargeVisual.normalized,
+          hardCharge: chargeVisual.hardCharge,
+          fullyCharged: settings.fullyCharged,
+        },
+        spriteScale: settings.spriteScale,
+        stickScale: settings.stickScale,
+        stickAngle: settings.stickAngle,
+        stickLayerMode: settings.stickLayerMode,
+        showAnchors: settings.anchorOverlay,
+        showContract: settings.contractOverlay,
+        chargeVfx: settings.chargeVfx,
+        reducedMotion: settings.reducedMotion,
+        controlled: this.controlled,
+        animationSpeed: settings.animationSpeed,
+        now: this.scene.time.now,
+      })
+      this.corePocketAnchor = this.arenaCharacter.getPocketAnchor()
+    } else {
+      if (this.assetLayers.length > 0) {
+        this.character.clear()
+        this.updateAssetCharacter(visualPosition, bodyRotation, pose)
+      } else {
+        this.drawCharacter(visualPosition, forward, right, pose)
+      }
+      this.stick.update(
+        data.stickMountPoint,
+        data.stickForward,
+        data.stickSide,
+        data.visualMirrorSign,
+        data.cradleSocket,
+        data.stickState,
+        data.defenseState,
+        pose,
+        chargeVisual,
+        this.scene.time.now,
+      )
+      this.corePocketAnchor = { ...data.cradleSocket }
+    }
 
     this.roleLabel.setPosition(
       data.position.x,
@@ -251,9 +334,106 @@ export class PlayerVisual {
     )
   }
 
+  getCorePocketAnchor(): Point {
+    return { ...this.corePocketAnchor }
+  }
+
+  private shouldUseArenaRenderer(
+    mode: ArenaCharacterRendererMode,
+    inScope: boolean,
+  ): boolean {
+    if (!inScope || mode === 'legacy') {
+      return false
+    }
+
+    return mode === 'asset' || this.arenaCharacter.isAssetBacked()
+  }
+
+  private resolveArenaVisualSettings(data: PlayerVisualUpdate): {
+    rendererMode: ArenaCharacterRendererMode
+    inScope: boolean
+    handedness: PlayerHandedness
+    role: PlayerRole
+    spriteScale: number
+    stickScale: number
+    stickAngle: number
+    stickLayerMode: ArenaStickLayerMode
+    anchorOverlay: boolean
+    contractOverlay: boolean
+    chargeVfx: boolean
+    reducedMotion: boolean
+    animationSpeed: number
+    fullyCharged: boolean
+    chargeVisual: PlayerVisualUpdate['chargeVisual']
+  } {
+    const launch = getMatchLaunchConfig()
+    const prefersReducedMotion =
+      typeof window !== 'undefined' &&
+      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+
+    if (launch.mode !== 'lab') {
+      return {
+        rendererMode: arenaCharacterDefaults.rendererMode,
+        inScope:
+          this.options.controllerType === 'human' &&
+          this.options.role === 'striker',
+        handedness: this.options.handedness,
+        role: this.options.role,
+        spriteScale: arenaCharacterDefaults.spriteScale,
+        stickScale: arenaCharacterDefaults.stickScale,
+        stickAngle: arenaCharacterDefaults.stickAngle,
+        stickLayerMode: arenaCharacterDefaults.stickLayerMode,
+        anchorOverlay: false,
+        contractOverlay: false,
+        chargeVfx: arenaCharacterDefaults.chargeVfx,
+        reducedMotion: Boolean(prefersReducedMotion),
+        animationSpeed: arenaCharacterDefaults.animationSpeed,
+        fullyCharged: data.chargeVisual.normalized >= 0.995,
+        chargeVisual: data.chargeVisual,
+      }
+    }
+
+    const arena = getLabState().arenaVisual
+    const inScope =
+      arena.characterRendererScope === 'all' || this.controlled
+    const previewCharge = arena.forceFullyCharged
+      ? 1
+      : arena.chargePreview > 0
+        ? arena.chargePreview
+        : data.chargeVisual.normalized
+
+    return {
+      rendererMode: arena.characterRendererMode,
+      inScope,
+      handedness: inScope
+        ? arena.playerHandedness
+        : this.options.handedness,
+      role: inScope ? arena.playerRole : this.options.role,
+      spriteScale: arena.spriteScale,
+      stickScale: arena.arenaStickScale,
+      stickAngle: arena.arenaStickAngle,
+      stickLayerMode: arena.stickLayerMode,
+      anchorOverlay: arena.anchorOverlay,
+      contractOverlay: arena.contractOverlay,
+      chargeVfx: arena.chargeVfx,
+      reducedMotion: arena.reducedMotion || Boolean(prefersReducedMotion),
+      animationSpeed: arena.animationSpeed,
+      fullyCharged: arena.forceFullyCharged || previewCharge >= 0.995,
+      chargeVisual: {
+        normalized: previewCharge,
+        hardCharge:
+          arena.forceFullyCharged ||
+          previewCharge >= possessionFeelConfig.hardChargeVisualThreshold,
+        overcharged:
+          arena.forceFullyCharged || data.chargeVisual.overcharged,
+      },
+    }
+  }
+
   private drawChargeAura(
     position: Point,
     charge: PlayerVisualUpdate['chargeVisual'],
+    reducedMotion = false,
   ): void {
     this.chargeAura.clear()
 
@@ -271,7 +451,9 @@ export class PlayerVisual {
       1,
     )
     const flicker =
-      charge.overcharged && possessionFeelConfig.overchargeAuraFlicker
+      charge.overcharged &&
+      possessionFeelConfig.overchargeAuraFlicker &&
+      !reducedMotion
         ? 0.72 + Math.sin(this.scene.time.now * 0.055) * 0.28
         : 1
     const color = charge.overcharged

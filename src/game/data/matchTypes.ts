@@ -86,6 +86,11 @@ export type PlayerAttributes = {
 }
 
 export type PlayerVisualProfileOverride = {
+  presentation?: 'masc' | 'fem'
+  bodyId?: 'mascStriker01'
+  arenaBodyId?: 'field-player-01'
+  arenaHairId?: 'arena-hair-01'
+  faceId?: string
   hairStyle?: 'crop' | 'spikes' | 'swoop' | 'tuft' | 'bob'
   hairColor?: number
   skinColor?: number

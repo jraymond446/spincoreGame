@@ -1,9 +1,16 @@
-import type Phaser from 'phaser'
+import Phaser from 'phaser'
 import { assetOverrideConfig } from '../config/assetOverrideConfig'
 import type { StickStyle, TeamSide } from '../data/matchTypes'
 import { createArenaLayout } from '../arena/ArenaLayout'
 import { getArenaTheme } from '../arena/arenaThemes'
 import { resolveArenaPresentation } from '../arena/ArenaPresentation'
+import {
+  arenaBodyDefinitions,
+  arenaCoreDefinition,
+  arenaHairDefinitions,
+  arenaStickDefinitions,
+  spectatorUniformMaskAsset,
+} from '../arena/ArenaCharacterAssets'
 
 export function preloadVisualAssetOverrides(scene: Phaser.Scene): void {
   for (const slot of Object.values(assetOverrideConfig.sticks ?? {})) {
@@ -25,6 +32,44 @@ export function preloadVisualAssetOverrides(scene: Phaser.Scene): void {
   }
 
   preloadArenaAssets(scene)
+  preloadArenaCharacterAssets(scene)
+}
+
+function preloadArenaCharacterAssets(scene: Phaser.Scene): void {
+  for (const definition of Object.values(arenaBodyDefinitions)) {
+    for (const slot of [
+      definition.body,
+      definition.skinMask,
+      definition.uniformPrimaryMask,
+      definition.uniformAccentMask,
+    ]) {
+      queueImage(scene, slot.key, slot.path)
+    }
+  }
+
+  for (const definition of Object.values(arenaHairDefinitions)) {
+    queueImage(scene, definition.asset.key, definition.asset.path)
+  }
+
+  for (const definition of Object.values(arenaStickDefinitions)) {
+    queueImage(scene, definition.asset.key, definition.asset.path)
+  }
+
+  queueImage(
+    scene,
+    arenaCoreDefinition.asset.key,
+    arenaCoreDefinition.asset.path,
+  )
+  if (
+    !scene.textures.exists(spectatorUniformMaskAsset.key) &&
+    optionalAssetExists(spectatorUniformMaskAsset.path)
+  ) {
+    scene.load.spritesheet(
+      spectatorUniformMaskAsset.key,
+      spectatorUniformMaskAsset.path,
+      { frameWidth: 64, frameHeight: 64 },
+    )
+  }
 }
 
 function preloadArenaAssets(scene: Phaser.Scene): void {
@@ -88,6 +133,19 @@ export function hasVisualAsset(
   textureKey: string,
 ): boolean {
   return scene.textures.exists(textureKey)
+}
+
+export function useLinearVisualAssetFiltering(
+  scene: Phaser.Scene,
+  textureKey: string,
+): void {
+  if (!hasVisualAsset(scene, textureKey)) {
+    return
+  }
+
+  scene.textures
+    .get(textureKey)
+    .setFilter(Phaser.Textures.FilterMode.LINEAR)
 }
 
 function queueImage(

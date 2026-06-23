@@ -104,6 +104,10 @@ export class KeeperShieldVisual {
   destroy(): void {
     this.graphics.destroy()
   }
+
+  setVisible(visible: boolean): void {
+    this.graphics.setVisible(visible)
+  }
 }
 
 function offset(

@@ -11,7 +11,8 @@
     "test:attributes": "node --experimental-strip-types src/match/attributeGameplay.test.ts",
     "test:loot": "node --experimental-strip-types src/equipment/lootRollTables.test.ts",
     "test:arena": "node --experimental-strip-types src/game/arena/ArenaAttendance.test.ts",
-    "test": "npm run test:goals && npm run test:progression && npm run test:attributes && npm run test:loot && npm run test:arena",
+    "test:arena-character": "node --experimental-strip-types src/game/arena/ArenaCharacterAssets.test.ts",
+    "test": "npm run test:goals && npm run test:progression && npm run test:attributes && npm run test:loot && npm run test:arena && npm run test:arena-character",
     "preview": "vite preview"
   },
   "devDependencies": {

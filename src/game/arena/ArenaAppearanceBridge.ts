@@ -4,6 +4,10 @@ import type {
   PlayerVisualProfileOverride,
 } from '../data/matchTypes'
 import type {
+  ArenaBodyId,
+  ArenaHairId,
+} from './ArenaCharacterAssets'
+import type {
   HairAssetId,
   PlayerAppearance,
   PresentationGender,
@@ -18,9 +22,11 @@ export type ArenaUniformIdentity = {
 export type ArenaAppearanceIdentity = {
   presentation: PresentationGender
   bodyId: PlayerAppearance['bodyId']
+  arenaBodyId: ArenaBodyId
   skinColor: number
   hairStyleId: HairAssetId
-  arenaHairId: HairStyleId
+  arenaHairId: ArenaHairId
+  proceduralHairStyle: HairStyleId
   hairColor: number
   faceId?: string
   role: PlayerRole
@@ -34,19 +40,27 @@ export function bridgeAppearanceToArena(
 ): ArenaAppearanceIdentity {
   const skinColor = parseHexColor(appearance.skinColor, 0xd59a6f)
   const hairColor = parseHexColor(appearance.hairColor, 0x674536)
-  const arenaHairId = mapMenuHairToArena(appearance.hairId)
+  const proceduralHairStyle = mapMenuHairToArena(appearance.hairId)
+  const arenaHairId = mapMenuHairToArenaAsset(appearance.hairId)
 
   return {
     presentation: appearance.presentation,
     bodyId: appearance.bodyId,
+    arenaBodyId: 'field-player-01',
     skinColor,
     hairStyleId: appearance.hairId,
     arenaHairId,
+    proceduralHairStyle,
     hairColor,
     faceId: appearance.faceId,
     role,
     visualProfile: {
-      hairStyle: arenaHairId,
+      presentation: appearance.presentation,
+      bodyId: appearance.bodyId,
+      arenaBodyId: 'field-player-01',
+      arenaHairId,
+      faceId: appearance.faceId,
+      hairStyle: proceduralHairStyle,
       hairColor,
       skinColor,
       skinShadeColor: shadeColor(skinColor, 0.76),
@@ -56,6 +70,12 @@ export function bridgeAppearanceToArena(
       shortsColor: uniform.shorts ?? shadeColor(uniform.primary, 0.58),
     },
   }
+}
+
+export function mapMenuHairToArenaAsset(
+  _hairId: HairAssetId,
+): ArenaHairId {
+  return 'arena-hair-01'
 }
 
 export function mapMenuHairToArena(hairId: HairAssetId): HairStyleId {
