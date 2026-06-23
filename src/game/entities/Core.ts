@@ -2,6 +2,7 @@ import Phaser from 'phaser'
 import { coreConfig } from '../config/entityConfig'
 import { possessionFeelConfig } from '../config/possessionFeelConfig'
 import type { Point } from '../data/geometry'
+import { arenaLayers } from '../arena/ArenaLayers'
 
 export class Core {
   readonly body: MatterJS.BodyType
@@ -28,8 +29,10 @@ export class Core {
       density: coreConfig.density,
     })
 
-    this.trail = scene.add.graphics().setDepth(4)
-    this.chargeAccent = scene.add.graphics().setDepth(7)
+    this.trail = scene.add.graphics().setDepth(arenaLayers.gameplayVfx)
+    this.chargeAccent = scene.add
+      .graphics()
+      .setDepth(arenaLayers.gameplayVfx + 1)
     this.glow = scene.add.circle(
       coreConfig.spawn.x,
       coreConfig.spawn.y,
@@ -37,7 +40,7 @@ export class Core {
       coreConfig.glowColor,
       0.16,
     )
-    this.glow.setDepth(7)
+    this.glow.setDepth(arenaLayers.core - 1)
     this.shell = scene.add.circle(
       coreConfig.spawn.x,
       coreConfig.spawn.y,
@@ -45,7 +48,7 @@ export class Core {
       coreConfig.fillColor,
       1,
     )
-    this.shell.setDepth(8)
+    this.shell.setDepth(arenaLayers.core)
 
     this.glow.setBlendMode(Phaser.BlendModes.ADD)
     this.shell.setStrokeStyle(3, coreConfig.strokeColor, 1)

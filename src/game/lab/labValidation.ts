@@ -33,6 +33,7 @@ const numericRules: Record<string, NumericRule> = {
   'field.keeperZonePushStrength': { min: 0.1, max: 1 },
   'field.scoringPlaneTolerance': { min: 0, max: 18 },
   'field.goalScoreCooldownMs': { min: 250, max: 2000 },
+  'arenaVisual.manualAttendance': { min: 0, max: 1 },
   'keeper.keeperMoveSpeedMultiplier': { min: 0.2, max: 1.2 },
   'keeper.keeperAccelerationMultiplier': { min: 0.2, max: 1.2 },
   'keeper.keeperTurnRateMultiplier': { min: 0.2, max: 1.2 },
@@ -299,6 +300,18 @@ function allowedStringValues(path: string): Set<string> | null {
     return new Set(
       labOptions.keeperEquipmentTypes.map((option) => option.value),
     )
+  }
+  if (path === 'arenaVisual.themeId') {
+    return new Set(['rookie'])
+  }
+  if (path === 'arenaVisual.homeCrestMode') {
+    return new Set(['team', 'league', 'none'])
+  }
+  if (path === 'arenaVisual.playerHairStyle') {
+    return new Set(['hair01', 'hair02', 'hair03', 'hair04'])
+  }
+  if (path === 'arenaVisual.playerRole') {
+    return new Set(labOptions.roles)
   }
 
   return null

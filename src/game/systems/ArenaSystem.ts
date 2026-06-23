@@ -1,29 +1,31 @@
 import Phaser from 'phaser'
+import type { ArenaLayout } from '../arena/ArenaLayout'
 import { arenaConfig } from '../config/arenaConfig'
 import { playerRuntimeConfig } from '../config/playerConfig'
 import { wallConfig } from '../config/wallConfig'
 import type { Player } from '../entities/Player'
-import { CourtRenderer } from '../rendering/CourtRenderer'
 import { isValidVector } from '../utils/vectorSafety'
 
 export class ArenaSystem {
   private scene: Phaser.Scene
+  private readonly layout: ArenaLayout
 
-  constructor(scene: Phaser.Scene) {
+  constructor(
+    scene: Phaser.Scene,
+    layout: ArenaLayout,
+  ) {
     this.scene = scene
+    this.layout = layout
 
     this.createWalls()
-    new CourtRenderer(scene)
   }
 
   containPlayers(players: Player[]): void {
-    const halfWidth = arenaConfig.width / 2
-    const halfHeight = arenaConfig.height / 2
     const inset = playerRuntimeConfig.radius + arenaConfig.playerContainmentPadding
-    const left = arenaConfig.center.x - halfWidth + inset
-    const right = arenaConfig.center.x + halfWidth - inset
-    const top = arenaConfig.center.y - halfHeight + inset
-    const bottom = arenaConfig.center.y + halfHeight - inset
+    const left = this.layout.court.x + inset
+    const right = this.layout.court.x + this.layout.court.width - inset
+    const top = this.layout.court.y + inset
+    const bottom = this.layout.court.y + this.layout.court.height - inset
 
     for (const player of players) {
       const position = player.position
@@ -59,41 +61,20 @@ export class ArenaSystem {
   }
 
   private createWalls(): void {
-    const halfWidth = arenaConfig.width / 2
-    const halfHeight = arenaConfig.height / 2
-    const wall = wallConfig.wallThickness
-    const center = arenaConfig.center
+    for (const wall of this.layout.boundaryWalls) {
+      this.scene.matter.add.rectangle(
+        wall.x + wall.width / 2,
+        wall.y + wall.height / 2,
+        wall.width,
+        wall.height,
+        this.getWallOptions(wall.side),
+      )
+    }
 
-    this.scene.matter.add.rectangle(
-      center.x,
-      center.y - halfHeight - wall / 2,
-      arenaConfig.width,
-      wall,
-      this.getWallOptions('top'),
+    this.createSafetyWalls(
+      this.layout.court.width / 2,
+      this.layout.court.height / 2,
     )
-    this.scene.matter.add.rectangle(
-      center.x,
-      center.y + halfHeight + wall / 2,
-      arenaConfig.width,
-      wall,
-      this.getWallOptions('bottom'),
-    )
-    this.scene.matter.add.rectangle(
-      center.x - halfWidth - wall / 2,
-      center.y,
-      wall,
-      arenaConfig.height + wall * 2,
-      this.getWallOptions('left'),
-    )
-    this.scene.matter.add.rectangle(
-      center.x + halfWidth + wall / 2,
-      center.y,
-      wall,
-      arenaConfig.height + wall * 2,
-      this.getWallOptions('right'),
-    )
-
-    this.createSafetyWalls(halfWidth, halfHeight)
   }
 
   private createSafetyWalls(halfWidth: number, halfHeight: number): void {

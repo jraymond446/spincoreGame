@@ -38,7 +38,7 @@ export class GoalCelebrationSystem {
     this.effectElapsedMs = 0
     this.effectDurationMs = matchFlowConfig.goalCelebrationMs
     this.textRemainingMs = matchFlowConfig.goalTextDurationMs
-    this.scene.cameras.main.shake(150, 0.0022)
+    this.scene.cameras?.main?.shake(150, 0.0022)
     this.drawGoalRipple()
   }
 

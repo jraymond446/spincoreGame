@@ -2,6 +2,7 @@ import Phaser from 'phaser'
 import type { HairStyle } from '../data/hairStyles'
 import { hairStyles } from '../data/hairStyles'
 import type { PlayerVisualProfile } from '../data/playerVisualProfiles'
+import type { PlayerVisualProfileOverride } from '../data/matchTypes'
 import {
   roleAccentColors,
   teamVisualPalettes,
@@ -27,6 +28,7 @@ import {
   getPlayerAssetKeys,
   hasVisualAsset,
 } from './VisualAssetOverrides'
+import { arenaLayers } from '../arena/ArenaLayers'
 
 type Point = { x: number; y: number }
 
@@ -73,8 +75,8 @@ export class PlayerVisual {
   private readonly stick: StickVisual
   private readonly assetLayers: Phaser.GameObjects.Image[] = []
   private readonly animation = new PlayerAnimationController()
-  private readonly palette: TeamVisualPalette
-  private readonly hairStyle: HairStyle
+  private palette: TeamVisualPalette
+  private hairStyle: HairStyle
   private readonly animationPhase: number
   private controlled = false
   private debugVisible = false
@@ -94,15 +96,19 @@ export class PlayerVisual {
     this.hairStyle = hairStyles[options.profile.hairStyle]
     this.animationPhase = this.hash(options.id) * 0.01
 
-    this.chargeAura = scene.add.graphics().setDepth(2)
-    this.shadow = scene.add.graphics().setDepth(3)
+    this.chargeAura = scene.add
+      .graphics()
+      .setDepth(arenaLayers.gameplayVfx)
+    this.shadow = scene.add
+      .graphics()
+      .setDepth(arenaLayers.playerShadows)
     this.stick = new StickVisual(
       scene,
       options.profile.stickStyle,
       options.role,
       options.teamSide,
     )
-    this.character = scene.add.graphics().setDepth(6)
+    this.character = scene.add.graphics().setDepth(arenaLayers.players)
     getPlayerAssetKeys(options.teamSide).forEach((textureKey, index) => {
       if (!hasVisualAsset(scene, textureKey)) {
         return
@@ -112,10 +118,12 @@ export class PlayerVisual {
         scene.add
           .image(0, 0, textureKey)
           .setOrigin(0.5)
-          .setDepth(6 + index * 0.1),
+          .setDepth(arenaLayers.players + index * 0.1),
       )
     })
-    this.controlledIndicator = scene.add.graphics().setDepth(8)
+    this.controlledIndicator = scene.add
+      .graphics()
+      .setDepth(arenaLayers.gameplayVfx + 1)
     this.roleLabel = scene.add
       .text(0, 0, this.getRoleLabel(), {
         fontFamily: 'Arial, sans-serif',
@@ -125,7 +133,7 @@ export class PlayerVisual {
         padding: { x: 5, y: 2 },
       })
       .setOrigin(0.5)
-      .setDepth(9)
+      .setDepth(arenaLayers.gameplayVfx + 2)
       .setVisible(false)
     this.aiStateLabel = scene.add
       .text(0, 0, this.aiState, {
@@ -136,8 +144,33 @@ export class PlayerVisual {
         padding: { x: 4, y: 2 },
       })
       .setOrigin(0.5)
-      .setDepth(9)
+      .setDepth(arenaLayers.gameplayVfx + 2)
       .setVisible(false)
+  }
+
+  applyProfile(
+    override: PlayerVisualProfileOverride,
+    uniform?: { primary: number; accent: number },
+  ): void {
+    this.options.profile = {
+      ...this.options.profile,
+      ...override,
+    }
+    const teamPalette = teamVisualPalettes[this.options.teamSide]
+    const primary = uniform?.primary
+    const accent = uniform?.accent
+    this.palette = {
+      shirt:
+        this.options.profile.shirtColor ?? primary ?? teamPalette.shirt,
+      shirtShade:
+        this.options.profile.shirtShadeColor ??
+        (primary !== undefined ? shade(primary, 0.68) : teamPalette.shirtShade),
+      trim: this.options.profile.trimColor ?? accent ?? teamPalette.trim,
+      shorts:
+        this.options.profile.shortsColor ??
+        (primary !== undefined ? shade(primary, 0.58) : teamPalette.shorts),
+    }
+    this.hairStyle = hairStyles[this.options.profile.hairStyle]
   }
 
   update(data: PlayerVisualUpdate): void {
@@ -1008,4 +1041,12 @@ export class PlayerVisual {
     }
     return result
   }
+}
+
+function shade(color: number, multiplier: number): number {
+  const red = Math.round(((color >> 16) & 0xff) * multiplier)
+  const green = Math.round(((color >> 8) & 0xff) * multiplier)
+  const blue = Math.round((color & 0xff) * multiplier)
+
+  return (red << 16) | (green << 8) | blue
 }

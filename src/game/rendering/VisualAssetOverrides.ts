@@ -1,34 +1,68 @@
 import type Phaser from 'phaser'
 import { assetOverrideConfig } from '../config/assetOverrideConfig'
 import type { StickStyle, TeamSide } from '../data/matchTypes'
+import { createArenaLayout } from '../arena/ArenaLayout'
+import { getArenaTheme } from '../arena/arenaThemes'
+import { resolveArenaPresentation } from '../arena/ArenaPresentation'
 
 export function preloadVisualAssetOverrides(scene: Phaser.Scene): void {
-  for (const slot of Object.values(assetOverrideConfig.sticks)) {
+  for (const slot of Object.values(assetOverrideConfig.sticks ?? {})) {
     queueImage(scene, slot.key, slot.path)
   }
 
-  queueImage(
-    scene,
-    assetOverrideConfig.players.base.key,
-    assetOverrideConfig.players.base.path,
-  )
+  const players = assetOverrideConfig.players
 
-  for (const slot of Object.values(assetOverrideConfig.players.teams)) {
+  if (players?.base) {
+    queueImage(
+      scene,
+      players.base.key,
+      players.base.path,
+    )
+  }
+
+  for (const slot of Object.values(players?.teams ?? {})) {
     queueImage(scene, slot.key, slot.path)
   }
 
+  preloadArenaAssets(scene)
+}
+
+function preloadArenaAssets(scene: Phaser.Scene): void {
+  const layout = createArenaLayout()
+  const labTheme = getArenaTheme('rookie', layout)
+  const presentation = resolveArenaPresentation(labTheme)
+  const theme = getArenaTheme(presentation.themeId, layout)
+
+  if (theme.shellAsset) {
+    queueImage(scene, theme.shellAsset.key, theme.shellAsset.path)
+  }
+  if (theme.surfaceAsset) {
+    queueImage(scene, theme.surfaceAsset.key, theme.surfaceAsset.path)
+  }
+  if (theme.scoreboardFrameAsset) {
+    queueImage(
+      scene,
+      theme.scoreboardFrameAsset.key,
+      theme.scoreboardFrameAsset.path,
+    )
+  }
   if (
-    !scene.textures.exists(assetOverrideConfig.crowd.key) &&
-    optionalAssetExists(assetOverrideConfig.crowd.path)
+    theme.spectatorAtlasAsset &&
+    !scene.textures.exists(theme.spectatorAtlasAsset.key) &&
+    optionalAssetExists(theme.spectatorAtlasAsset.path)
   ) {
     scene.load.spritesheet(
-      assetOverrideConfig.crowd.key,
-      assetOverrideConfig.crowd.path,
+      theme.spectatorAtlasAsset.key,
+      theme.spectatorAtlasAsset.path,
       {
-        frameWidth: assetOverrideConfig.crowd.frameWidth,
-        frameHeight: assetOverrideConfig.crowd.frameHeight,
+        frameWidth: theme.spectatorAtlasAsset.frameWidth,
+        frameHeight: theme.spectatorAtlasAsset.frameHeight,
       },
     )
+  }
+
+  for (const team of Object.values(presentation.teams)) {
+    queueImage(scene, team.crestAsset.key, team.crestAsset.path)
   }
 }
 
@@ -37,9 +71,15 @@ export function getStickAssetKey(style: StickStyle): string {
 }
 
 export function getPlayerAssetKeys(teamSide: TeamSide): string[] {
+  const players = assetOverrideConfig.players
+
+  if (!players?.base || !players.teams?.[teamSide]) {
+    return []
+  }
+
   return [
-    assetOverrideConfig.players.base.key,
-    assetOverrideConfig.players.teams[teamSide].key,
+    players.base.key,
+    players.teams[teamSide].key,
   ]
 }
 

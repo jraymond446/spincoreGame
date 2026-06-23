@@ -469,6 +469,25 @@ export function createDefaultLabTuning(): LabTuningState {
       resetCountdownStart: 3,
       resetCountdownStepMs: 700,
     },
+    arenaVisual: {
+      themeId: 'rookie',
+      calculatedAttendance: true,
+      manualAttendance: 0.5,
+      homeTeamId: 'team-a',
+      awayTeamId: 'rookie-scrappers',
+      homeCrestMode: 'team',
+      homePrimaryColor: '#25b9c7',
+      homeAccentColor: '#f2c84b',
+      awayPrimaryColor: '#43a7d8',
+      awayAccentColor: '#ffd34f',
+      playerSkinColor: '#d59a6f',
+      playerHairStyle: 'hair01',
+      playerHairColor: '#674536',
+      playerRole: 'striker',
+      geometryOverlay: false,
+      crowdAnimation: true,
+      reducedMotion: false,
+    },
   }
 }
 

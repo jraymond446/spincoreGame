@@ -32,7 +32,13 @@ import {
   createEmptyMatchPlayerStats,
   type MatchPlayerStats,
 } from '../../match/MatchResult'
-import { ArenaDressing } from '../rendering/ArenaDressing'
+import { getArenaTheme } from '../arena/arenaThemes'
+import {
+  resolveArenaPresentation,
+  type ArenaMatchPresentation,
+} from '../arena/ArenaPresentation'
+import { createArenaLayout } from '../arena/ArenaLayout'
+import { ArenaRenderer } from '../rendering/ArenaRenderer'
 import { ScoreboardOverlay } from '../rendering/ScoreboardOverlay'
 import { preloadVisualAssetOverrides } from '../rendering/VisualAssetOverrides'
 import { GoalRule, type GoalCrossing } from '../rules/GoalRule'
@@ -79,7 +85,8 @@ export class GameScene extends Phaser.Scene {
   private core!: Core
   private goals: GoalGate[] = []
   private goalRules = new Map<string, GoalRule>()
-  private arenaDressing!: ArenaDressing
+  private arenaRenderer!: ArenaRenderer
+  private arenaPresentation!: ArenaMatchPresentation
   private arenaSystem!: ArenaSystem
   private keeperAreaSystem!: KeeperAreaSystem
   private coreRecoverySystem!: CoreRecoverySystem
@@ -137,8 +144,20 @@ export class GameScene extends Phaser.Scene {
 
     const hudRoot = this.getHudRoot()
 
-    this.arenaDressing = new ArenaDressing(this)
-    this.arenaSystem = new ArenaSystem(this)
+    const initialLayout = createArenaLayout()
+    const initialTheme = getArenaTheme(
+      getLabState().arenaVisual.themeId,
+      initialLayout,
+    )
+    this.arenaPresentation = resolveArenaPresentation(initialTheme)
+    this.arenaRenderer = new ArenaRenderer(
+      this,
+      this.arenaPresentation,
+    )
+    this.arenaSystem = new ArenaSystem(
+      this,
+      this.arenaRenderer.layoutDefinition,
+    )
     this.keeperAreaSystem = new KeeperAreaSystem(this)
     this.keeperAreaSystem.setActive(this.gameMode === 'match3v3')
     this.goals = goalConfigs
@@ -156,6 +175,9 @@ export class GameScene extends Phaser.Scene {
       this.core,
     )
     this.teamSystem = new TeamSystem(this, this.gameMode)
+    this.teamSystem.applyArenaVisualPresentation(
+      this.arenaPresentation,
+    )
     this.playerControlSystem = new PlayerControlSystem()
     this.keeperControlAssistSystem = new KeeperControlAssistSystem()
     this.keeperSaveSystem = new KeeperSaveSystem()
@@ -224,7 +246,7 @@ export class GameScene extends Phaser.Scene {
       this.debugHudSystem.destroy()
       this.matchFlowSystem.destroy()
       this.scoreboardOverlay.destroy()
-      this.arenaDressing.destroy()
+      this.arenaRenderer.destroy()
       this.tacticalGuideRenderer.destroy()
       this.wallBounceSystem.destroy()
       this.aiOwnGoalSafetySystem.destroy()
@@ -235,7 +257,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   update(time: number, delta: number): void {
-    this.arenaDressing.update(time)
+    this.arenaRenderer.update(time)
 
     if (this.inputController.consumeModeToggle()) {
       this.toggleGameMode()
@@ -738,14 +760,15 @@ export class GameScene extends Phaser.Scene {
   }
 
   private createHud(hudRoot: HTMLDivElement): void {
-    this.scoreboardOverlay = new ScoreboardOverlay(hudRoot, {
-      A:
-        this.teamSystem.teams.find((team) => team.side === 'A')?.name ??
-        'Team A',
-      B:
-        this.teamSystem.teams.find((team) => team.side === 'B')?.name ??
-        'Team B',
-    })
+    const theme = getArenaTheme(
+      this.arenaPresentation.themeId,
+      this.arenaRenderer.layoutDefinition,
+    )
+    this.scoreboardOverlay = new ScoreboardOverlay(
+      hudRoot,
+      this.arenaPresentation,
+      theme,
+    )
     this.updateHud()
   }
 
@@ -771,7 +794,7 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.setViewport(safeLeft, viewportTop, width, height)
     this.cameras.main.setZoom(zoom)
     this.cameras.main.centerOn(arenaConfig.center.x, arenaConfig.center.y)
-    this.arenaDressing.layout(this.scale.width)
+    this.arenaRenderer.layout(this.scale.width)
     this.inputController.layout()
   }
 
@@ -834,7 +857,7 @@ export class GameScene extends Phaser.Scene {
     this.updateHud()
   }
 
-  private emitMatchCompletion(): void {
+  private emitMatchCompletion = (): void => {
     if (
       this.matchCompletionEmitted ||
       !this.matchState.winner
@@ -932,10 +955,25 @@ export class GameScene extends Phaser.Scene {
       event.detail?.requiresSceneRestart === true
 
     if (!requiresSceneRestart) {
+      this.applyArenaVisualChanges()
       return
     }
 
     this.restartForLabState()
+  }
+
+  private applyArenaVisualChanges(): void {
+    const theme = getArenaTheme(
+      getLabState().arenaVisual.themeId,
+      this.arenaRenderer.layoutDefinition,
+    )
+    this.arenaPresentation = resolveArenaPresentation(theme)
+    this.arenaRenderer.applyPresentation(this.arenaPresentation)
+    this.teamSystem.applyArenaVisualPresentation(this.arenaPresentation)
+    this.scoreboardOverlay.setPresentation(
+      this.arenaPresentation,
+      theme,
+    )
   }
 
   private resetMatch = (): void => {

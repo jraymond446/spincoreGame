@@ -144,13 +144,11 @@ function beginPendingApply(): void {
     labApplyRuntime.resetTriggered = requiresSceneRestart
     labApplyRuntime.lastApplyStatus = 'applied'
 
-    if (requiresSceneRestart) {
-      window.dispatchEvent(
-        new CustomEvent(labEvents.apply, {
-          detail: { requiresSceneRestart: true },
-        }),
-      )
-    }
+    window.dispatchEvent(
+      new CustomEvent(labEvents.apply, {
+        detail: { requiresSceneRestart },
+      }),
+    )
 
     console.info('[Lab Apply] End', {
       requiresSceneRestart,

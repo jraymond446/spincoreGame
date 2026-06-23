@@ -2,21 +2,48 @@ import Phaser from 'phaser'
 import { arenaConfig } from '../config/arenaConfig'
 import { arenaPresentationConfig } from '../config/arenaPresentationConfig'
 import { visualStyleConfig } from '../config/visualStyleConfig'
+import type { ArenaLayout } from '../arena/ArenaLayout'
+import { arenaLayers } from '../arena/ArenaLayers'
+import type { ArenaTheme } from '../arena/ArenaTheme'
+import { hasVisualAsset } from './VisualAssetOverrides'
 
 export class ArenaShellRenderer {
   private readonly graphics: Phaser.GameObjects.Graphics
+  private readonly shellAsset: Phaser.GameObjects.Image | null
+  private readonly layout: ArenaLayout
 
-  constructor(scene: Phaser.Scene) {
-    this.graphics = scene.add.graphics().setDepth(-30)
+  constructor(
+    scene: Phaser.Scene,
+    layout: ArenaLayout,
+    theme: ArenaTheme,
+  ) {
+    this.layout = layout
+    this.graphics = scene.add
+      .graphics()
+      .setDepth(arenaLayers.venueShell)
+    this.shellAsset =
+      theme.shellAsset && hasVisualAsset(scene, theme.shellAsset.key)
+        ? scene.add
+            .image(
+              layout.venueBounds.x,
+              layout.venueBounds.y,
+              theme.shellAsset.key,
+            )
+            .setOrigin(0)
+            .setDisplaySize(
+              layout.venueBounds.width,
+              layout.venueBounds.height,
+            )
+            .setDepth(arenaLayers.venueShell + 0.5)
+        : null
   }
 
   draw(simplified: boolean): void {
-    const margin = arenaPresentationConfig.sidelineDecorationWidth
-    const left = arenaConfig.center.x - arenaConfig.width / 2
-    const top = arenaConfig.center.y - arenaConfig.height / 2
-    const bottom = top + arenaConfig.height
-    const venueLeft = left - margin
-    const venueWidth = arenaConfig.width + margin * 2
+    const left = this.layout.court.x
+    const top = this.layout.court.y
+    const bottom = top + this.layout.court.height
+    const venueLeft = this.layout.venueBounds.x
+    const venueWidth = this.layout.venueBounds.width
     const overscan = 1000
     const bottomDepth = simplified ? 88 : 160
     const venue = arenaPresentationConfig.venue
@@ -53,6 +80,7 @@ export class ArenaShellRenderer {
 
   destroy(): void {
     this.graphics.destroy()
+    this.shellAsset?.destroy()
   }
 
   private drawArenaWall(

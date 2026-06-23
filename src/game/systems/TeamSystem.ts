@@ -19,6 +19,12 @@ import { getLabState } from '../lab/LabState'
 import { getMatchLaunchConfig } from '../../match/MatchLaunchConfig'
 import { applyMatchRosterOverrides } from '../../match/buildRosterFromSave'
 import { FormationSystem } from './FormationSystem'
+import type { ArenaMatchPresentation } from '../arena/ArenaPresentation'
+import {
+  mapMenuHairToArena,
+  parseHexColor,
+  shadeColor,
+} from '../arena/ArenaAppearanceBridge'
 
 export class TeamSystem {
   readonly teams: Team[]
@@ -138,6 +144,58 @@ export class TeamSystem {
     return {
       A: { ...this.getTeam('A').tacticalQuality },
       B: { ...this.getTeam('B').tacticalQuality },
+    }
+  }
+
+  applyArenaVisualPresentation(
+    presentation: ArenaMatchPresentation,
+  ): void {
+    for (const side of ['A', 'B'] as const) {
+      const team = this.getTeam(side)
+      const identity = presentation.teams[side]
+      team.name = identity.name
+      team.color = identity.primaryColor
+      team.accentColor = identity.accentColor
+    }
+
+    const arenaVisual = getLabState().arenaVisual
+    const selectedPlayer = this.players.find(
+      (player) =>
+        player.teamSide === 'A' &&
+        player.role === arenaVisual.playerRole,
+    )
+
+    for (const player of this.players) {
+      const uniform = presentation.teams[player.teamSide]
+      const override = {
+        shirtColor: uniform.primaryColor,
+        shirtShadeColor: shadeColor(uniform.primaryColor, 0.68),
+        trimColor: uniform.accentColor,
+        shortsColor: shadeColor(uniform.primaryColor, 0.58),
+        ...(player === selectedPlayer && getMatchLaunchConfig().mode === 'lab'
+          ? {
+              skinColor: parseHexColor(
+                arenaVisual.playerSkinColor,
+                0xd59a6f,
+              ),
+              skinShadeColor: shadeColor(
+                parseHexColor(arenaVisual.playerSkinColor, 0xd59a6f),
+                0.76,
+              ),
+              hairStyle: mapMenuHairToArena(
+                arenaVisual.playerHairStyle,
+              ),
+              hairColor: parseHexColor(
+                arenaVisual.playerHairColor,
+                0x674536,
+              ),
+            }
+          : {}),
+      }
+      player.applyVisualProfile(override, {
+        primary: uniform.primaryColor,
+        accent: uniform.accentColor,
+      })
     }
   }
 }

@@ -17,7 +17,12 @@ import {
   isTeamRosterSlotId,
 } from '../franchise/teamRoster.ts'
 import { mapCreatedPlayerAttributesToMatchAttributes } from '../player/playerAttributeAdapter.ts'
-import { mapCosmeticsToMatchVisual } from '../player/playerCosmetics.ts'
+import {
+  bridgeAppearanceToArena,
+  parseHexColor,
+  type ArenaUniformIdentity,
+} from '../game/arena/ArenaAppearanceBridge.ts'
+import { teamColorHex } from '../franchise/teamIdentity.ts'
 import type { EquipmentSlot, SaveGame, TeamRosterSlotId } from '../save/saveTypes'
 
 export type MatchRosterOverrides = {
@@ -62,7 +67,11 @@ export function applyMatchRosterOverrides(
       entry.stickStyle = stick.visualStyle
       entry.displayName = player.name
       entry.jerseyNumber = player.jerseyNumber
-      entry.visualProfile = mapCosmeticsToMatchVisual(player.cosmetics)
+      entry.visualProfile = bridgeAppearanceToArena(
+        player.appearance,
+        player.primaryRole,
+        getHomeUniform(save),
+      ).visualProfile
       teamAPlayerId = entry.id
       archetypes.set(entry.id, {
         id: player.primaryRole,
@@ -99,6 +108,14 @@ export function applyMatchRosterOverrides(
       entry.stickStyle = player.stickStyle
       entry.displayName = player.name
       entry.jerseyNumber = player.jerseyNumber
+      entry.visualProfile = bridgeAppearanceToArena(
+        player.appearance,
+        player.role,
+        {
+          primary: opponent.primaryColor,
+          accent: opponent.secondaryColor,
+        },
+      ).visualProfile
       archetypes.set(entry.id, {
         id: player.role,
         role: player.role,
@@ -142,6 +159,11 @@ function applyTeamLoadoutsToAiRoster(
       entry.playStyle = signedPlayer.playStyle
       entry.displayName = signedPlayer.name
       entry.jerseyNumber = signedPlayer.jerseyNumber
+      entry.visualProfile = bridgeAppearanceToArena(
+        signedPlayer.appearance,
+        signedPlayer.role,
+        getHomeUniform(save),
+      ).visualProfile
 
       if (equipment.stickId) {
         entry.stickStyle = getStickType(equipment.stickId).visualStyle
@@ -244,5 +266,18 @@ function playStyleForArchetype(
       return 'disruptive'
     default:
       return 'aggressive'
+  }
+}
+
+function getHomeUniform(save: SaveGame): ArenaUniformIdentity {
+  return {
+    primary: parseHexColor(
+      teamColorHex(save.team.colors.primary),
+      0x25b9c7,
+    ),
+    accent: parseHexColor(
+      teamColorHex(save.team.colors.secondary),
+      0xf2c84b,
+    ),
   }
 }

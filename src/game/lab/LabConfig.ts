@@ -1,4 +1,5 @@
 import type { GameMode } from '../config/gameplayConfig'
+import type { ArenaThemeId } from '../arena/ArenaTheme'
 import type { KeeperEquipmentType } from '../config/keeperShieldConfig'
 import type {
   FormationId,
@@ -17,6 +18,7 @@ import type {
   OffenseScheme,
   TransitionScheme,
 } from '../tactics/TeamStrategy'
+import type { HairAssetId } from '../../player/playerAppearanceTypes'
 
 export type ControlledPlayerSelection =
   | 'auto'
@@ -449,6 +451,28 @@ export type LabMatchFlowTuning = {
   resetCountdownStepMs: number
 }
 
+export type ArenaCrestMode = 'team' | 'league' | 'none'
+
+export type LabArenaVisualTuning = {
+  themeId: ArenaThemeId
+  calculatedAttendance: boolean
+  manualAttendance: number
+  homeTeamId: string
+  awayTeamId: string
+  homeCrestMode: ArenaCrestMode
+  homePrimaryColor: string
+  homeAccentColor: string
+  awayPrimaryColor: string
+  awayAccentColor: string
+  playerSkinColor: string
+  playerHairStyle: HairAssetId
+  playerHairColor: string
+  playerRole: PlayerRole
+  geometryOverlay: boolean
+  crowdAnimation: boolean
+  reducedMotion: boolean
+}
+
 export type LabTuningState = {
   mode: GameMode
   controlledPlayer: ControlledPlayerSelection
@@ -468,6 +492,7 @@ export type LabTuningState = {
   stick: LabStickTuning
   defense: LabDefenseTuning
   matchFlow: LabMatchFlowTuning
+  arenaVisual: LabArenaVisualTuning
 }
 
 export const labOptions = {

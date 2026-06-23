@@ -5,6 +5,8 @@ import {
 import type { GameMode } from '../config/gameplayConfig'
 import type { TeamSide } from '../data/matchTypes'
 import type { MatchStats } from '../systems/MatchStatsTracker'
+import type { ArenaMatchPresentation } from '../arena/ArenaPresentation'
+import type { ArenaTheme } from '../arena/ArenaTheme'
 
 export type ScoreboardViewModel = {
   gameMode: GameMode
@@ -20,6 +22,8 @@ type ScoreboardElements = {
   teamBName: HTMLElement
   teamAScore: HTMLElement
   teamBScore: HTMLElement
+  teamACrest: HTMLElement
+  teamBCrest: HTMLElement
   centerLabel: HTMLElement
   aAssists: HTMLElement
   aChecks: HTMLElement
@@ -36,7 +40,8 @@ export class ScoreboardOverlay {
 
   constructor(
     hudRoot: HTMLElement,
-    teamNames: Record<TeamSide, string>,
+    presentation: ArenaMatchPresentation,
+    theme: ArenaTheme,
   ) {
     this.element = document.createElement('section')
     this.element.className = 'sports-scoreboard'
@@ -87,6 +92,14 @@ export class ScoreboardOverlay {
       teamBName: required(this.element, '[data-team-b-name]'),
       teamAScore: required(this.element, '[data-team-a-score]'),
       teamBScore: required(this.element, '[data-team-b-score]'),
+      teamACrest: required(
+        this.element,
+        '.sports-scoreboard-team.is-team-a .sports-scoreboard-team-code',
+      ),
+      teamBCrest: required(
+        this.element,
+        '.sports-scoreboard-team.is-team-b .sports-scoreboard-team-code',
+      ),
       centerLabel: required(this.element, '[data-scoreboard-center]'),
       aAssists: required(this.element, '[data-a-assists]'),
       aChecks: required(this.element, '[data-a-checks]'),
@@ -95,12 +108,49 @@ export class ScoreboardOverlay {
       bChecks: required(this.element, '[data-b-checks]'),
       bSaves: required(this.element, '[data-b-saves]'),
     }
-    this.elements.teamAName.textContent = teamNames.A.toUpperCase()
-    this.elements.teamBName.textContent = teamNames.B.toUpperCase()
+    this.setPresentation(presentation, theme)
     this.element.classList.toggle(
       'is-stats-hidden',
       !arenaPresentationConfig.showScoreboardStats,
     )
+  }
+
+  setPresentation(
+    presentation: ArenaMatchPresentation,
+    theme: ArenaTheme,
+  ): void {
+    const home = presentation.teams.A
+    const away = presentation.teams.B
+    this.elements.teamAName.textContent = home.name.toUpperCase()
+    this.elements.teamBName.textContent = away.name.toUpperCase()
+    this.elements.teamACrest.textContent = home.shortName.slice(0, 3)
+    this.elements.teamBCrest.textContent = away.shortName.slice(0, 3)
+    this.element.dataset.arenaTheme = theme.id
+    this.element.dataset.attendance =
+      presentation.attendance.attendanceRate.toFixed(2)
+    this.element.dataset.crowdSeed = String(presentation.crowdSeed)
+    this.element.dataset.reducedMotion = String(presentation.reducedMotion)
+    this.element.style.setProperty(
+      '--scoreboard-home-primary',
+      cssHex(home.primaryColor),
+    )
+    this.element.style.setProperty(
+      '--scoreboard-home-accent',
+      cssHex(home.accentColor),
+    )
+    this.element.style.setProperty(
+      '--scoreboard-away-primary',
+      cssHex(away.primaryColor),
+    )
+    this.element.style.setProperty(
+      '--scoreboard-away-accent',
+      cssHex(away.accentColor),
+    )
+    this.element.style.setProperty(
+      '--scoreboard-theme-accent',
+      cssHex(theme.palette.accent),
+    )
+    this.loadOptionalFrame(theme)
   }
 
   update(view: ScoreboardViewModel): void {
@@ -135,6 +185,32 @@ export class ScoreboardOverlay {
   destroy(): void {
     this.element.remove()
   }
+
+  private loadOptionalFrame(theme: ArenaTheme): void {
+    const frame = theme.scoreboardFrameAsset
+
+    if (!frame || typeof Image === 'undefined') {
+      this.element.classList.remove('has-theme-frame')
+      this.element.dataset.frameAsset = 'missing'
+      return
+    }
+
+    const image = new Image()
+    image.addEventListener('load', () => {
+      this.element.style.setProperty(
+        '--scoreboard-theme-frame',
+        `url("${frame.path}")`,
+      )
+      this.element.classList.add('has-theme-frame')
+      this.element.dataset.frameAsset = 'loaded'
+    }, { once: true })
+    image.addEventListener('error', () => {
+      this.element.classList.remove('has-theme-frame')
+      this.element.style.removeProperty('--scoreboard-theme-frame')
+      this.element.dataset.frameAsset = 'missing'
+    }, { once: true })
+    image.src = frame.path
+  }
 }
 
 function required(root: HTMLElement, selector: string): HTMLElement {
@@ -145,4 +221,8 @@ function required(root: HTMLElement, selector: string): HTMLElement {
   }
 
   return element
+}
+
+function cssHex(color: number): string {
+  return `#${color.toString(16).padStart(6, '0')}`
 }

@@ -7,6 +7,7 @@ import { coreConfig } from '../config/entityConfig'
 import { visualStyleConfig } from '../config/visualStyleConfig'
 import type { Point } from '../data/geometry'
 import type { TeamSide } from '../data/matchTypes'
+import { arenaLayers } from '../arena/ArenaLayers'
 
 export class GoalGate {
   readonly id: string
@@ -29,7 +30,9 @@ export class GoalGate {
     this.id = config.id
     this.defendingTeam = config.defendingTeam
     this.scoringTeam = config.scoringTeam
-    this.graphics = scene.add.graphics()
+    this.graphics = scene.add
+      .graphics()
+      .setDepth(arenaLayers.gameplayStructures)
     this.planeStart =
       config.orientation === 'horizontal'
         ? {

@@ -8,12 +8,20 @@ import { crowdVariants } from '../data/crowdVariants'
 import type { TeamSide } from '../data/matchTypes'
 import { visualStyleConfig } from '../config/visualStyleConfig'
 import { drawMiniCharacter } from './MiniCharacterRenderer'
+import type { ArenaMatchPresentation } from '../arena/ArenaPresentation'
+import { shadeColor } from '../arena/ArenaAppearanceBridge'
 
 export class BenchRenderer {
   private readonly graphics: Phaser.GameObjects.Graphics
   private readonly labels: Phaser.GameObjects.Text[]
+  private simplified = false
+  private presentation?: ArenaMatchPresentation
 
-  constructor(scene: Phaser.Scene) {
+  constructor(
+    scene: Phaser.Scene,
+    presentation?: ArenaMatchPresentation,
+  ) {
+    this.presentation = presentation
     this.graphics = scene.add.graphics().setDepth(-8)
     this.labels = [
       createLabel(scene, 'TEAM A'),
@@ -23,6 +31,7 @@ export class BenchRenderer {
   }
 
   draw(simplified: boolean): void {
+    this.simplified = simplified
     const visible = arenaPresentationConfig.showBenches
 
     this.graphics.setVisible(visible)
@@ -43,6 +52,11 @@ export class BenchRenderer {
     this.drawScorekeeperTable()
   }
 
+  applyPresentation(presentation: ArenaMatchPresentation): void {
+    this.presentation = presentation
+    this.draw(this.simplified)
+  }
+
   destroy(): void {
     this.graphics.destroy()
     this.labels.forEach((label) => label.destroy())
@@ -52,7 +66,15 @@ export class BenchRenderer {
     side: TeamSide,
     direction: -1 | 1,
   ): void {
-    const palette = teamVisualPalettes[side]
+    const identity = this.presentation?.teams[side]
+    const palette = identity
+      ? {
+          shirt: identity.primaryColor,
+          shirtShade: shadeColor(identity.primaryColor, 0.68),
+          trim: identity.accentColor,
+          shorts: shadeColor(identity.primaryColor, 0.58),
+        }
+      : teamVisualPalettes[side]
     const courtEdge =
       arenaConfig.center.x + direction * arenaConfig.width / 2
     const width = arenaPresentationConfig.bench.width

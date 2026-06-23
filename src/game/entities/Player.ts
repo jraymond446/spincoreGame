@@ -12,13 +12,17 @@ import type {
   PlayerHandedness,
   PlayerPlayStyle,
   PlayerRole,
+  PlayerVisualProfileOverride,
   ResolvedPlayerRosterEntry,
   StickActionState,
   StickStyle,
   TeamSide,
 } from '../data/matchTypes'
 import type { PlayerArchetype } from '../data/matchTypes'
-import { createPlayerVisualProfile } from '../data/playerVisualProfiles'
+import {
+  createPlayerVisualProfile,
+  type PlayerVisualProfile,
+} from '../data/playerVisualProfiles'
 import type { DefensiveVisualState } from '../rendering/AnimationState'
 import { PlayerVisual } from '../rendering/PlayerVisual'
 import {
@@ -65,6 +69,7 @@ export class Player {
   private scene: Phaser.Scene
   private spawn: Point
   private visual: PlayerVisual
+  private readonly baseVisualProfile: PlayerVisualProfile
   private releaseAimAngle = 0
   private bodyFacingAngle = 0
   private stickVisualRotation = 0
@@ -112,6 +117,13 @@ export class Player {
 
     this.scene.matter.body.setInertia(this.body, Infinity)
 
+    this.baseVisualProfile = createPlayerVisualProfile(
+      this.id,
+      this.role,
+      rosterEntry.stickStyle,
+      rosterEntry.visualPreset,
+      rosterEntry.visualProfile,
+    )
     this.visual = new PlayerVisual(scene, {
       id: this.id,
       role: this.role,
@@ -119,13 +131,7 @@ export class Player {
       playStyle: this.playStyle,
       controllerType: this.controllerType,
       teamSide: this.teamSide,
-      profile: createPlayerVisualProfile(
-        this.id,
-        this.role,
-        rosterEntry.stickStyle,
-        rosterEntry.visualPreset,
-        rosterEntry.visualProfile,
-      ),
+      profile: { ...this.baseVisualProfile },
     })
     this.syncVisuals()
   }
@@ -209,6 +215,17 @@ export class Player {
   }
 
   updateVisuals(): void {
+    this.syncVisuals()
+  }
+
+  applyVisualProfile(
+    override: PlayerVisualProfileOverride,
+    uniform: { primary: number; accent: number },
+  ): void {
+    this.visual.applyProfile(
+      { ...this.baseVisualProfile, ...override },
+      uniform,
+    )
     this.syncVisuals()
   }
 

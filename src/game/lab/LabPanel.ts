@@ -15,6 +15,9 @@ import {
   type LabApplyDiagnostics,
 } from './LabApplyState'
 import { labEvents } from './LabEvents'
+import { getArenaThemeOptions } from '../arena/arenaThemes'
+import { getArenaTeamOptions } from '../arena/ArenaPresentation'
+import { opponentTeams } from '../data/opponentTeams'
 
 type LabPanelActions = {
   onApply: (state: LabTuningState) => void
@@ -171,6 +174,7 @@ export class LabPanel {
     body.append(
       this.createApplyDiagnosticsSection(),
       this.createMatchSection(),
+      this.createArenaVisualSection(),
       this.createControlledSection(),
       this.createTeamSection('A'),
       this.createTeamSection('B'),
@@ -744,6 +748,187 @@ export class LabPanel {
     )
 
     return this.createSection('Field / Object Tuning', content)
+  }
+
+  private createArenaVisualSection(): HTMLElement {
+    const arena = this.draft.arenaVisual
+    const content = document.createElement('div')
+    content.className = 'lab-range-list'
+    const manualAttendance = this.createImmediateRange(
+      'Manual attendance',
+      arena.manualAttendance,
+      { min: 0, max: 1, step: 0.01, digits: 2 },
+      (value) => {
+        arena.manualAttendance = value
+        arena.calculatedAttendance = false
+        this.previewArenaVisuals()
+      },
+    )
+    manualAttendance.toggleAttribute('hidden', arena.calculatedAttendance)
+    content.append(
+      this.createSelect(
+        'Arena theme',
+        arena.themeId,
+        getArenaThemeOptions(),
+        (value) => {
+          arena.themeId = value as LabTuningState['arenaVisual']['themeId']
+          this.previewArenaVisuals()
+        },
+      ),
+      this.createCheckbox(
+        'Calculated attendance',
+        arena.calculatedAttendance,
+        (checked) => {
+          arena.calculatedAttendance = checked
+          this.previewArenaVisuals()
+        },
+      ),
+      manualAttendance,
+      this.createSelect(
+        'Home team',
+        arena.homeTeamId,
+        getArenaTeamOptions(),
+        (value) => {
+          arena.homeTeamId = value
+          this.syncLabTeamColors('home', value)
+          this.previewArenaVisuals()
+        },
+      ),
+      this.createSelect(
+        'Away team',
+        arena.awayTeamId,
+        getArenaTeamOptions(),
+        (value) => {
+          arena.awayTeamId = value
+          this.syncLabTeamColors('away', value)
+          this.previewArenaVisuals()
+        },
+      ),
+      this.createSelect(
+        'Home crest',
+        arena.homeCrestMode,
+        [
+          { value: 'team', label: 'Team crest / initials' },
+          { value: 'league', label: 'League crest' },
+          { value: 'none', label: 'None' },
+        ],
+        (value) => {
+          arena.homeCrestMode =
+            value as LabTuningState['arenaVisual']['homeCrestMode']
+          this.previewArenaVisuals()
+        },
+      ),
+      this.createColorField('Home uniform primary', arena.homePrimaryColor, (value) => {
+        arena.homePrimaryColor = value
+        this.previewArenaVisuals()
+      }),
+      this.createColorField('Home uniform accent', arena.homeAccentColor, (value) => {
+        arena.homeAccentColor = value
+        this.previewArenaVisuals()
+      }),
+      this.createColorField('Away uniform primary', arena.awayPrimaryColor, (value) => {
+        arena.awayPrimaryColor = value
+        this.previewArenaVisuals()
+      }),
+      this.createColorField('Away uniform accent', arena.awayAccentColor, (value) => {
+        arena.awayAccentColor = value
+        this.previewArenaVisuals()
+      }),
+      this.createSelect(
+        'Appearance preview role',
+        arena.playerRole,
+        stringOptions(labOptions.roles),
+        (value) => {
+          arena.playerRole =
+            value as LabTuningState['arenaVisual']['playerRole']
+          this.previewArenaVisuals()
+        },
+      ),
+      this.createColorField('Player skin tone', arena.playerSkinColor, (value) => {
+        arena.playerSkinColor = value
+        this.previewArenaVisuals()
+      }),
+      this.createSelect(
+        'Player hair style',
+        arena.playerHairStyle,
+        [
+          { value: 'hair01', label: 'Hair 01 / crop' },
+          { value: 'hair02', label: 'Hair 02 / spikes' },
+          { value: 'hair03', label: 'Hair 03 / bob' },
+          { value: 'hair04', label: 'Hair 04 / swoop' },
+        ],
+        (value) => {
+          arena.playerHairStyle =
+            value as LabTuningState['arenaVisual']['playerHairStyle']
+          this.previewArenaVisuals()
+        },
+      ),
+      this.createColorField('Player hair color', arena.playerHairColor, (value) => {
+        arena.playerHairColor = value
+        this.previewArenaVisuals()
+      }),
+      this.createCheckbox('Geometry overlay', arena.geometryOverlay, (checked) => {
+        arena.geometryOverlay = checked
+        this.previewArenaVisuals()
+      }),
+      this.createCheckbox('Crowd animation', arena.crowdAnimation, (checked) => {
+        arena.crowdAnimation = checked
+        this.previewArenaVisuals()
+      }),
+      this.createCheckbox('Simulate reduced motion', arena.reducedMotion, (checked) => {
+        arena.reducedMotion = checked
+        this.previewArenaVisuals()
+      }),
+    )
+
+    const randomize = this.button(
+      'Random Match Appearance',
+      'lab-secondary-button',
+      () => {
+        const teams = getArenaTeamOptions()
+        const colors = [
+          '#25b9c7',
+          '#198bd5',
+          '#e54872',
+          '#f2c84b',
+          '#7868ba',
+          '#35a970',
+          '#e78c3f',
+          '#16324f',
+        ]
+        arena.homeTeamId = teams[Math.floor(Math.random() * teams.length)].value
+        arena.awayTeamId = teams[Math.floor(Math.random() * teams.length)].value
+        arena.homePrimaryColor = randomItem(colors)
+        arena.homeAccentColor = randomItem(colors)
+        arena.awayPrimaryColor = randomItem(colors)
+        arena.awayAccentColor = randomItem(colors)
+        arena.playerSkinColor = randomItem([
+          '#f3cda4',
+          '#d59a6f',
+          '#c98760',
+          '#a96f50',
+          '#744836',
+        ])
+        arena.playerHairColor = randomItem([
+          '#17283b',
+          '#59382f',
+          '#c08a38',
+          '#a94635',
+          '#2f746b',
+          '#72538d',
+        ])
+        arena.playerHairStyle = randomItem([
+          'hair01',
+          'hair02',
+          'hair03',
+          'hair04',
+        ] as const)
+        arena.playerRole = randomItem(labOptions.roles)
+        this.previewArenaVisuals()
+      },
+    )
+    content.appendChild(randomize)
+    return this.createSection('Arena Visual Lab', content, true)
   }
 
   private createKeeperSection(): HTMLElement {
@@ -2437,6 +2622,57 @@ export class LabPanel {
     return label
   }
 
+  private createImmediateRange(
+    labelText: string,
+    value: number,
+    options: RangeOptions,
+    onCommit: (value: number) => void,
+  ): HTMLElement {
+    const label = document.createElement('label')
+    label.className = 'lab-range-field'
+    const row = document.createElement('span')
+    row.className = 'lab-range-label'
+    const text = document.createElement('span')
+    text.textContent = labelText
+    const output = document.createElement('output')
+    output.textContent = formatNumber(value, options.digits)
+    row.append(text, output)
+    const input = document.createElement('input')
+    input.type = 'range'
+    input.min = String(options.min)
+    input.max = String(options.max)
+    input.step = String(options.step)
+    input.value = String(value)
+    input.addEventListener('input', () => {
+      output.textContent = formatNumber(
+        Number.parseFloat(input.value),
+        options.digits,
+      )
+    })
+    input.addEventListener('change', () => {
+      onCommit(Number.parseFloat(input.value))
+    })
+    label.append(row, input)
+    return label
+  }
+
+  private createColorField(
+    labelText: string,
+    value: string,
+    onChange: (value: string) => void,
+  ): HTMLElement {
+    const label = document.createElement('label')
+    label.className = 'lab-field lab-color-field'
+    const text = document.createElement('span')
+    text.textContent = labelText
+    const input = document.createElement('input')
+    input.type = 'color'
+    input.value = /^#[0-9a-f]{6}$/i.test(value) ? value : '#16324f'
+    input.addEventListener('change', () => onChange(input.value))
+    label.append(text, input)
+    return label
+  }
+
   private createCheckbox(
     labelText: string,
     checked: boolean,
@@ -2493,6 +2729,33 @@ export class LabPanel {
   private markDraftChanged(): void {
     this.status = 'Draft changed; Apply to rebuild'
   }
+
+  private previewArenaVisuals(): void {
+    this.status = 'Arena preview applied live'
+    this.actions.onApply(cloneLabState(this.draft))
+  }
+
+  private syncLabTeamColors(
+    side: 'home' | 'away',
+    teamId: string,
+  ): void {
+    const team = opponentTeams.find((candidate) => candidate.id === teamId)
+
+    if (!team) {
+      return
+    }
+
+    const primary = numberToHex(team.primaryColor)
+    const accent = numberToHex(team.secondaryColor)
+
+    if (side === 'home') {
+      this.draft.arenaVisual.homePrimaryColor = primary
+      this.draft.arenaVisual.homeAccentColor = accent
+    } else {
+      this.draft.arenaVisual.awayPrimaryColor = primary
+      this.draft.arenaVisual.awayAccentColor = accent
+    }
+  }
 }
 
 function stringOptions(values: readonly string[]): SelectOption[] {
@@ -2510,4 +2773,12 @@ function titleCase(value: string): string {
 
 function formatNumber(value: number, digits = 0): string {
   return value.toFixed(digits)
+}
+
+function randomItem<T>(values: readonly T[]): T {
+  return values[Math.floor(Math.random() * values.length)]
+}
+
+function numberToHex(value: number): string {
+  return `#${value.toString(16).padStart(6, '0')}`
 }

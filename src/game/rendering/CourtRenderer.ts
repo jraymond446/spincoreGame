@@ -1,31 +1,57 @@
 import Phaser from 'phaser'
+import type { ArenaLayout } from '../arena/ArenaLayout'
+import { arenaLayers } from '../arena/ArenaLayers'
+import type { ArenaTheme } from '../arena/ArenaTheme'
 import { arenaConfig } from '../config/arenaConfig'
 import { visualStyleConfig } from '../config/visualStyleConfig'
+import { hasVisualAsset } from './VisualAssetOverrides'
 
 export class CourtRenderer {
-  private readonly graphics: Phaser.GameObjects.Graphics
+  private readonly surfaceGraphics: Phaser.GameObjects.Graphics
+  private readonly markingsGraphics: Phaser.GameObjects.Graphics
+  private graphics: Phaser.GameObjects.Graphics
+  private readonly surfaceAsset: Phaser.GameObjects.Image | null
+  private readonly layout: ArenaLayout
+  private readonly theme: ArenaTheme
 
-  constructor(scene: Phaser.Scene) {
-    this.graphics = scene.add.graphics().setDepth(-10)
-    scene.add
-      .text(arenaConfig.center.x, arenaConfig.center.y + 3, 'SPINCORE', {
-        fontFamily: '"Courier New", monospace',
-        fontSize: '46px',
-        fontStyle: '900',
-        color: '#bcecff',
-        stroke: '#0b5b9d',
-        strokeThickness: 8,
-      })
-      .setOrigin(0.5)
-      .setAlpha(0.2)
-      .setDepth(-9)
+  constructor(
+    scene: Phaser.Scene,
+    layout: ArenaLayout,
+    theme: ArenaTheme,
+  ) {
+    this.layout = layout
+    this.theme = theme
+    this.surfaceGraphics = scene.add
+      .graphics()
+      .setDepth(arenaLayers.courtSurface)
+    this.markingsGraphics = scene.add
+      .graphics()
+      .setDepth(arenaLayers.fieldMarkings)
+    this.graphics = this.surfaceGraphics
+    this.surfaceAsset =
+      theme.surfaceAsset && hasVisualAsset(scene, theme.surfaceAsset.key)
+        ? scene.add
+            .image(
+              layout.court.x + layout.court.width / 2,
+              layout.court.y + layout.court.height / 2,
+              theme.surfaceAsset.key,
+            )
+            .setDisplaySize(layout.court.width, layout.court.height)
+            .setDepth(arenaLayers.courtSurface + 0.5)
+        : null
 
     this.draw()
   }
 
+  destroy(): void {
+    this.surfaceGraphics.destroy()
+    this.markingsGraphics.destroy()
+    this.surfaceAsset?.destroy()
+  }
+
   private draw(): void {
-    const x = arenaConfig.center.x - arenaConfig.width / 2
-    const y = arenaConfig.center.y - arenaConfig.height / 2
+    const x = this.layout.court.x
+    const y = this.layout.court.y
     const inset = arenaConfig.courtInset
     const innerX = x + inset
     const innerY = y + inset
@@ -36,7 +62,9 @@ export class CourtRenderer {
     const bottomServiceY =
       y + arenaConfig.height - arenaConfig.serviceLineDepth
 
-    this.graphics.clear()
+    this.surfaceGraphics.clear()
+    this.markingsGraphics.clear()
+    this.graphics = this.surfaceGraphics
 
     this.drawNotchedPanel(
       x - 13,
@@ -83,7 +111,7 @@ export class CourtRenderer {
       innerWidth,
       innerHeight,
       25,
-      arenaConfig.floorColor,
+      this.theme.palette.surface,
       1,
       arenaConfig.boundaryLineColor,
       0.96,
@@ -91,6 +119,7 @@ export class CourtRenderer {
     )
 
     this.drawSurfaceTiles(innerX, innerY, innerWidth, innerHeight)
+    this.graphics = this.markingsGraphics
     this.drawCourtBands(innerX, innerY, innerWidth, innerHeight)
     this.drawPrimaryMarkings(innerX, innerY, innerWidth, centerY)
     this.drawServiceMarkings(

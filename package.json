@@ -10,7 +10,8 @@
     "test:progression": "node --experimental-strip-types src/save/progression.test.ts",
     "test:attributes": "node --experimental-strip-types src/match/attributeGameplay.test.ts",
     "test:loot": "node --experimental-strip-types src/equipment/lootRollTables.test.ts",
-    "test": "npm run test:goals && npm run test:progression && npm run test:attributes && npm run test:loot",
+    "test:arena": "node --experimental-strip-types src/game/arena/ArenaAttendance.test.ts",
+    "test": "npm run test:goals && npm run test:progression && npm run test:attributes && npm run test:loot && npm run test:arena",
     "preview": "vite preview"
   },
   "devDependencies": {

@@ -46,12 +46,4 @@ export const assetOverrideConfig = {
     displayWidth: 64,
     displayHeight: 64,
   },
-  crowd: {
-    key: 'asset-override-crowd-sheet',
-    path: '/assets/crowd/crowd_sheet.png',
-    frameWidth: 32,
-    frameHeight: 32,
-    displayWidth: 24,
-    displayHeight: 28,
-  },
 } as const
