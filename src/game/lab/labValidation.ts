@@ -1,5 +1,9 @@
 import { createDefaultLabTuning } from '../config/tuningDefaults'
 import { labOptions, type LabTuningState } from './LabConfig'
+import {
+  ARENA_PLAYER_RENDER_SCALE_RANGE,
+  ARENA_STICK_RENDER_SCALE_RANGE,
+} from '../arena/ArenaCharacterAssets'
 
 type NumericRule = {
   min: number
@@ -34,8 +38,14 @@ const numericRules: Record<string, NumericRule> = {
   'field.scoringPlaneTolerance': { min: 0, max: 18 },
   'field.goalScoreCooldownMs': { min: 250, max: 2000 },
   'arenaVisual.manualAttendance': { min: 0, max: 1 },
-  'arenaVisual.spriteScale': { min: 0.65, max: 1.45 },
-  'arenaVisual.arenaStickScale': { min: 0.65, max: 1.4 },
+  'arenaVisual.spriteScale': {
+    min: ARENA_PLAYER_RENDER_SCALE_RANGE.min,
+    max: ARENA_PLAYER_RENDER_SCALE_RANGE.max,
+  },
+  'arenaVisual.arenaStickScale': {
+    min: ARENA_STICK_RENDER_SCALE_RANGE.min,
+    max: ARENA_STICK_RENDER_SCALE_RANGE.max,
+  },
   'arenaVisual.arenaStickAngle': { min: -1.57, max: 1.57 },
   'arenaVisual.chargePreview': { min: 0, max: 1 },
   'arenaVisual.animationSpeed': { min: 0.25, max: 2 },

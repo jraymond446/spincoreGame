@@ -18,6 +18,10 @@ import { labEvents } from './LabEvents'
 import { getArenaThemeOptions } from '../arena/arenaThemes'
 import { getArenaTeamOptions } from '../arena/ArenaPresentation'
 import { opponentTeams } from '../data/opponentTeams'
+import {
+  ARENA_PLAYER_RENDER_SCALE_RANGE,
+  ARENA_STICK_RENDER_SCALE_RANGE,
+} from '../arena/ArenaCharacterAssets'
 
 type LabPanelActions = {
   onApply: (state: LabTuningState) => void
@@ -935,18 +939,28 @@ export class LabPanel {
         },
       ),
       this.createImmediateRange(
-        'Gameplay sprite scale',
+        'Arena player render scale',
         arena.spriteScale,
-        { min: 0.65, max: 1.45, step: 0.05, digits: 2 },
+        {
+          min: ARENA_PLAYER_RENDER_SCALE_RANGE.min,
+          max: ARENA_PLAYER_RENDER_SCALE_RANGE.max,
+          step: ARENA_PLAYER_RENDER_SCALE_RANGE.step,
+          digits: 2,
+        },
         (value) => {
           arena.spriteScale = value
           this.previewArenaVisuals()
         },
       ),
       this.createImmediateRange(
-        'Arena stick scale',
+        'Arena stick render scale',
         arena.arenaStickScale,
-        { min: 0.65, max: 1.4, step: 0.05, digits: 2 },
+        {
+          min: ARENA_STICK_RENDER_SCALE_RANGE.min,
+          max: ARENA_STICK_RENDER_SCALE_RANGE.max,
+          step: ARENA_STICK_RENDER_SCALE_RANGE.step,
+          digits: 2,
+        },
         (value) => {
           arena.arenaStickScale = value
           this.previewArenaVisuals()
@@ -1083,8 +1097,8 @@ export class LabPanel {
         ] as const)
         arena.playerRole = randomItem(labOptions.roles)
         arena.playerHandedness = randomItem(labOptions.handedness)
-        arena.spriteScale = randomBetween(0.88, 1.16)
-        arena.arenaStickScale = randomBetween(0.88, 1.14)
+        arena.spriteScale = randomBetween(1.75, 2.1)
+        arena.arenaStickScale = randomBetween(0.36, 0.5)
         arena.arenaStickAngle = randomBetween(-0.22, 0.22)
         this.previewArenaVisuals()
       },

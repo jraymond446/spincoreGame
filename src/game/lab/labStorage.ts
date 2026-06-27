@@ -1,6 +1,12 @@
 import { createDefaultLabTuning } from '../config/tuningDefaults'
 import type { LabTuningState } from './LabConfig'
 import { sanitizeLabSettings } from './labValidation'
+import {
+  ARENA_PLAYER_RENDER_SCALE_RANGE,
+  ARENA_STICK_RENDER_SCALE_RANGE,
+  DEFAULT_ARENA_PLAYER_RENDER_SCALE,
+  DEFAULT_ARENA_STICK_RENDER_SCALE,
+} from '../arena/ArenaCharacterAssets'
 
 const storageKey = 'spincore_lab_settings_v1'
 const previousStorageKey = 'spincore:lab-settings:v3'
@@ -155,6 +161,11 @@ function migrateGameplayDefaults(candidate: unknown): unknown {
     migrated.clearSafety &&
     typeof migrated.clearSafety === 'object'
       ? migrated.clearSafety as Record<string, unknown>
+      : null
+  const arenaVisual =
+    migrated.arenaVisual &&
+    typeof migrated.arenaVisual === 'object'
+      ? migrated.arenaVisual as Record<string, unknown>
       : null
 
   replaceLegacyDefault(aiOffense, 'aiMaxCarryMs', 2200, 2950)
@@ -474,6 +485,8 @@ function migrateGameplayDefaults(candidate: unknown): unknown {
   replaceLegacyDefault(defense, 'stableSlashVulnerability', 0.75, 0.82)
   replaceLegacyDefault(defense, 'fumblePressureThreshold', 1.12, 1.05)
   replaceLegacyDefault(defense, 'supportStealBonus', 0.16, 0.2)
+  migrateArenaPlayerRenderScale(arenaVisual)
+  migrateArenaStickRenderScale(arenaVisual)
 
   return migrated
 }
@@ -486,6 +499,46 @@ function replaceLegacyDefault(
 ): void {
   if (values?.[key] === previous) {
     values[key] = next
+  }
+}
+
+function migrateArenaStickRenderScale(
+  values: Record<string, unknown> | null,
+): void {
+  if (!values) {
+    return
+  }
+
+  const scale = values.arenaStickScale
+
+  if (typeof scale !== 'number') {
+    return
+  }
+
+  if (scale > ARENA_STICK_RENDER_SCALE_RANGE.max) {
+    values.arenaStickScale = DEFAULT_ARENA_STICK_RENDER_SCALE
+  }
+}
+
+function migrateArenaPlayerRenderScale(
+  values: Record<string, unknown> | null,
+): void {
+  if (!values) {
+    return
+  }
+
+  const scale = values.spriteScale
+
+  if (scale === 1 || scale === undefined) {
+    values.spriteScale = DEFAULT_ARENA_PLAYER_RENDER_SCALE
+    return
+  }
+
+  if (
+    typeof scale === 'number' &&
+    scale > ARENA_PLAYER_RENDER_SCALE_RANGE.max
+  ) {
+    values.spriteScale = ARENA_PLAYER_RENDER_SCALE_RANGE.max
   }
 }
 

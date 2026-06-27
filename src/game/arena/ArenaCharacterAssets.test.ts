@@ -8,12 +8,22 @@ const definition = arenaStickDefinitions['rookie-cesta-01']
 const mountTarget = { x: 240, y: 467 }
 const rightPocketTarget = { x: 312.5, y: 478 }
 const leftPocketTarget = { x: 312.5, y: 456 }
+const displaySize = {
+  width: definition.canvas.width * definition.displayScale,
+  height: definition.canvas.height * definition.displayScale,
+}
+const neutral = resolveArenaStickTransform(
+  definition,
+  mountTarget,
+  0,
+  1,
+)
 const right = resolveArenaStickTransform(
   definition,
   mountTarget,
   0,
   1,
-  1,
+  definition.displayScale,
   rightPocketTarget,
   true,
 )
@@ -22,7 +32,7 @@ const left = resolveArenaStickTransform(
   mountTarget,
   0,
   -1,
-  1,
+  definition.displayScale,
   leftPocketTarget,
   true,
 )
@@ -31,17 +41,27 @@ const rotated = resolveArenaStickTransform(
   mountTarget,
   Math.PI / 2,
   1,
-  1,
+  definition.displayScale,
   { x: 229, y: 539.5 },
   true,
 )
 
-assertPoint(right.pivot, mountTarget, 'right-handed pivot alignment')
-assertPoint(left.pivot, mountTarget, 'left-handed pivot alignment')
-assertPoint(rotated.pivot, mountTarget, 'rotated pivot alignment')
+assertClose(definition.displayScale, 0.42, 'default stick render scale')
+assertClose(displaySize.width, 67.2, 'default stick display width')
+assertClose(displaySize.height, 40.32, 'default stick display height')
+assertPoint(neutral.pivot, mountTarget, 'neutral pivot alignment')
+assertClose(neutral.scaleX, 0.42, 'neutral scale X')
+assertClose(neutral.scaleY, 0.42, 'neutral scale Y')
+assert(right.pivot.x > mountTarget.x, 'right-handed aligned pivot preserves authored scale')
+assert(left.pivot.x > mountTarget.x, 'left-handed aligned pivot preserves authored scale')
+assert(rotated.pivot.y > mountTarget.y, 'rotated aligned pivot preserves authored scale')
 assertPoint(right.pocket, rightPocketTarget, 'right-handed pocket alignment')
 assertPoint(left.pocket, leftPocketTarget, 'left-handed pocket alignment')
 assertPoint(rotated.pocket, { x: 229, y: 539.5 }, 'rotated pocket alignment')
+assertClose(right.scaleX, 0.42, 'right-handed aligned scale X')
+assertClose(right.scaleY, 0.42, 'right-handed aligned scale Y')
+assertClose(left.scaleX, 0.42, 'left-handed aligned scale X')
+assertClose(left.scaleY, -0.42, 'left-handed aligned scale Y')
 assert(right.pocket.y > right.pivot.y, 'right-handed local Y')
 assert(left.pocket.y < left.pivot.y, 'left-handed local Y mirror')
 
@@ -96,7 +116,7 @@ assertEqual(
   'disrupted',
 )
 
-console.info('Arena character anchor and core state cases passed: 9')
+console.info('Arena character anchor, scale, and core state cases passed')
 
 function assert(condition: boolean, label: string): void {
   if (!condition) {
@@ -111,6 +131,17 @@ function assertEqual(
   if (actual !== expected) {
     throw new Error(`Expected ${expected}, got ${actual}`)
   }
+}
+
+function assertClose(
+  actual: number,
+  expected: number,
+  label: string,
+): void {
+  assert(
+    Math.abs(actual - expected) < 0.000001,
+    `${label}: expected ${expected}, got ${actual}`,
+  )
 }
 
 function assertPoint(

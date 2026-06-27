@@ -88,13 +88,8 @@ export class ArenaStickRenderer {
   update(data: ArenaStickRendererUpdate): void {
     const aimAngle =
       data.aimAngle + data.pose.stickRotationOffset + data.angleOffset
-    const fitPocket =
-      isPossessionState(data.state) &&
-      Math.abs(data.angleOffset) < 0.0001 &&
-      Math.abs(data.scale - 1) < 0.0001
-    const stateScale = fitPocket
-      ? 1
-      : data.pose.stickScaleX * data.scale
+    const alignPocket = isPossessionState(data.state)
+    const renderScale = data.pose.stickScaleX * data.scale
     const mountPoint = offsetPoint(data.mountPoint, data.visualOffset)
     const pocketTarget = offsetPoint(
       data.pocketTarget,
@@ -105,9 +100,9 @@ export class ArenaStickRenderer {
       mountPoint,
       aimAngle,
       data.mirrorSign,
-      stateScale,
+      renderScale,
       pocketTarget,
-      fitPocket,
+      alignPocket,
     )
     this.lastTransform = transform
     this.resolveLayer(data.layerMode, data.playerOrigin)

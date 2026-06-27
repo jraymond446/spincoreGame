@@ -10,19 +10,21 @@
     "visualCenter": { "x": 64, "y": 62 },
     "headHairAnchor": { "x": 64, "y": 31 },
     "gripHandAnchor": { "x": 91, "y": 70 },
-    "safeBounds": { "x": 18, "y": 8, "width": 92, "height": 112 }
+    "safeBounds": { "x": 18, "y": 8, "width": 92, "height": 112 },
+    "runtimeRenderScale": 2,
+    "defaultRuntimeDisplaySize": { "width": 136, "height": 136 }
   },
   "stick": {
     "canvas": { "width": 160, "height": 96 },
     "authoredFacing": "right",
     "authoredForwardAngleRadians": 0,
-    "expectedDisplaySize": { "width": 115.2, "height": 69.12 },
+    "expectedDisplaySize": { "width": 67.2, "height": 40.32 },
     "gripHandAnchor": { "x": 24, "y": 48 },
     "rotationPivot": { "x": 24, "y": 48 },
     "pocketAnchor": { "x": 123, "y": 58 },
     "tipAnchor": { "x": 146, "y": 48 },
     "safeBounds": { "x": 10, "y": 10, "width": 142, "height": 76 },
-    "displayScale": 0.72
+    "displayScale": 0.42
   },
   "core": {
     "canvas": { "width": 64, "height": 64 },
@@ -137,7 +139,7 @@
       "dimensions": { "width": 160, "height": 96 },
       "alpha": "transparent",
       "authoredFacing": "right",
-      "expectedDisplaySize": { "width": 115.2, "height": 69.12 },
+      "expectedDisplaySize": { "width": 67.2, "height": 40.32 },
       "bodyOrigin": null,
       "visualCenter": { "x": 80, "y": 48 },
       "headHairAnchor": null,

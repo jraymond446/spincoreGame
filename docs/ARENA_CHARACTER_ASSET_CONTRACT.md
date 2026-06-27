@@ -17,6 +17,8 @@ screen-space radians.
   torso width `32`, with additional role-specific scale.
 - Existing gameplay stick curve: length `64.4`, curve `30.8`, root offset `18`,
   and eight samples. The authoritative cradle socket is local `(76,20)`.
+- Arena character art base display: `68 x 68`; current runtime test render
+  scale: `2`, yielding a `136 x 136` player body footprint.
 - Existing handed mount offsets are `+9` right-handed and `-9` left-handed.
   Aim controls stick rotation independently from body-facing rotation.
 - Legacy generated stick texture: 108 x 82, root `(9,40)`, pocket `(76,51)`.
@@ -32,12 +34,12 @@ timers or collision state.
 
 | Path | PNG | Alpha | Facing | Display | Critical anchors | Safe bounds | Z-order / treatment |
 | --- | ---: | --- | --- | ---: | --- | --- | --- |
-| `public/assets/characters/arena/field-player-body-base.png` | 128 x 128 | Transparent | Up | 68 x 68 | origin `(64,72)`, center `(64,62)`, head `(64,31)`, hand `(91,70)` | `(18,8,92,112)` | Body base. Neutral grayscale recolor regions; preserve outlines and luminance. |
-| `public/assets/characters/arena/masks/field-player-skin-mask.png` | 128 x 128 | Transparent | Up | 68 x 68 | identical to body | `(18,8,92,112)` | Above base. White alpha selects skin only. |
-| `public/assets/characters/arena/masks/field-player-uniform-primary-mask.png` | 128 x 128 | Transparent | Up | 68 x 68 | identical to body | `(18,8,92,112)` | Above skin. White alpha selects primary fabric. |
-| `public/assets/characters/arena/masks/field-player-uniform-accent-mask.png` | 128 x 128 | Transparent | Up | 68 x 68 | identical to body | `(18,8,92,112)` | Above primary. White alpha selects trim/accent. |
-| `public/assets/characters/arena/hair/arena-hair-01.png` | 128 x 128 | Transparent | Up | 68 x 68 | origin `(64,72)`, head `(64,31)` | `(34,8,60,52)` | Above body recolors. Neutral grayscale; hair tint preserves luminance. |
-| `public/assets/sticks/arena/rookie-cesta-01.png` | 160 x 96 | Transparent | Right | 115.2 x 69.12 | grip/pivot `(24,48)`, pocket `(123,58)`, tip `(146,48)` | `(10,10,142,76)` | Separate object. Automatic front/behind body depth. |
+| `public/assets/characters/arena/field-player-body-base.png` | 128 x 128 | Transparent | Up | 68 x 68 base; 136 x 136 at 2x | origin `(64,72)`, center `(64,62)`, head `(64,31)`, hand `(91,70)` | `(18,8,92,112)` | Body base. Neutral grayscale recolor regions; preserve outlines and luminance. |
+| `public/assets/characters/arena/masks/field-player-skin-mask.png` | 128 x 128 | Transparent | Up | 68 x 68 base; 136 x 136 at 2x | identical to body | `(18,8,92,112)` | Above base. White alpha selects skin only. |
+| `public/assets/characters/arena/masks/field-player-uniform-primary-mask.png` | 128 x 128 | Transparent | Up | 68 x 68 base; 136 x 136 at 2x | identical to body | `(18,8,92,112)` | Above skin. White alpha selects primary fabric. |
+| `public/assets/characters/arena/masks/field-player-uniform-accent-mask.png` | 128 x 128 | Transparent | Up | 68 x 68 base; 136 x 136 at 2x | identical to body | `(18,8,92,112)` | Above primary. White alpha selects trim/accent. |
+| `public/assets/characters/arena/hair/arena-hair-01.png` | 128 x 128 | Transparent | Up | 68 x 68 base; 136 x 136 at 2x | origin `(64,72)`, head `(64,31)` | `(34,8,60,52)` | Above body recolors. Neutral grayscale; hair tint preserves luminance. |
+| `public/assets/sticks/arena/rookie-cesta-01.png` | 160 x 96 | Transparent | Right | 67.2 x 40.32 | grip/pivot `(24,48)`, pocket `(123,58)`, tip `(146,48)` | `(10,10,142,76)` | Separate object. Automatic front/behind body depth. |
 | `public/assets/core/arena-core.png` | 64 x 64 | Transparent | Neutral | 26 x 26 | origin/pivot `(32,32)` | `(8,8,48,48)` | Above players; charge VFX above it. Include an asymmetric seam/highlight. |
 | `public/assets/arena/crowd/spectator-uniform-mask.png` | 256 x 256 | Transparent | Atlas-aligned | 34 x 39 per 64 x 64 cell | exact atlas registration | full atlas | Optional clothing selection mask. |
 
@@ -74,7 +76,8 @@ transparent antialiased edge. The runtime applies saved hair color as a tint.
 ## Stick
 
 The first stick is authored horizontally, pointing right, on a 160 x 96 canvas.
-Its runtime scale is `0.72`, yielding a 115.2 x 69.12 display canvas.
+Its default runtime render scale is `0.42`, yielding a 67.2 x 40.32 display
+canvas.
 
 - Grip and rotation pivot: `(24,48)`
 - Pocket/core center: `(123,58)`
@@ -93,14 +96,14 @@ force either layer for inspection.
 
 ### Runtime attachment fit
 
-The gameplay mount-to-cradle vector is slightly longer and more curved than
-the authored pivot-to-pocket vector. The renderer applies an explicit
-attachment-only correction of `1.0235477016564258` scale and
-`0.049907065938394224` radians (2.86 degrees, mirrored by handedness). This
-keeps the gameplay hand on `(24,48)` while registering `(123,58)` to the base
-cradle socket. During possession, the renderer may solve the rigid transform
-from the live gameplay mount and cradle points. This affects presentation only;
-stick collision samples and possession geometry remain unchanged.
+The gameplay mount-to-cradle vector is longer than the compact vertical-slice
+art. The asset render scale remains authoritative; the renderer does not
+stretch the PNG to bridge that distance. During possession, it derives the
+orientation from the live gameplay mount and cradle points, then translates the
+separate stick object so the authored pocket `(123,58)` lands on the current
+cradle socket at the configured scale. This keeps the core seated in the basket
+while preserving the smaller silhouette. Stick collision samples and possession
+geometry remain unchanged.
 
 ## Core
 

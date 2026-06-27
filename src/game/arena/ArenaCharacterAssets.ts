@@ -92,6 +92,22 @@ export type ArenaStickTransform = {
   tip: Point
 }
 
+export const DEFAULT_ARENA_STICK_RENDER_SCALE = 0.42
+
+export const ARENA_STICK_RENDER_SCALE_RANGE = {
+  min: 0.3,
+  max: 0.75,
+  step: 0.01,
+} as const
+
+export const DEFAULT_ARENA_PLAYER_RENDER_SCALE = 2
+
+export const ARENA_PLAYER_RENDER_SCALE_RANGE = {
+  min: 0.65,
+  max: 2.25,
+  step: 0.05,
+} as const
+
 export const arenaBodyDefinitions: Record<
   ArenaBodyId,
   ArenaBodyDefinition
@@ -159,10 +175,10 @@ export const arenaStickDefinitions: Record<
     pocketAnchor: { x: 123, y: 58 },
     tipAnchor: { x: 146, y: 48 },
     safeBounds: { x: 10, y: 10, width: 142, height: 76 },
-    displayScale: 0.72,
+    displayScale: DEFAULT_ARENA_STICK_RENDER_SCALE,
     defaultAngle: 0,
     attachmentCorrection: {
-      scale: 1.0235477016564258,
+      scale: 1,
       angle: 0.049907065938394224,
     },
   },
@@ -186,12 +202,12 @@ export const spectatorUniformMaskAsset: ArenaAssetSlot = {
 
 export const arenaCharacterDefaults = {
   rendererMode: 'asset' as ArenaCharacterRendererMode,
-  rendererScope: 'controlled' as ArenaCharacterRendererScope,
+  rendererScope: 'all' as ArenaCharacterRendererScope,
   bodyId: 'field-player-01' as ArenaBodyId,
   hairId: 'arena-hair-01' as ArenaHairId,
   stickId: 'rookie-cesta-01' as ArenaStickId,
-  spriteScale: 1,
-  stickScale: 1,
+  spriteScale: DEFAULT_ARENA_PLAYER_RENDER_SCALE,
+  stickScale: DEFAULT_ARENA_STICK_RENDER_SCALE,
   stickAngle: 0,
   stickLayerMode: 'automatic' as ArenaStickLayerMode,
   corePocketAttachment: true,
@@ -205,21 +221,19 @@ export function resolveArenaStickTransform(
   mountTarget: Point,
   aimAngle: number,
   mirrorSign: -1 | 1,
-  scaleMultiplier = 1,
+  renderScale = definition.displayScale,
   pocketTarget?: Point,
-  fitPocket = false,
+  alignPocket = false,
 ): ArenaStickTransform {
   let rotation =
     aimAngle -
     definition.authoredForwardAngle +
     definition.defaultAngle +
     definition.attachmentCorrection.angle * mirrorSign
-  let scale =
-    definition.displayScale *
-    definition.attachmentCorrection.scale *
-    scaleMultiplier
+  const scale = renderScale * definition.attachmentCorrection.scale
+  let position = { ...mountTarget }
 
-  if (fitPocket && pocketTarget) {
+  if (alignPocket && pocketTarget) {
     const targetX = pocketTarget.x - mountTarget.x
     const targetY = pocketTarget.y - mountTarget.y
     const authoredX =
@@ -234,11 +248,21 @@ export function resolveArenaStickTransform(
       rotation =
         Math.atan2(targetY, targetX) -
         Math.atan2(authoredY, authoredX)
-      scale = targetLength / authoredLength
+    }
+
+    const pocketOffset = transformLocalOffset(
+      definition.pocketAnchor,
+      definition.rotationPivot,
+      rotation,
+      scale,
+      mirrorSign,
+    )
+    position = {
+      x: pocketTarget.x - pocketOffset.x,
+      y: pocketTarget.y - pocketOffset.y,
     }
   }
 
-  const position = { ...mountTarget }
   const anchor = (point: Point): Point => {
     const offset = transformLocalOffset(
       point,

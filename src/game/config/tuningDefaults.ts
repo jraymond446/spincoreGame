@@ -1,6 +1,10 @@
 import { playerArchetypes } from '../data/playerArchetypes'
 import { teams } from '../data/teams'
 import type { LabTuningState } from '../lab/LabConfig'
+import {
+  DEFAULT_ARENA_PLAYER_RENDER_SCALE,
+  DEFAULT_ARENA_STICK_RENDER_SCALE,
+} from '../arena/ArenaCharacterAssets'
 
 export function createDefaultLabTuning(): LabTuningState {
   const players: LabTuningState['players'] = Object.fromEntries(
@@ -490,8 +494,8 @@ export function createDefaultLabTuning(): LabTuningState {
       arenaBodyId: 'field-player-01',
       arenaHairId: 'arena-hair-01',
       arenaStickId: 'rookie-cesta-01',
-      spriteScale: 1,
-      arenaStickScale: 1,
+      spriteScale: DEFAULT_ARENA_PLAYER_RENDER_SCALE,
+      arenaStickScale: DEFAULT_ARENA_STICK_RENDER_SCALE,
       arenaStickAngle: 0,
       stickLayerMode: 'automatic',
       anchorOverlay: false,

@@ -187,9 +187,10 @@ export class ArenaCharacterRenderer {
     this.drawFallback(data.role)
     this.updateHitFlash(data.state, data.defenseState, deltaMs)
 
+    const visualMountPoint = this.resolveGripAnchorWorld(data, definition)
     const stickUpdate: ArenaStickRendererUpdate = {
       playerOrigin: data.playerOrigin,
-      mountPoint: data.mountPoint,
+      mountPoint: visualMountPoint,
       pocketTarget: data.cradleSocket,
       aimAngle: Math.atan2(data.stickForward.y, data.stickForward.x),
       mirrorSign: data.mirrorSign,
@@ -443,11 +444,7 @@ export class ArenaCharacterRenderer {
       body.headAnchor.x - body.origin.x,
       body.headAnchor.y - body.origin.y,
     )
-    const handSign = data.handedness === 'left' ? -1 : 1
-    const hand = matrix.transformPoint(
-      (body.gripAnchor.x - body.origin.x) * handSign,
-      body.gripAnchor.y - body.origin.y,
-    )
+    const hand = this.resolveGripAnchorWorld(data, body)
 
     this.contractGraphics.lineStyle(1, 0xffffff, 0.7)
     this.contractGraphics.lineBetween(origin.x, origin.y, head.x, head.y)
@@ -466,6 +463,20 @@ export class ArenaCharacterRenderer {
     this.contractGraphics.fillCircle(point.x, point.y, radius)
     this.contractGraphics.lineStyle(1, 0x071a2f, 0.9)
     this.contractGraphics.strokeCircle(point.x, point.y, radius)
+  }
+
+  private resolveGripAnchorWorld(
+    data: ArenaCharacterRendererUpdate,
+    body: (typeof arenaBodyDefinitions)[ArenaBodyId],
+  ): Point {
+    const matrix = this.container.getWorldTransformMatrix()
+    const handSign = data.handedness === 'left' ? -1 : 1
+    const point = matrix.transformPoint(
+      (body.gripAnchor.x - body.origin.x) * handSign,
+      body.gripAnchor.y - body.origin.y,
+    )
+
+    return { x: point.x, y: point.y }
   }
 }
 

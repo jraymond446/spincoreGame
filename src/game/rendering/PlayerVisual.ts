@@ -247,6 +247,11 @@ export class PlayerVisual {
         forward.y * pose.bodyForwardOffset +
         right.y * pose.bodySideOffset,
     }
+    const useArenaRenderer = this.shouldUseArenaRenderer(
+      settings.rendererMode,
+      settings.inScope,
+    )
+    const indicatorScale = useArenaRenderer ? settings.spriteScale : 1
 
     if (settings.chargeVfx) {
       this.drawChargeAura(
@@ -257,12 +262,8 @@ export class PlayerVisual {
     } else {
       this.chargeAura.clear()
     }
-    this.drawShadow(data.position, speed, pose)
-    this.drawControlledIndicator(data.position)
-    const useArenaRenderer = this.shouldUseArenaRenderer(
-      settings.rendererMode,
-      settings.inScope,
-    )
+    this.drawShadow(data.position, speed, pose, indicatorScale)
+    this.drawControlledIndicator(data.position, indicatorScale)
     this.character.setVisible(!useArenaRenderer)
     this.assetLayers.forEach((layer) => layer.setVisible(!useArenaRenderer))
     this.stick.setVisible(!useArenaRenderer)
@@ -367,6 +368,9 @@ export class PlayerVisual {
     chargeVisual: PlayerVisualUpdate['chargeVisual']
   } {
     const launch = getMatchLaunchConfig()
+    const defaultInScope =
+      arenaCharacterDefaults.rendererScope === 'all' ||
+      this.isDefaultArenaControlledPlayer()
     const prefersReducedMotion =
       typeof window !== 'undefined' &&
       window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
@@ -374,9 +378,7 @@ export class PlayerVisual {
     if (launch.mode !== 'lab') {
       return {
         rendererMode: arenaCharacterDefaults.rendererMode,
-        inScope:
-          this.options.controllerType === 'human' &&
-          this.options.role === 'striker',
+        inScope: defaultInScope,
         handedness: this.options.handedness,
         role: this.options.role,
         spriteScale: arenaCharacterDefaults.spriteScale,
@@ -428,6 +430,13 @@ export class PlayerVisual {
           arena.forceFullyCharged || data.chargeVisual.overcharged,
       },
     }
+  }
+
+  private isDefaultArenaControlledPlayer(): boolean {
+    return (
+      this.options.controllerType === 'human' &&
+      this.options.role === 'striker'
+    )
   }
 
   private drawChargeAura(
@@ -503,9 +512,10 @@ export class PlayerVisual {
     position: Point,
     speed: number,
     pose: PlayerAnimationPose,
+    visualMultiplier = 1,
   ): void {
     const roleScale = visualConfig.roleScale[this.options.role]
-    const visualScale = visualConfig.playerScale
+    const visualScale = visualConfig.playerScale * visualMultiplier
     const stretch = Phaser.Math.Clamp(speed * 0.7, 0, 10)
     this.shadow.clear()
     this.shadow.fillStyle(visualConfig.shadowColor, visualConfig.shadowAlpha)
@@ -543,12 +553,16 @@ export class PlayerVisual {
     }
   }
 
-  private drawControlledIndicator(position: Point): void {
+  private drawControlledIndicator(
+    position: Point,
+    visualMultiplier = 1,
+  ): void {
     this.controlledIndicator.clear()
     if (!this.controlled) {
       return
     }
 
+    const radius = visualConfig.controlledRingRadius * visualMultiplier
     this.controlledIndicator.lineStyle(
       visualConfig.controlledRingWidth,
       visualConfig.controlledRingColor,
@@ -557,16 +571,16 @@ export class PlayerVisual {
     this.controlledIndicator.strokeCircle(
       position.x,
       position.y,
-      visualConfig.controlledRingRadius,
+      radius,
     )
     this.controlledIndicator.fillStyle(this.palette.trim, 1)
     this.controlledIndicator.fillTriangle(
       position.x,
-      position.y - visualConfig.controlledRingRadius - 12,
+      position.y - radius - 12,
       position.x - 7,
-      position.y - visualConfig.controlledRingRadius - 23,
+      position.y - radius - 23,
       position.x + 7,
-      position.y - visualConfig.controlledRingRadius - 23,
+      position.y - radius - 23,
     )
   }
 
