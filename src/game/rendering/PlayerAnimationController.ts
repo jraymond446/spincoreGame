@@ -155,6 +155,7 @@ export class PlayerAnimationController {
         pose.bodyForwardOffset -= 4 * startup
         pose.bodyScaleX *= 1.08
         pose.bodyScaleY *= 0.94
+        pose.stickScaleX *= 0.96
         pose.anticipation = Math.max(pose.anticipation, 0.8)
         break
       case 'TRUCK_ACTIVE':
@@ -163,6 +164,8 @@ export class PlayerAnimationController {
         pose.bodyScaleY *= 0.9
         pose.headForwardOffset += 3
         pose.shadowScale *= 1.12
+        pose.stickRotationOffset -= 0.06 * mirror
+        pose.stickScaleX *= 0.9
         pose.impact = 1
         break
       case 'TRUCK_RECOVERY':

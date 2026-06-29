@@ -45,6 +45,26 @@ const rotated = resolveArenaStickTransform(
   { x: 229, y: 539.5 },
   true,
 )
+const laggedRight = resolveArenaStickTransform(
+  definition,
+  mountTarget,
+  0,
+  1,
+  definition.displayScale,
+  rightPocketTarget,
+  true,
+  0.1,
+)
+const laggedLeft = resolveArenaStickTransform(
+  definition,
+  mountTarget,
+  0,
+  -1,
+  definition.displayScale,
+  leftPocketTarget,
+  true,
+  -0.1,
+)
 
 assertClose(definition.displayScale, 0.42, 'default stick render scale')
 assertClose(displaySize.width, 67.2, 'default stick display width')
@@ -58,6 +78,16 @@ assert(rotated.pivot.y > mountTarget.y, 'rotated aligned pivot preserves authore
 assertPoint(right.pocket, rightPocketTarget, 'right-handed pocket alignment')
 assertPoint(left.pocket, leftPocketTarget, 'left-handed pocket alignment')
 assertPoint(rotated.pocket, { x: 229, y: 539.5 }, 'rotated pocket alignment')
+assertPoint(laggedRight.pocket, rightPocketTarget, 'lagged right pocket alignment')
+assertPoint(laggedLeft.pocket, leftPocketTarget, 'lagged left pocket alignment')
+assert(
+  distance(laggedRight.grip, right.grip) < 5,
+  'right visual lag keeps grip near the hand',
+)
+assert(
+  distance(laggedLeft.grip, left.grip) < 5,
+  'left visual lag keeps grip near the hand',
+)
 assertClose(right.scaleX, 0.42, 'right-handed aligned scale X')
 assertClose(right.scaleY, 0.42, 'right-handed aligned scale Y')
 assertClose(left.scaleX, 0.42, 'left-handed aligned scale X')
@@ -153,4 +183,11 @@ function assertPoint(
     Math.abs(actual.x - expected.x) < 0.000001 &&
     Math.abs(actual.y - expected.y) < 0.000001
   assert(close, `${label}: ${JSON.stringify(actual)}`)
+}
+
+function distance(
+  a: { x: number; y: number },
+  b: { x: number; y: number },
+): number {
+  return Math.hypot(a.x - b.x, a.y - b.y)
 }

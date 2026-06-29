@@ -7,11 +7,12 @@ import {
   DEFAULT_ARENA_PLAYER_RENDER_SCALE,
   DEFAULT_ARENA_STICK_RENDER_SCALE,
 } from '../arena/ArenaCharacterAssets'
+import { arenaProceduralAnimationDefaults } from '../rendering/ArenaProceduralAnimation'
 
 const storageKey = 'spincore_lab_settings_v1'
 const previousStorageKey = 'spincore:lab-settings:v3'
 const legacyStorageKey = 'spincore:lab-settings:v2'
-const settingsVersion = 3
+const settingsVersion = 5
 
 type StoredLabSettings = {
   version: number
@@ -92,11 +93,67 @@ export function resetSavedLabSettings(): void {
 }
 
 function readVersionedSettings(parsed: unknown): unknown {
-  if (!isStoredLabSettings(parsed) || parsed.version !== settingsVersion) {
+  if (
+    !isStoredLabSettings(parsed) ||
+    ![3, 4, settingsVersion].includes(parsed.version)
+  ) {
     throw new Error('Unsupported or invalid Lab settings schema.')
   }
 
+  if (parsed.version < settingsVersion) {
+    migrateArenaAnimationV5(parsed.settings)
+  }
+
   return parsed.settings
+}
+
+function migrateArenaAnimationV5(settings: unknown): void {
+  if (!settings || typeof settings !== 'object') {
+    return
+  }
+
+  const arenaVisual =
+    'arenaVisual' in settings &&
+    settings.arenaVisual &&
+    typeof settings.arenaVisual === 'object'
+      ? settings.arenaVisual as Record<string, unknown>
+      : null
+
+  if (!arenaVisual) {
+    return
+  }
+
+  const previousBob = arenaVisual.bobAmplitude
+  const previousBobSpeed = arenaVisual.bobSpeed
+  const previousLean = arenaVisual.leanAmount
+
+  arenaVisual.playerScaleMultiplier =
+    arenaProceduralAnimationDefaults.playerScaleMultiplier
+  arenaVisual.idleBobAmount = arenaProceduralAnimationDefaults.idleBobAmount
+  arenaVisual.movementBobAmount =
+    typeof previousBob === 'number' &&
+    previousBob !== 2.15 &&
+    previousBob !== 2.8
+      ? previousBob
+      : arenaProceduralAnimationDefaults.movementBobAmount
+  arenaVisual.movementBobSpeed =
+    typeof previousBobSpeed === 'number' &&
+    previousBobSpeed !== 1 &&
+    previousBobSpeed !== 1.1
+      ? previousBobSpeed
+      : arenaProceduralAnimationDefaults.movementBobSpeed
+  arenaVisual.squashStretchAmount =
+    arenaProceduralAnimationDefaults.squashStretchAmount
+  arenaVisual.leanAmount =
+    typeof previousLean === 'number' &&
+    previousLean !== 5 &&
+    previousLean !== 6.5
+      ? previousLean
+      : arenaProceduralAnimationDefaults.leanAmount
+  arenaVisual.lateralSwayAmount =
+    arenaProceduralAnimationDefaults.lateralSwayAmount
+  arenaVisual.footShuffle = false
+  replaceLegacyDefault(arenaVisual, 'shadowPulseAmount', 0.14, 0.12)
 }
 
 function isStoredLabSettings(value: unknown): value is StoredLabSettings {
@@ -485,6 +542,7 @@ function migrateGameplayDefaults(candidate: unknown): unknown {
   replaceLegacyDefault(defense, 'stableSlashVulnerability', 0.75, 0.82)
   replaceLegacyDefault(defense, 'fumblePressureThreshold', 1.12, 1.05)
   replaceLegacyDefault(defense, 'supportStealBonus', 0.16, 0.2)
+  replaceLegacyDefault(arenaVisual, 'actionSnapAmount', 0.72, 0.7)
   migrateArenaPlayerRenderScale(arenaVisual)
   migrateArenaStickRenderScale(arenaVisual)
 

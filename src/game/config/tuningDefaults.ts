@@ -5,6 +5,7 @@ import {
   DEFAULT_ARENA_PLAYER_RENDER_SCALE,
   DEFAULT_ARENA_STICK_RENDER_SCALE,
 } from '../arena/ArenaCharacterAssets'
+import { arenaProceduralAnimationDefaults } from '../rendering/ArenaProceduralAnimation'
 
 export function createDefaultLabTuning(): LabTuningState {
   const players: LabTuningState['players'] = Object.fromEntries(
@@ -505,7 +506,26 @@ export function createDefaultLabTuning(): LabTuningState {
       forceFullyCharged: false,
       coreSpin: true,
       chargeVfx: true,
-      animationSpeed: 1,
+      proceduralAnimation: arenaProceduralAnimationDefaults.enabled,
+      footShuffle: arenaProceduralAnimationDefaults.footShuffle,
+      playerScaleMultiplier:
+        arenaProceduralAnimationDefaults.playerScaleMultiplier,
+      idleBobAmount: arenaProceduralAnimationDefaults.idleBobAmount,
+      movementBobAmount:
+        arenaProceduralAnimationDefaults.movementBobAmount,
+      movementBobSpeed:
+        arenaProceduralAnimationDefaults.movementBobSpeed,
+      squashStretchAmount:
+        arenaProceduralAnimationDefaults.squashStretchAmount,
+      leanAmount: arenaProceduralAnimationDefaults.leanAmount,
+      lateralSwayAmount:
+        arenaProceduralAnimationDefaults.lateralSwayAmount,
+      shadowPulseAmount:
+        arenaProceduralAnimationDefaults.shadowPulseAmount,
+      stickLagAmount: arenaProceduralAnimationDefaults.stickLagAmount,
+      actionSnapAmount: arenaProceduralAnimationDefaults.actionSnapAmount,
+      animationSpeed:
+        arenaProceduralAnimationDefaults.animationSpeedMultiplier,
       geometryOverlay: false,
       crowdAnimation: true,
       reducedMotion: false,

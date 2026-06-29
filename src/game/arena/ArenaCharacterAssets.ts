@@ -102,6 +102,8 @@ export const ARENA_STICK_RENDER_SCALE_RANGE = {
 
 export const DEFAULT_ARENA_PLAYER_RENDER_SCALE = 2
 
+export const MAX_ARENA_STICK_VISUAL_OFFSET_RADIANS = 0.115
+
 export const ARENA_PLAYER_RENDER_SCALE_RANGE = {
   min: 0.65,
   max: 2.25,
@@ -224,6 +226,7 @@ export function resolveArenaStickTransform(
   renderScale = definition.displayScale,
   pocketTarget?: Point,
   alignPocket = false,
+  visualRotationOffset = 0,
 ): ArenaStickTransform {
   let rotation =
     aimAngle -
@@ -250,6 +253,14 @@ export function resolveArenaStickTransform(
         Math.atan2(authoredY, authoredX)
     }
 
+  }
+
+  rotation += Math.max(
+    -MAX_ARENA_STICK_VISUAL_OFFSET_RADIANS,
+    Math.min(MAX_ARENA_STICK_VISUAL_OFFSET_RADIANS, visualRotationOffset),
+  )
+
+  if (alignPocket && pocketTarget) {
     const pocketOffset = transformLocalOffset(
       definition.pocketAnchor,
       definition.rotationPivot,

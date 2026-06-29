@@ -37,6 +37,12 @@ import {
 import { getLabState } from '../lab/LabState'
 import { getMatchLaunchConfig } from '../../match/MatchLaunchConfig'
 import { ArenaCharacterRenderer } from './ArenaCharacterRenderer'
+import {
+  ArenaProceduralAnimationController,
+  arenaProceduralAnimationDefaults,
+  type ArenaProceduralAnimationFrame,
+  type ArenaProceduralAnimationTuning,
+} from './ArenaProceduralAnimation'
 
 type Point = { x: number; y: number }
 
@@ -84,6 +90,7 @@ export class PlayerVisual {
   private readonly arenaCharacter: ArenaCharacterRenderer
   private readonly assetLayers: Phaser.GameObjects.Image[] = []
   private readonly animation = new PlayerAnimationController()
+  private readonly arenaAnimation: ArenaProceduralAnimationController
   private palette: TeamVisualPalette
   private hairStyle: HairStyle
   private readonly animationPhase: number
@@ -105,6 +112,9 @@ export class PlayerVisual {
     }
     this.hairStyle = hairStyles[options.profile.hairStyle]
     this.animationPhase = this.hash(options.id) * 0.01
+    this.arenaAnimation = new ArenaProceduralAnimationController(
+      this.animationPhase,
+    )
 
     this.chargeAura = scene.add
       .graphics()
@@ -200,20 +210,38 @@ export class PlayerVisual {
     const handednessFrame = getHandednessFrame(settings.handedness)
     const chargeVisual = settings.chargeVisual
     const speed = Math.hypot(data.velocity.x, data.velocity.y)
+    const useArenaRenderer = this.shouldUseArenaRenderer(
+      settings.rendererMode,
+      settings.inScope,
+    )
+    const arenaMotion = this.arenaAnimation.update({
+      deltaMs: Math.min(50, Math.max(0, this.scene.game.loop.delta)),
+      velocity: data.velocity,
+      bodyRotation: data.facingRotation,
+      aimAngle: Math.atan2(data.stickForward.y, data.stickForward.x),
+      mountSign: handednessFrame.mountSign,
+      stickState: data.stickState,
+      defenseState: data.defenseState,
+      charge: chargeVisual.normalized,
+      reducedMotion: settings.reducedMotion,
+      tuning: settings.proceduralAnimation,
+    })
     const movementFactor = Phaser.Math.Clamp(speed / 9, 0, 1)
     const bobAmplitude = Phaser.Math.Linear(
       visualConfig.idleBobAmplitude,
       visualConfig.movementBobAmplitude,
       movementFactor,
     ) * (data.stickState === 'IDLE' ? 0.72 : 0.42)
-    const bob = settings.reducedMotion
-      ? 0
-      : Math.sin(
-          this.scene.time.now *
-            visualConfig.idleBobSpeed *
-            settings.animationSpeed +
-            this.animationPhase,
-        ) * bobAmplitude
+    const bob = useArenaRenderer
+      ? arenaMotion.currentVisualBob
+      : settings.reducedMotion
+        ? 0
+        : Math.sin(
+            this.scene.time.now *
+              visualConfig.idleBobSpeed *
+              settings.animationSpeed +
+              this.animationPhase,
+          ) * bobAmplitude
     const pose = this.animation.update(
       data.stickState,
       data.defenseState,
@@ -230,28 +258,39 @@ export class PlayerVisual {
       pose.bodyScaleY *= Phaser.Math.Linear(1, 0.95, charge)
       pose.anticipation = Math.max(pose.anticipation, charge)
     }
-    const bodyRotation = data.facingRotation + pose.bodyRotationOffset
+    if (useArenaRenderer) {
+      pose.bodyScaleX *= 1 + arenaMotion.currentVisualSquash
+      pose.bodyScaleY *= 1 - arenaMotion.currentVisualSquash
+    }
+    const bodyRotation =
+      data.facingRotation +
+      pose.bodyRotationOffset +
+      (useArenaRenderer ? arenaMotion.currentVisualLean : 0)
     const forward = {
       x: Math.cos(bodyRotation),
       y: Math.sin(bodyRotation),
     }
     const right = { x: -forward.y, y: forward.x }
+    const visualForwardOffset =
+      pose.bodyForwardOffset +
+      (useArenaRenderer ? arenaMotion.currentVisualForwardLean : 0)
+    const visualSideOffset =
+      pose.bodySideOffset +
+      (useArenaRenderer ? arenaMotion.currentVisualSway : 0)
     const visualPosition = {
       x:
         data.position.x +
-        forward.x * pose.bodyForwardOffset +
-        right.x * pose.bodySideOffset,
+        forward.x * visualForwardOffset +
+        right.x * visualSideOffset,
       y:
         data.position.y +
         bob +
-        forward.y * pose.bodyForwardOffset +
-        right.y * pose.bodySideOffset,
+        forward.y * visualForwardOffset +
+        right.y * visualSideOffset,
     }
-    const useArenaRenderer = this.shouldUseArenaRenderer(
-      settings.rendererMode,
-      settings.inScope,
-    )
-    const indicatorScale = useArenaRenderer ? settings.spriteScale : 1
+    const arenaSpriteScale =
+      settings.spriteScale * settings.proceduralAnimation.playerScaleMultiplier
+    const indicatorScale = useArenaRenderer ? arenaSpriteScale : 1
 
     if (settings.chargeVfx) {
       this.drawChargeAura(
@@ -262,7 +301,13 @@ export class PlayerVisual {
     } else {
       this.chargeAura.clear()
     }
-    this.drawShadow(data.position, speed, pose, indicatorScale)
+    this.drawShadow(
+      data.position,
+      speed,
+      pose,
+      indicatorScale,
+      useArenaRenderer ? arenaMotion : undefined,
+    )
     this.drawControlledIndicator(data.position, indicatorScale)
     this.character.setVisible(!useArenaRenderer)
     this.assetLayers.forEach((layer) => layer.setVisible(!useArenaRenderer))
@@ -290,7 +335,7 @@ export class PlayerVisual {
           hardCharge: chargeVisual.hardCharge,
           fullyCharged: settings.fullyCharged,
         },
-        spriteScale: settings.spriteScale,
+        spriteScale: arenaSpriteScale,
         stickScale: settings.stickScale,
         stickAngle: settings.stickAngle,
         stickLayerMode: settings.stickLayerMode,
@@ -300,6 +345,7 @@ export class PlayerVisual {
         reducedMotion: settings.reducedMotion,
         controlled: this.controlled,
         animationSpeed: settings.animationSpeed,
+        proceduralAnimation: arenaMotion,
         now: this.scene.time.now,
       })
       this.corePocketAnchor = this.arenaCharacter.getPocketAnchor()
@@ -366,6 +412,7 @@ export class PlayerVisual {
     animationSpeed: number
     fullyCharged: boolean
     chargeVisual: PlayerVisualUpdate['chargeVisual']
+    proceduralAnimation: ArenaProceduralAnimationTuning
   } {
     const launch = getMatchLaunchConfig()
     const defaultInScope =
@@ -392,6 +439,7 @@ export class PlayerVisual {
         animationSpeed: arenaCharacterDefaults.animationSpeed,
         fullyCharged: data.chargeVisual.normalized >= 0.995,
         chargeVisual: data.chargeVisual,
+        proceduralAnimation: arenaProceduralAnimationDefaults,
       }
     }
 
@@ -428,6 +476,21 @@ export class PlayerVisual {
           previewCharge >= possessionFeelConfig.hardChargeVisualThreshold,
         overcharged:
           arena.forceFullyCharged || data.chargeVisual.overcharged,
+      },
+      proceduralAnimation: {
+        enabled: arena.proceduralAnimation,
+        footShuffle: arena.footShuffle,
+        playerScaleMultiplier: arena.playerScaleMultiplier,
+        idleBobAmount: arena.idleBobAmount,
+        movementBobAmount: arena.movementBobAmount,
+        movementBobSpeed: arena.movementBobSpeed,
+        squashStretchAmount: arena.squashStretchAmount,
+        leanAmount: arena.leanAmount,
+        lateralSwayAmount: arena.lateralSwayAmount,
+        shadowPulseAmount: arena.shadowPulseAmount,
+        stickLagAmount: arena.stickLagAmount,
+        actionSnapAmount: arena.actionSnapAmount,
+        animationSpeedMultiplier: arena.animationSpeed,
       },
     }
   }
@@ -513,10 +576,14 @@ export class PlayerVisual {
     speed: number,
     pose: PlayerAnimationPose,
     visualMultiplier = 1,
+    motion?: ArenaProceduralAnimationFrame,
   ): void {
     const roleScale = visualConfig.roleScale[this.options.role]
     const visualScale = visualConfig.playerScale * visualMultiplier
-    const stretch = Phaser.Math.Clamp(speed * 0.7, 0, 10)
+    const shadowRoleScale = motion ? 1 : roleScale.shadow
+    const stretch = motion ? 0 : Phaser.Math.Clamp(speed * 0.7, 0, 10)
+    const motionScaleX = motion?.shadowScaleX ?? 1
+    const motionScaleY = motion?.shadowScaleY ?? 1
     this.shadow.clear()
     this.shadow.fillStyle(visualConfig.shadowColor, visualConfig.shadowAlpha)
     this.shadow.fillEllipse(
@@ -524,9 +591,13 @@ export class PlayerVisual {
       position.y + visualConfig.shadowOffsetY,
       (visualConfig.shadowWidth + stretch) *
         visualScale *
-        roleScale.shadow *
-        pose.shadowScale,
-      visualConfig.shadowHeight * visualScale * pose.shadowScale,
+        shadowRoleScale *
+        pose.shadowScale *
+        motionScaleX,
+      visualConfig.shadowHeight *
+        visualScale *
+        pose.shadowScale *
+        motionScaleY,
     )
   }
 

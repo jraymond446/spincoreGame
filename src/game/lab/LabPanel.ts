@@ -22,6 +22,7 @@ import {
   ARENA_PLAYER_RENDER_SCALE_RANGE,
   ARENA_STICK_RENDER_SCALE_RANGE,
 } from '../arena/ArenaCharacterAssets'
+import { arenaProceduralAnimationRanges } from '../rendering/ArenaProceduralAnimation'
 
 type LabPanelActions = {
   onApply: (state: LabTuningState) => void
@@ -939,7 +940,7 @@ export class LabPanel {
         },
       ),
       this.createImmediateRange(
-        'Arena player render scale',
+        'Arena asset base scale',
         arena.spriteScale,
         {
           min: ARENA_PLAYER_RENDER_SCALE_RANGE.min,
@@ -1030,10 +1031,121 @@ export class LabPanel {
         arena.chargeVfx = checked
         this.previewArenaVisuals()
       }),
+      this.createCheckbox(
+        'Procedural animation',
+        arena.proceduralAnimation,
+        (checked) => {
+          arena.proceduralAnimation = checked
+          this.previewArenaVisuals()
+        },
+      ),
+      this.createCheckbox('Feet (experimental)', arena.footShuffle, (checked) => {
+        arena.footShuffle = checked
+        this.previewArenaVisuals()
+      }),
+      this.createImmediateRange(
+        'Player visual scale',
+        arena.playerScaleMultiplier,
+        {
+          ...arenaProceduralAnimationRanges.playerScaleMultiplier,
+          digits: 2,
+        },
+        (value) => {
+          arena.playerScaleMultiplier = value
+          this.previewArenaVisuals()
+        },
+      ),
+      this.createImmediateRange(
+        'Idle bob (px)',
+        arena.idleBobAmount,
+        { ...arenaProceduralAnimationRanges.idleBobAmount, digits: 2 },
+        (value) => {
+          arena.idleBobAmount = value
+          this.previewArenaVisuals()
+        },
+      ),
+      this.createImmediateRange(
+        'Movement bob (px)',
+        arena.movementBobAmount,
+        { ...arenaProceduralAnimationRanges.movementBobAmount, digits: 2 },
+        (value) => {
+          arena.movementBobAmount = value
+          this.previewArenaVisuals()
+        },
+      ),
+      this.createImmediateRange(
+        'Movement bob speed',
+        arena.movementBobSpeed,
+        { ...arenaProceduralAnimationRanges.movementBobSpeed, digits: 2 },
+        (value) => {
+          arena.movementBobSpeed = value
+          this.previewArenaVisuals()
+        },
+      ),
+      this.createImmediateRange(
+        'Squash / stretch',
+        arena.squashStretchAmount,
+        {
+          ...arenaProceduralAnimationRanges.squashStretchAmount,
+          digits: 3,
+        },
+        (value) => {
+          arena.squashStretchAmount = value
+          this.previewArenaVisuals()
+        },
+      ),
+      this.createImmediateRange(
+        'Lean amount (deg)',
+        arena.leanAmount,
+        { ...arenaProceduralAnimationRanges.leanAmount, digits: 2 },
+        (value) => {
+          arena.leanAmount = value
+          this.previewArenaVisuals()
+        },
+      ),
+      this.createImmediateRange(
+        'Lateral sway (px)',
+        arena.lateralSwayAmount,
+        { ...arenaProceduralAnimationRanges.lateralSwayAmount, digits: 2 },
+        (value) => {
+          arena.lateralSwayAmount = value
+          this.previewArenaVisuals()
+        },
+      ),
+      this.createImmediateRange(
+        'Shadow pulse',
+        arena.shadowPulseAmount,
+        { ...arenaProceduralAnimationRanges.shadowPulseAmount, digits: 2 },
+        (value) => {
+          arena.shadowPulseAmount = value
+          this.previewArenaVisuals()
+        },
+      ),
+      this.createImmediateRange(
+        'Stick lag',
+        arena.stickLagAmount,
+        { ...arenaProceduralAnimationRanges.stickLagAmount, digits: 2 },
+        (value) => {
+          arena.stickLagAmount = value
+          this.previewArenaVisuals()
+        },
+      ),
+      this.createImmediateRange(
+        'Action snap',
+        arena.actionSnapAmount,
+        { ...arenaProceduralAnimationRanges.actionSnapAmount, digits: 2 },
+        (value) => {
+          arena.actionSnapAmount = value
+          this.previewArenaVisuals()
+        },
+      ),
       this.createImmediateRange(
         'Character animation speed',
         arena.animationSpeed,
-        { min: 0.25, max: 2, step: 0.05, digits: 2 },
+        {
+          ...arenaProceduralAnimationRanges.animationSpeedMultiplier,
+          digits: 2,
+        },
         (value) => {
           arena.animationSpeed = value
           this.previewArenaVisuals()

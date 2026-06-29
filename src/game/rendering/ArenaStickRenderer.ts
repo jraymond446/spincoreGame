@@ -1,6 +1,7 @@
 import Phaser from 'phaser'
 import {
   arenaStickDefinitions,
+  MAX_ARENA_STICK_VISUAL_OFFSET_RADIANS,
   resolveArenaStickTransform,
   type ArenaStickDefinition,
   type ArenaStickId,
@@ -37,6 +38,7 @@ export type ArenaStickRendererUpdate = {
   chargeVfx: boolean
   reducedMotion: boolean
   visualOffset: Point
+  visualRotationOffset: number
   now: number
 }
 
@@ -86,9 +88,13 @@ export class ArenaStickRenderer {
   }
 
   update(data: ArenaStickRendererUpdate): void {
-    const aimAngle =
-      data.aimAngle + data.pose.stickRotationOffset + data.angleOffset
+    const aimAngle = data.aimAngle + data.angleOffset
     const alignPocket = isPossessionState(data.state)
+    const visualRotationOffset = Phaser.Math.Clamp(
+      data.pose.stickRotationOffset + data.visualRotationOffset,
+      -MAX_ARENA_STICK_VISUAL_OFFSET_RADIANS,
+      MAX_ARENA_STICK_VISUAL_OFFSET_RADIANS,
+    )
     const renderScale = data.pose.stickScaleX * data.scale
     const mountPoint = offsetPoint(data.mountPoint, data.visualOffset)
     const pocketTarget = offsetPoint(
@@ -103,6 +109,7 @@ export class ArenaStickRenderer {
       renderScale,
       pocketTarget,
       alignPocket,
+      visualRotationOffset,
     )
     this.lastTransform = transform
     this.resolveLayer(data.layerMode, data.playerOrigin)

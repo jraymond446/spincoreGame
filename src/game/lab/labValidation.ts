@@ -4,6 +4,7 @@ import {
   ARENA_PLAYER_RENDER_SCALE_RANGE,
   ARENA_STICK_RENDER_SCALE_RANGE,
 } from '../arena/ArenaCharacterAssets'
+import { arenaProceduralAnimationRanges } from '../rendering/ArenaProceduralAnimation'
 
 type NumericRule = {
   min: number
@@ -48,7 +49,27 @@ const numericRules: Record<string, NumericRule> = {
   },
   'arenaVisual.arenaStickAngle': { min: -1.57, max: 1.57 },
   'arenaVisual.chargePreview': { min: 0, max: 1 },
-  'arenaVisual.animationSpeed': { min: 0.25, max: 2 },
+  'arenaVisual.playerScaleMultiplier':
+    arenaProceduralAnimationRanges.playerScaleMultiplier,
+  'arenaVisual.idleBobAmount':
+    arenaProceduralAnimationRanges.idleBobAmount,
+  'arenaVisual.movementBobAmount':
+    arenaProceduralAnimationRanges.movementBobAmount,
+  'arenaVisual.movementBobSpeed':
+    arenaProceduralAnimationRanges.movementBobSpeed,
+  'arenaVisual.squashStretchAmount':
+    arenaProceduralAnimationRanges.squashStretchAmount,
+  'arenaVisual.leanAmount': arenaProceduralAnimationRanges.leanAmount,
+  'arenaVisual.lateralSwayAmount':
+    arenaProceduralAnimationRanges.lateralSwayAmount,
+  'arenaVisual.shadowPulseAmount':
+    arenaProceduralAnimationRanges.shadowPulseAmount,
+  'arenaVisual.stickLagAmount':
+    arenaProceduralAnimationRanges.stickLagAmount,
+  'arenaVisual.actionSnapAmount':
+    arenaProceduralAnimationRanges.actionSnapAmount,
+  'arenaVisual.animationSpeed':
+    arenaProceduralAnimationRanges.animationSpeedMultiplier,
   'keeper.keeperMoveSpeedMultiplier': { min: 0.2, max: 1.2 },
   'keeper.keeperAccelerationMultiplier': { min: 0.2, max: 1.2 },
   'keeper.keeperTurnRateMultiplier': { min: 0.2, max: 1.2 },

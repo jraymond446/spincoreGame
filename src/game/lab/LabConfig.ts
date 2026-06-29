@@ -493,6 +493,18 @@ export type LabArenaVisualTuning = {
   forceFullyCharged: boolean
   coreSpin: boolean
   chargeVfx: boolean
+  proceduralAnimation: boolean
+  footShuffle: boolean
+  playerScaleMultiplier: number
+  idleBobAmount: number
+  movementBobAmount: number
+  movementBobSpeed: number
+  squashStretchAmount: number
+  leanAmount: number
+  lateralSwayAmount: number
+  shadowPulseAmount: number
+  stickLagAmount: number
+  actionSnapAmount: number
   animationSpeed: number
   geometryOverlay: boolean
   crowdAnimation: boolean

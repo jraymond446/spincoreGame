@@ -24,6 +24,7 @@ import {
   ArenaStickRenderer,
   type ArenaStickRendererUpdate,
 } from './ArenaStickRenderer'
+import type { ArenaProceduralAnimationFrame } from './ArenaProceduralAnimation'
 import {
   hasVisualAsset,
   useLinearVisualAssetFiltering,
@@ -58,6 +59,7 @@ export type ArenaCharacterRendererUpdate = {
   reducedMotion: boolean
   controlled: boolean
   animationSpeed: number
+  proceduralAnimation: ArenaProceduralAnimationFrame
   now: number
 }
 
@@ -134,26 +136,19 @@ export class ArenaCharacterRenderer {
   update(data: ArenaCharacterRendererUpdate): void {
     const definition = arenaBodyDefinitions[this.bodyId]
     const deltaMs = Math.min(50, Math.max(0, this.scene.game.loop.delta))
-    const speed = Math.hypot(data.velocity.x, data.velocity.y)
-    const move = Phaser.Math.Clamp(speed / 7, 0, 1)
     const authoredScale =
       definition.displaySize.width / definition.canvas.width
-    const roleScale = getRoleVisualScale(data.role)
+    const roleScale = { x: 1, y: 1 } as const
     const selectedPulse =
       data.controlled && !data.reducedMotion
         ? 1 + Math.sin(data.now * 0.006 * data.animationSpeed) * 0.018
         : data.controlled
           ? 1.015
           : 1
-    const runStretch = data.reducedMotion ? 0 : move * 0.045
-    const lateralVelocity =
-      -Math.sin(data.bodyRotation) * data.velocity.x +
-      Math.cos(data.bodyRotation) * data.velocity.y
-    const movementLean = data.reducedMotion
-      ? 0
-      : Phaser.Math.Clamp(lateralVelocity * 0.008, -0.055, 0.055)
     const fullyChargedShake =
-      data.charge.fullyCharged && !data.reducedMotion
+      data.proceduralAnimation.enabled &&
+      data.charge.fullyCharged &&
+      !data.reducedMotion
         ? {
             x: Math.sin(data.now * 0.21) * 0.75,
             y: Math.cos(data.now * 0.18) * 0.55,
@@ -165,21 +160,17 @@ export class ArenaCharacterRenderer {
         data.position.x + fullyChargedShake.x,
         data.position.y + fullyChargedShake.y,
       )
-      .setRotation(
-        data.bodyRotation - definition.authoredForwardAngle + movementLean,
-      )
+      .setRotation(data.bodyRotation - definition.authoredForwardAngle)
       .setScale(
         authoredScale *
           data.spriteScale *
           roleScale.x *
           data.pose.bodyScaleX *
-          (1 - runStretch) *
           selectedPulse,
         authoredScale *
           data.spriteScale *
           roleScale.y *
           data.pose.bodyScaleY *
-          (1 + runStretch) *
           selectedPulse,
       )
       .setVisible(this.visible)
@@ -205,6 +196,9 @@ export class ArenaCharacterRenderer {
       chargeVfx: data.chargeVfx,
       reducedMotion: data.reducedMotion,
       visualOffset: fullyChargedShake,
+      visualRotationOffset:
+        data.proceduralAnimation.currentStickLagAngle +
+        data.proceduralAnimation.stickActionAngle,
       now: data.now,
     }
     this.stick.update(stickUpdate)
@@ -477,18 +471,5 @@ export class ArenaCharacterRenderer {
     )
 
     return { x: point.x, y: point.y }
-  }
-}
-
-function getRoleVisualScale(role: PlayerRole): { x: number; y: number } {
-  switch (role) {
-    case 'keeper':
-      return { x: 1.12, y: 1.02 }
-    case 'brute':
-      return { x: 1.18, y: 1.06 }
-    case 'striker':
-      return { x: 0.94, y: 1.04 }
-    case 'support':
-      return { x: 1, y: 1 }
   }
 }
