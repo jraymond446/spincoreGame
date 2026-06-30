@@ -1,18 +1,25 @@
 import type { Point } from '../data/geometry'
 import type { StickActionState } from '../data/matchTypes'
-import type { DefensiveVisualState } from './AnimationState'
+import type {
+  ArenaAnimationClipState,
+  DefensiveVisualState,
+} from './AnimationState'
 
 export type StickVisualActionState =
   | 'releaseSnap'
+  | 'releaseFollowThrough'
+  | 'releaseRecover'
+  | 'slashWindup'
   | 'slashSweep'
+  | 'slashRecover'
   | 'truckCarry'
   | 'fullyCharged'
   | 'chargeLoad'
-  | 'cradle'
-  | 'gatherReady'
-  | 'trackCore'
+  | 'cradleHold'
+  | 'gatherReach'
+  | 'targetBias'
   | 'disrupted'
-  | 'idleReady'
+  | 'readyCarry'
 
 export type ReleaseVisualTier = 0 | 1 | 2 | 3
 
@@ -29,6 +36,13 @@ export type ArenaProceduralAnimationTuning = {
   lateralSwayAmount: number
   shadowPulseAmount: number
   coreTrackingEnabled: boolean
+  naturalHoldMode: boolean
+  legacyCoreMagnetMode: boolean
+  frontArcDegrees: number
+  sideReachArcDegrees: number
+  readyCarriageAngle: number
+  stickBiasStrength: number
+  stickClampAmount: number
   stickFollowStrength: number
   stickMaxTurnRate: number
   stickLagClamp: number
@@ -36,6 +50,7 @@ export type ArenaProceduralAnimationTuning = {
   slashSweepMs: number
   slashRecoverMs: number
   slashArcDegrees: number
+  slashAnimationSpeed: number
   chargeLoadAngleMax: number
   releaseSnapAmount: number
   releaseRecoilAmount: number
@@ -76,6 +91,7 @@ export type ArenaProceduralAnimationFrame = {
   slashTrailAlpha: number
   releaseTrailAlpha: number
   fullChargeBurstAlpha: number
+  animationClipState: ArenaAnimationClipState
   enabled: boolean
   footShuffleEnabled: boolean
 }
@@ -93,6 +109,13 @@ export const arenaProceduralAnimationDefaults = {
   lateralSwayAmount: 0,
   shadowPulseAmount: 0.12,
   coreTrackingEnabled: true,
+  naturalHoldMode: true,
+  legacyCoreMagnetMode: false,
+  frontArcDegrees: 170,
+  sideReachArcDegrees: 220,
+  readyCarriageAngle: 28,
+  stickBiasStrength: 0.38,
+  stickClampAmount: 82,
   stickFollowStrength: 0.28,
   stickMaxTurnRate: 540,
   stickLagClamp: 5,
@@ -100,6 +123,7 @@ export const arenaProceduralAnimationDefaults = {
   slashSweepMs: 115,
   slashRecoverMs: 170,
   slashArcDegrees: 92,
+  slashAnimationSpeed: 1,
   chargeLoadAngleMax: 22,
   releaseSnapAmount: 0.78,
   releaseRecoilAmount: 0.68,
@@ -122,6 +146,11 @@ export const arenaProceduralAnimationRanges = {
   leanAmount: { min: 0, max: 10, step: 0.25 },
   lateralSwayAmount: { min: 0, max: 2, step: 0.05 },
   shadowPulseAmount: { min: 0, max: 0.3, step: 0.01 },
+  frontArcDegrees: { min: 100, max: 200, step: 5 },
+  sideReachArcDegrees: { min: 160, max: 260, step: 5 },
+  readyCarriageAngle: { min: 5, max: 65, step: 1 },
+  stickBiasStrength: { min: 0, max: 1, step: 0.02 },
+  stickClampAmount: { min: 30, max: 120, step: 2 },
   stickFollowStrength: { min: 0.05, max: 0.6, step: 0.01 },
   stickMaxTurnRate: { min: 90, max: 1080, step: 15 },
   stickLagClamp: { min: 0, max: 12, step: 0.25 },
@@ -129,6 +158,7 @@ export const arenaProceduralAnimationRanges = {
   slashSweepMs: { min: 60, max: 220, step: 5 },
   slashRecoverMs: { min: 80, max: 320, step: 5 },
   slashArcDegrees: { min: 35, max: 140, step: 1 },
+  slashAnimationSpeed: { min: 0.5, max: 2, step: 0.05 },
   chargeLoadAngleMax: { min: 8, max: 32, step: 1 },
   releaseSnapAmount: { min: 0.2, max: 1, step: 0.02 },
   releaseRecoilAmount: { min: 0, max: 1, step: 0.02 },
@@ -219,13 +249,14 @@ export class ArenaProceduralAnimationController {
       shadowScaleX: 1,
       shadowScaleY: 1,
       stickActionAngle: 0,
-      stickActionState: 'idleReady',
+      stickActionState: 'readyCarry',
       stickActionProgress: 0,
       releaseTier: 0,
       releaseCharge: 0,
       slashTrailAlpha: 0,
       releaseTrailAlpha: 0,
       fullChargeBurstAlpha: 0,
+      animationClipState: 'idle',
       enabled: true,
       footShuffleEnabled: false,
     }
@@ -397,7 +428,8 @@ export class ArenaProceduralAnimationController {
       this.slashAction.elapsedMs = 0
       this.slashAction.active = true
     } else if (this.slashAction.active) {
-      this.slashAction.elapsedMs += deltaMs
+      this.slashAction.elapsedMs +=
+        deltaMs * input.tuning.slashAnimationSpeed
       const total =
         input.tuning.slashWindupMs +
         input.tuning.slashSweepMs +
@@ -460,10 +492,10 @@ export class ArenaProceduralAnimationController {
       }
     }
     if (input.possessesCore || input.stickState === 'CRADLED_STABLE') {
-      return { ...idleStickPose(), state: 'cradle', pulse: 0.25 }
+      return { ...idleStickPose(), state: 'cradleHold', pulse: 0.25 }
     }
     if (input.stickState === 'CATCH_READY') {
-      return { ...idleStickPose(), state: 'gatherReady', pulse: 0.4 }
+      return { ...idleStickPose(), state: 'gatherReach', pulse: 0.4 }
     }
     if (
       input.stickState === 'FUMBLED_COOLDOWN' ||
@@ -481,7 +513,7 @@ export class ArenaProceduralAnimationController {
       input.tuning.coreTrackingEnabled &&
       input.trackingTargetAngle !== null
     ) {
-      return { ...idleStickPose(), state: 'trackCore' }
+      return { ...idleStickPose(), state: 'targetBias' }
     }
     return idleStickPose()
   }
@@ -496,6 +528,7 @@ export class ArenaProceduralAnimationController {
     const arc = degreesToRadians(input.tuning.slashArcDegrees)
     let angle = 0
     let progress = clamp(elapsed / Math.max(1, total), 0, 1)
+    let state: StickVisualActionState = 'slashWindup'
     let pulse = 0.45
     let slashTrailAlpha = 0
 
@@ -504,6 +537,7 @@ export class ArenaProceduralAnimationController {
       angle = lerp(0, -arc * 0.35, phase) * input.mountSign
       pulse = 0.35 + phase * 0.25
     } else if (elapsed < sweepEnd) {
+      state = 'slashSweep'
       const phase = smoothStep(
         (elapsed - windupEnd) / Math.max(1, input.tuning.slashSweepMs),
       )
@@ -514,6 +548,7 @@ export class ArenaProceduralAnimationController {
           ? Math.sin(phase * Math.PI) * 0.62
           : 0
     } else {
+      state = 'slashRecover'
       const phase = smoothStep(
         (elapsed - sweepEnd) / Math.max(1, input.tuning.slashRecoverMs),
       )
@@ -523,7 +558,7 @@ export class ArenaProceduralAnimationController {
 
     return {
       ...idleStickPose(),
-      state: 'slashSweep',
+      state,
       progress,
       angle,
       pulse,
@@ -553,12 +588,14 @@ export class ArenaProceduralAnimationController {
     let releaseRecoil = 0
     let releaseTrailAlpha = 0
     let fullChargeBurstAlpha = 0
+    let state: StickVisualActionState = 'releaseSnap'
 
     if (elapsed < windupEnd) {
       const phase = smoothStep(elapsed / Math.max(1, timing.windup))
       angle = lerp(0, loadAngle, phase)
       pulse = 0.35 + phase * tierStrength * 0.35
     } else if (elapsed < snapEnd) {
+      state = 'releaseFollowThrough'
       const phase = smoothStep(
         (elapsed - windupEnd) / Math.max(1, timing.snap),
       )
@@ -579,6 +616,7 @@ export class ArenaProceduralAnimationController {
           ? Math.sin(Math.min(1, phase * 1.6) * Math.PI) * 0.9
           : 0
     } else {
+      state = 'releaseRecover'
       const phase = smoothStep(
         (elapsed - snapEnd) / Math.max(1, timing.recover),
       )
@@ -590,7 +628,7 @@ export class ArenaProceduralAnimationController {
 
     return {
       ...idleStickPose(),
-      state: 'releaseSnap',
+      state,
       progress: clamp(elapsed / Math.max(1, timing.total), 0, 1),
       angle,
       pulse,
@@ -620,33 +658,51 @@ export class ArenaProceduralAnimationController {
       input.tuning.coreTrackingEnabled &&
       input.trackingTargetAngle !== null &&
       !input.possessesCore
-    let targetAngle = input.aimAngle
+    const movementAngle = Math.atan2(
+      this.normalizedMovementDirection.y,
+      this.normalizedMovementDirection.x,
+    )
+    const facingAngle = this.movementSpeedVisual > 0.12
+      ? blendAngles(input.bodyRotation, movementAngle, 0.72)
+      : input.bodyRotation
+    const readyAngle = wrapAngle(
+      facingAngle +
+      degreesToRadians(input.tuning.readyCarriageAngle) * input.mountSign,
+    )
+    let targetAngle = readyAngle
     let followStrength = input.tuning.stickFollowStrength
 
     if (
-      tracksCore &&
-      (actionState === 'slashSweep' ||
-        actionState === 'gatherReady' ||
-        actionState === 'trackCore' ||
-        actionState === 'truckCarry')
-    ) {
-      targetAngle = input.trackingTargetAngle ?? input.aimAngle
-      followStrength = Math.min(0.6, followStrength * 1.25)
-    } else if (tracksCore && actionState === 'idleReady') {
-      const distanceBias = clamp(1 - input.trackingTargetDistance / 900, 0.2, 0.55)
-      targetAngle = blendAngles(
-        input.aimAngle,
-        input.trackingTargetAngle ?? input.aimAngle,
-        distanceBias,
-      )
-      followStrength = relaxedReturnStrength
-    } else if (
       actionState === 'releaseSnap' ||
+      actionState === 'releaseFollowThrough' ||
+      actionState === 'releaseRecover' ||
       actionState === 'chargeLoad' ||
       actionState === 'fullyCharged' ||
-      actionState === 'cradle'
+      actionState === 'cradleHold'
     ) {
+      targetAngle = input.aimAngle
       followStrength = Math.min(0.6, followStrength * 1.35)
+    } else if (input.tuning.legacyCoreMagnetMode && tracksCore) {
+      targetAngle = input.trackingTargetAngle ?? readyAngle
+      followStrength = Math.min(0.6, followStrength * 1.25)
+    } else if (input.tuning.naturalHoldMode) {
+      const reachesTarget =
+        actionState === 'gatherReach' ||
+        actionState === 'slashWindup' ||
+        actionState === 'slashSweep' ||
+        actionState === 'slashRecover'
+      targetAngle = tracksCore
+        ? this.resolveNaturalTargetAngle(
+            input,
+            readyAngle,
+            reachesTarget,
+          )
+        : readyAngle
+      followStrength = actionState === 'readyCarry'
+        ? relaxedReturnStrength
+        : Math.min(0.6, followStrength * 1.15)
+    } else if (tracksCore) {
+      targetAngle = input.trackingTargetAngle ?? input.aimAngle
     }
 
     const error = shortestAngle(this.visualStickAimAngle, targetAngle)
@@ -659,6 +715,48 @@ export class ArenaProceduralAnimationController {
     const residual = shortestAngle(targetAngle, this.visualStickAimAngle)
     const lagClamp = degreesToRadians(input.tuning.stickLagClamp)
     this.currentStickLagAngle = clamp(residual, -lagClamp, lagClamp)
+  }
+
+  private resolveNaturalTargetAngle(
+    input: ArenaProceduralAnimationInput,
+    readyAngle: number,
+    reachesTarget: boolean,
+  ): number {
+    const targetAngle = input.trackingTargetAngle
+    if (targetAngle === null) {
+      return readyAngle
+    }
+
+    const facingDelta = Math.abs(
+      shortestAngle(input.bodyRotation, targetAngle),
+    )
+    const frontHalf = degreesToRadians(input.tuning.frontArcDegrees * 0.5)
+    const sideHalf = degreesToRadians(input.tuning.sideReachArcDegrees * 0.5)
+    if (facingDelta > sideHalf) {
+      return readyAngle
+    }
+
+    const distanceBias = clamp(
+      1 - input.trackingTargetDistance / 900,
+      0.28,
+      1,
+    )
+    const targetBias = facingDelta <= frontHalf
+      ? input.tuning.stickBiasStrength
+      : input.tuning.stickBiasStrength * 0.35
+    const reachMultiplier = reachesTarget ? 1.75 : 1
+    const biasedAngle = blendAngles(
+      readyAngle,
+      targetAngle,
+      clamp(targetBias * distanceBias * reachMultiplier, 0, 0.94),
+    )
+    const clampRadians = degreesToRadians(input.tuning.stickClampAmount)
+    const offsetFromReady = clamp(
+      shortestAngle(readyAngle, biasedAngle),
+      -clampRadians,
+      clampRadians,
+    )
+    return wrapAngle(readyAngle + offsetFromReady)
   }
 
   private updateMovementDirection(
@@ -768,7 +866,7 @@ export class ArenaProceduralAnimationController {
       ? 1 + stridePulse +
         (charging ? input.tuning.shadowPulseAmount * 0.42 : 0) +
         (truck ? input.tuning.shadowPulseAmount * 0.72 : 0) +
-        (stickPose.state === 'releaseSnap' ? actionStretch * 0.35 : 0)
+        (isReleaseVisualState(stickPose.state) ? actionStretch * 0.35 : 0)
       : 1 + (charging ? 0.04 : 0)
     this.frame.shadowScaleY = hoverActive
       ? 1 - stridePulse * 0.32 + (charging ? 0.035 : 0) -
@@ -779,7 +877,7 @@ export class ArenaProceduralAnimationController {
       : 0
     this.frame.stickActionState = active
       ? stickPose.state
-      : 'idleReady'
+      : 'readyCarry'
     this.frame.stickActionProgress = active ? stickPose.progress : 0
     this.frame.releaseTier = this.releaseTier
     this.frame.releaseCharge = this.releaseCharge
@@ -788,6 +886,10 @@ export class ArenaProceduralAnimationController {
     this.frame.fullChargeBurstAlpha = active
       ? stickPose.fullChargeBurstAlpha
       : 0
+    this.frame.animationClipState = resolveAnimationClipState(
+      stickPose.state,
+      this.movementSpeedVisual,
+    )
     this.frame.enabled = active
     this.frame.footShuffleEnabled =
       hoverActive && input.tuning.footShuffle
@@ -797,7 +899,7 @@ export class ArenaProceduralAnimationController {
 
 function idleStickPose(): StickActionPose {
   return {
-    state: 'idleReady',
+    state: 'readyCarry',
     progress: 0,
     angle: 0,
     pulse: 0,
@@ -806,6 +908,40 @@ function idleStickPose(): StickActionPose {
     releaseTrailAlpha: 0,
     fullChargeBurstAlpha: 0,
   }
+}
+
+function resolveAnimationClipState(
+  stickState: StickVisualActionState,
+  movementSpeed: number,
+): ArenaAnimationClipState {
+  if (isReleaseVisualState(stickState)) {
+    return 'release'
+  }
+  if (
+    stickState === 'slashWindup' ||
+    stickState === 'slashSweep' ||
+    stickState === 'slashRecover'
+  ) {
+    return 'slash'
+  }
+  if (stickState === 'chargeLoad' || stickState === 'fullyCharged') {
+    return 'charge'
+  }
+  if (stickState === 'truckCarry') {
+    return 'truck'
+  }
+  if (stickState === 'disrupted') {
+    return 'fumble'
+  }
+  return movementSpeed > 0.12 ? 'move' : 'idle'
+}
+
+function isReleaseVisualState(state: StickVisualActionState): boolean {
+  return (
+    state === 'releaseSnap' ||
+    state === 'releaseFollowThrough' ||
+    state === 'releaseRecover'
+  )
 }
 
 function releaseTiming(tier: ReleaseVisualTier): {

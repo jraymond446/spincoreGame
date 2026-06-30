@@ -41,7 +41,14 @@ import { createArenaLayout } from '../arena/ArenaLayout'
 import { arenaCharacterDefaults } from '../arena/ArenaCharacterAssets'
 import { ArenaRenderer } from '../rendering/ArenaRenderer'
 import { ScoreboardOverlay } from '../rendering/ScoreboardOverlay'
-import { preloadVisualAssetOverrides } from '../rendering/VisualAssetOverrides'
+import {
+  hasVisualAsset,
+  preloadVisualAssetOverrides,
+} from '../rendering/VisualAssetOverrides'
+import {
+  matchLoadingEvents,
+  type MatchAssetPreloadSession,
+} from '../loading/MatchAssetPreloader'
 import { GoalRule, type GoalCrossing } from '../rules/GoalRule'
 import { AISystem } from '../systems/AISystem'
 import { AIOwnGoalSafetySystem } from '../systems/AIOwnGoalSafetySystem'
@@ -119,6 +126,8 @@ export class GameScene extends Phaser.Scene {
   private playerStats: MatchPlayerStats = createEmptyMatchPlayerStats()
   private matchCompletionEmitted = false
   private matchCompletionFallbackTimer: number | null = null
+  private preloadSession: MatchAssetPreloadSession | null = null
+  private matchRevealed = false
 
   constructor() {
     super('GameScene')
@@ -131,13 +140,17 @@ export class GameScene extends Phaser.Scene {
     this.debugEnabled = false
     this.playerStats = createEmptyMatchPlayerStats()
     this.matchCompletionEmitted = false
+    this.preloadSession = null
+    this.matchRevealed = false
   }
 
   preload(): void {
-    preloadVisualAssetOverrides(this)
+    this.preloadSession = preloadVisualAssetOverrides(this)
   }
 
   create(): void {
+    const createStartedAt = performance.now()
+    this.preloadSession?.completeBeforeCreate()
     this.matter.world.setGravity(0, 0)
     this.cameras.main.setBackgroundColor(
       arenaPresentationConfig.venue.floorColor,
@@ -219,14 +232,9 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.createHud(hudRoot)
-    if (this.gameMode === 'match3v3') {
-      this.matchFlowSystem.startMatch(
-        `${this.teamSystem.getTeam('A').name} VS ${this.teamSystem.getTeam('B').name}`,
-        `FIRST TO ${this.matchState.firstTo}`,
-      )
-    }
     this.layoutViewport()
     this.scale.on('resize', this.layoutViewport, this)
+    window.addEventListener(matchLoadingEvents.reveal, this.revealMatch)
     if (!this.labEventsBound) {
       this.labEventsBound = true
       window.addEventListener(labEvents.apply, this.applyLabChanges)
@@ -253,8 +261,36 @@ export class GameScene extends Phaser.Scene {
       this.aiOwnGoalSafetySystem.destroy()
       this.wallCarryPressureSystem.destroy()
       this.clearMatchCompletionFallback()
+      window.removeEventListener(matchLoadingEvents.reveal, this.revealMatch)
     })
 
+    this.preloadSession?.reportSceneReady({
+      initDurationMs: performance.now() - createStartedAt,
+      textureCount: this.textures.getTextureKeys().length,
+      spectatorCount:
+        this.arenaRenderer.getCrowdDebugState().occupiedSeats,
+    })
+
+  }
+
+  private revealMatch = (): void => {
+    if (this.matchRevealed) {
+      return
+    }
+
+    this.matchRevealed = true
+    this.cameras.main.fadeIn(
+      this.arenaPresentation.reducedMotion ? 80 : 260,
+      0,
+      0,
+      0,
+    )
+    if (this.gameMode === 'match3v3') {
+      this.matchFlowSystem.startMatch(
+        `${this.teamSystem.getTeam('A').name} VS ${this.teamSystem.getTeam('B').name}`,
+        `FIRST TO ${this.matchState.firstTo}`,
+      )
+    }
   }
 
   update(time: number, delta: number): void {
@@ -776,6 +812,10 @@ export class GameScene extends Phaser.Scene {
       hudRoot,
       this.arenaPresentation,
       theme,
+      Boolean(
+        !theme.scoreboardFrameAsset ||
+        hasVisualAsset(this, theme.scoreboardFrameAsset.key),
+      ),
     )
     this.updateHud()
   }
@@ -981,6 +1021,10 @@ export class GameScene extends Phaser.Scene {
     this.scoreboardOverlay.setPresentation(
       this.arenaPresentation,
       theme,
+      Boolean(
+        !theme.scoreboardFrameAsset ||
+        hasVisualAsset(this, theme.scoreboardFrameAsset.key),
+      ),
     )
   }
 

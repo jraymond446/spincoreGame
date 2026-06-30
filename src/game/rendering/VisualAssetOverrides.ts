@@ -11,103 +11,157 @@ import {
   arenaStickDefinitions,
   spectatorUniformMaskAsset,
 } from '../arena/ArenaCharacterAssets'
+import { getLabState } from '../lab/LabState'
+import { getMatchLaunchConfig } from '../../match/MatchLaunchConfig'
+import {
+  MatchAssetPreloadSession,
+  type MatchAssetManifest,
+  type MatchAssetRequirement,
+} from '../loading/MatchAssetPreloader'
 
-export function preloadVisualAssetOverrides(scene: Phaser.Scene): void {
-  for (const slot of Object.values(assetOverrideConfig.sticks ?? {})) {
-    queueImage(scene, slot.key, slot.path)
-  }
-
-  const players = assetOverrideConfig.players
-
-  if (players?.base) {
-    queueImage(
-      scene,
-      players.base.key,
-      players.base.path,
-    )
-  }
-
-  for (const slot of Object.values(players?.teams ?? {})) {
-    queueImage(scene, slot.key, slot.path)
-  }
-
-  preloadArenaAssets(scene)
-  preloadArenaCharacterAssets(scene)
-}
-
-function preloadArenaCharacterAssets(scene: Phaser.Scene): void {
-  for (const definition of Object.values(arenaBodyDefinitions)) {
-    for (const slot of [
-      definition.body,
-      definition.skinMask,
-      definition.uniformPrimaryMask,
-      definition.uniformAccentMask,
-    ]) {
-      queueImage(scene, slot.key, slot.path)
-    }
-  }
-
-  for (const definition of Object.values(arenaHairDefinitions)) {
-    queueImage(scene, definition.asset.key, definition.asset.path)
-  }
-
-  for (const definition of Object.values(arenaStickDefinitions)) {
-    queueImage(scene, definition.asset.key, definition.asset.path)
-  }
-
-  queueImage(
+export function preloadVisualAssetOverrides(
+  scene: Phaser.Scene,
+): MatchAssetPreloadSession {
+  const lab = getLabState().arenaVisual
+  const launch = getMatchLaunchConfig()
+  const session = new MatchAssetPreloadSession(
     scene,
-    arenaCoreDefinition.asset.key,
-    arenaCoreDefinition.asset.path,
+    createMatchAssetManifest(),
+    {
+      forceFallbacks:
+        launch.mode === 'lab' && lab.forceMissingAssetFallback,
+      showTimings: launch.mode === 'lab' && lab.showPreloadTimings,
+    },
   )
-  if (
-    !scene.textures.exists(spectatorUniformMaskAsset.key) &&
-    optionalAssetExists(spectatorUniformMaskAsset.path)
-  ) {
-    scene.load.spritesheet(
-      spectatorUniformMaskAsset.key,
-      spectatorUniformMaskAsset.path,
-      { frameWidth: 64, frameHeight: 64 },
-    )
-  }
+  session.queue()
+  return session
 }
 
-function preloadArenaAssets(scene: Phaser.Scene): void {
+export function createMatchAssetManifest(): MatchAssetManifest {
   const layout = createArenaLayout()
-  const labTheme = getArenaTheme('rookie', layout)
-  const presentation = resolveArenaPresentation(labTheme)
+  const configuredTheme = getArenaTheme(
+    getLabState().arenaVisual.themeId,
+    layout,
+  )
+  const presentation = resolveArenaPresentation(configuredTheme)
   const theme = getArenaTheme(presentation.themeId, layout)
+  const assets: MatchAssetRequirement[] = []
 
   if (theme.shellAsset) {
-    queueImage(scene, theme.shellAsset.key, theme.shellAsset.path)
+    assets.push(imageRequirement(
+      theme.shellAsset,
+      'arenaShell',
+      true,
+      'procedural arena shell',
+    ))
   }
   if (theme.surfaceAsset) {
-    queueImage(scene, theme.surfaceAsset.key, theme.surfaceAsset.path)
+    assets.push(imageRequirement(
+      theme.surfaceAsset,
+      'courtSurface',
+      true,
+      'procedural court surface',
+    ))
   }
   if (theme.scoreboardFrameAsset) {
-    queueImage(
-      scene,
-      theme.scoreboardFrameAsset.key,
-      theme.scoreboardFrameAsset.path,
-    )
+    assets.push(imageRequirement(
+      theme.scoreboardFrameAsset,
+      'scoreboard',
+      false,
+      'CSS scoreboard frame',
+    ))
   }
-  if (
-    theme.spectatorAtlasAsset &&
-    !scene.textures.exists(theme.spectatorAtlasAsset.key) &&
-    optionalAssetExists(theme.spectatorAtlasAsset.path)
-  ) {
-    scene.load.spritesheet(
-      theme.spectatorAtlasAsset.key,
-      theme.spectatorAtlasAsset.path,
-      {
-        frameWidth: theme.spectatorAtlasAsset.frameWidth,
-        frameHeight: theme.spectatorAtlasAsset.frameHeight,
-      },
-    )
+  if (theme.spectatorAtlasAsset) {
+    assets.push({
+      ...theme.spectatorAtlasAsset,
+      category: 'crowd',
+      required: false,
+      fallback: 'procedural crowd',
+      type: 'spritesheet',
+    })
   }
 
   for (const team of Object.values(presentation.teams)) {
-    queueImage(scene, team.crestAsset.key, team.crestAsset.path)
+    assets.push(imageRequirement(
+      team.crestAsset,
+      'crest',
+      false,
+      'procedural team crest',
+    ))
+  }
+
+  for (const definition of Object.values(arenaBodyDefinitions)) {
+    assets.push(
+      imageRequirement(
+        definition.body,
+        'character',
+        true,
+        'procedural arena character',
+      ),
+      imageRequirement(
+        definition.skinMask,
+        'character',
+        true,
+        'base character palette',
+      ),
+      imageRequirement(
+        definition.uniformPrimaryMask,
+        'character',
+        true,
+        'base character palette',
+      ),
+      imageRequirement(
+        definition.uniformAccentMask,
+        'character',
+        true,
+        'base character palette',
+      ),
+    )
+  }
+
+  for (const definition of Object.values(arenaHairDefinitions)) {
+    assets.push(imageRequirement(
+      definition.asset,
+      'hair',
+      false,
+      'procedural arena hair',
+    ))
+  }
+
+  for (const definition of Object.values(arenaStickDefinitions)) {
+    assets.push(imageRequirement(
+      definition.asset,
+      'stick',
+      true,
+      'generated arena stick',
+    ))
+  }
+
+  assets.push(
+    imageRequirement(
+      arenaCoreDefinition.asset,
+      'core',
+      true,
+      'procedural Core',
+    ),
+    {
+      ...spectatorUniformMaskAsset,
+      category: 'crowd',
+      required: false,
+      fallback: 'untinted spectator atlas',
+      type: 'spritesheet',
+      frameWidth: 64,
+      frameHeight: 64,
+    },
+  )
+
+  return {
+    themeId: theme.id,
+    matchup: {
+      home: presentation.teams.A.name,
+      away: presentation.teams.B.name,
+    },
+    assets,
   }
 }
 
@@ -122,17 +176,14 @@ export function getPlayerAssetKeys(teamSide: TeamSide): string[] {
     return []
   }
 
-  return [
-    players.base.key,
-    players.teams[teamSide].key,
-  ]
+  return [players.base.key, players.teams[teamSide].key]
 }
 
 export function hasVisualAsset(
   scene: Phaser.Scene,
   textureKey: string,
 ): boolean {
-  return scene.textures.exists(textureKey)
+  return !forceVisualFallbacks() && scene.textures.exists(textureKey)
 }
 
 export function useLinearVisualAssetFiltering(
@@ -148,33 +199,24 @@ export function useLinearVisualAssetFiltering(
     .setFilter(Phaser.Textures.FilterMode.LINEAR)
 }
 
-function queueImage(
-  scene: Phaser.Scene,
-  key: string,
-  path: string,
-): void {
-  if (!scene.textures.exists(key) && optionalAssetExists(path)) {
-    scene.load.image(key, path)
+function imageRequirement(
+  slot: { key: string; path: string },
+  category: MatchAssetRequirement['category'],
+  required: boolean,
+  fallback: string,
+): MatchAssetRequirement {
+  return {
+    ...slot,
+    category,
+    required,
+    fallback,
+    type: 'image',
   }
 }
 
-function optionalAssetExists(path: string): boolean {
-  if (typeof XMLHttpRequest === 'undefined') {
-    return true
-  }
-
-  try {
-    const request = new XMLHttpRequest()
-
-    request.open('HEAD', path, false)
-    request.send()
-    if (request.status < 200 || request.status >= 300) {
-      return false
-    }
-
-    const contentType = request.getResponseHeader('content-type') ?? ''
-    return contentType.toLowerCase().startsWith('image/')
-  } catch {
-    return false
-  }
+function forceVisualFallbacks(): boolean {
+  return (
+    getMatchLaunchConfig().mode === 'lab' &&
+    getLabState().arenaVisual.forceMissingAssetFallback
+  )
 }

@@ -1031,6 +1031,18 @@ export class LabPanel {
         arena.chargeVfx = checked
         this.previewArenaVisuals()
       }),
+      this.createCheckbox('Simulate slow loading', arena.simulateSlowLoading, (checked) => {
+        arena.simulateSlowLoading = checked
+        this.previewArenaVisuals()
+      }),
+      this.createCheckbox('Force asset fallbacks', arena.forceMissingAssetFallback, (checked) => {
+        arena.forceMissingAssetFallback = checked
+        this.previewArenaVisuals()
+      }),
+      this.createCheckbox('Show preload timings', arena.showPreloadTimings, (checked) => {
+        arena.showPreloadTimings = checked
+        this.previewArenaVisuals()
+      }),
       this.createCheckbox(
         'Procedural animation',
         arena.proceduralAnimation,
@@ -1152,10 +1164,63 @@ export class LabPanel {
           this.previewArenaVisuals()
         },
       ),
-      this.createCheckbox('Track Core with stick', arena.coreTrackingEnabled, (checked) => {
+      this.createCheckbox('Target bias enabled', arena.coreTrackingEnabled, (checked) => {
         arena.coreTrackingEnabled = checked
         this.previewArenaVisuals()
       }),
+      this.createCheckbox('Natural stick hold', arena.naturalHoldMode, (checked) => {
+        arena.naturalHoldMode = checked
+        this.previewArenaVisuals()
+      }),
+      this.createCheckbox('Legacy Core magnet', arena.legacyCoreMagnetMode, (checked) => {
+        arena.legacyCoreMagnetMode = checked
+        this.previewArenaVisuals()
+      }),
+      this.createImmediateRange(
+        'Stick front arc (deg)',
+        arena.frontArcDegrees,
+        { ...arenaProceduralAnimationRanges.frontArcDegrees, digits: 0 },
+        (value) => {
+          arena.frontArcDegrees = value
+          this.previewArenaVisuals()
+        },
+      ),
+      this.createImmediateRange(
+        'Stick side reach (deg)',
+        arena.sideReachArcDegrees,
+        { ...arenaProceduralAnimationRanges.sideReachArcDegrees, digits: 0 },
+        (value) => {
+          arena.sideReachArcDegrees = value
+          this.previewArenaVisuals()
+        },
+      ),
+      this.createImmediateRange(
+        'Ready carriage angle (deg)',
+        arena.readyCarriageAngle,
+        { ...arenaProceduralAnimationRanges.readyCarriageAngle, digits: 0 },
+        (value) => {
+          arena.readyCarriageAngle = value
+          this.previewArenaVisuals()
+        },
+      ),
+      this.createImmediateRange(
+        'Target bias strength',
+        arena.stickBiasStrength,
+        { ...arenaProceduralAnimationRanges.stickBiasStrength, digits: 2 },
+        (value) => {
+          arena.stickBiasStrength = value
+          this.previewArenaVisuals()
+        },
+      ),
+      this.createImmediateRange(
+        'Stick clamp (deg)',
+        arena.stickClampAmount,
+        { ...arenaProceduralAnimationRanges.stickClampAmount, digits: 0 },
+        (value) => {
+          arena.stickClampAmount = value
+          this.previewArenaVisuals()
+        },
+      ),
       this.createImmediateRange(
         'Slash windup (ms)',
         arena.slashWindupMs,
@@ -1189,6 +1254,15 @@ export class LabPanel {
         { ...arenaProceduralAnimationRanges.slashArcDegrees, digits: 0 },
         (value) => {
           arena.slashArcDegrees = value
+          this.previewArenaVisuals()
+        },
+      ),
+      this.createImmediateRange(
+        'Slash animation speed',
+        arena.slashAnimationSpeed,
+        { ...arenaProceduralAnimationRanges.slashAnimationSpeed, digits: 2 },
+        (value) => {
+          arena.slashAnimationSpeed = value
           this.previewArenaVisuals()
         },
       ),

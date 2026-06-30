@@ -42,6 +42,7 @@ export class ScoreboardOverlay {
     hudRoot: HTMLElement,
     presentation: ArenaMatchPresentation,
     theme: ArenaTheme,
+    frameAvailable: boolean,
   ) {
     this.element = document.createElement('section')
     this.element.className = 'sports-scoreboard'
@@ -108,7 +109,7 @@ export class ScoreboardOverlay {
       bChecks: required(this.element, '[data-b-checks]'),
       bSaves: required(this.element, '[data-b-saves]'),
     }
-    this.setPresentation(presentation, theme)
+    this.setPresentation(presentation, theme, frameAvailable)
     this.element.classList.toggle(
       'is-stats-hidden',
       !arenaPresentationConfig.showScoreboardStats,
@@ -118,6 +119,7 @@ export class ScoreboardOverlay {
   setPresentation(
     presentation: ArenaMatchPresentation,
     theme: ArenaTheme,
+    frameAvailable: boolean,
   ): void {
     const home = presentation.teams.A
     const away = presentation.teams.B
@@ -150,7 +152,7 @@ export class ScoreboardOverlay {
       '--scoreboard-theme-accent',
       cssHex(theme.palette.accent),
     )
-    this.loadOptionalFrame(theme)
+    this.applyOptionalFrame(theme, frameAvailable)
   }
 
   update(view: ScoreboardViewModel): void {
@@ -186,30 +188,25 @@ export class ScoreboardOverlay {
     this.element.remove()
   }
 
-  private loadOptionalFrame(theme: ArenaTheme): void {
+  private applyOptionalFrame(
+    theme: ArenaTheme,
+    frameAvailable: boolean,
+  ): void {
     const frame = theme.scoreboardFrameAsset
 
-    if (!frame || typeof Image === 'undefined') {
+    if (!frame || !frameAvailable) {
       this.element.classList.remove('has-theme-frame')
       this.element.dataset.frameAsset = 'missing'
+      this.element.style.removeProperty('--scoreboard-theme-frame')
       return
     }
 
-    const image = new Image()
-    image.addEventListener('load', () => {
-      this.element.style.setProperty(
-        '--scoreboard-theme-frame',
-        `url("${frame.path}")`,
-      )
-      this.element.classList.add('has-theme-frame')
-      this.element.dataset.frameAsset = 'loaded'
-    }, { once: true })
-    image.addEventListener('error', () => {
-      this.element.classList.remove('has-theme-frame')
-      this.element.style.removeProperty('--scoreboard-theme-frame')
-      this.element.dataset.frameAsset = 'missing'
-    }, { once: true })
-    image.src = frame.path
+    this.element.style.setProperty(
+      '--scoreboard-theme-frame',
+      `url("${frame.path}")`,
+    )
+    this.element.classList.add('has-theme-frame')
+    this.element.dataset.frameAsset = 'loaded'
   }
 }
 

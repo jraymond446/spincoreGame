@@ -24,10 +24,17 @@ import {
   matchEvents,
   type MatchCompletionDetail,
 } from '../match/MatchEvents'
+import { MatchLoadingOverlay } from './MatchLoadingOverlay'
+import {
+  matchLoadingEvents,
+  type MatchLoadingSnapshot,
+  type MatchSceneReadyDetail,
+} from '../game/loading/MatchAssetPreloader'
 
 export class GameHost {
   private readonly root: HTMLElement
   private readonly launch: MatchLaunchConfig
+  private readonly shell: HTMLDivElement
   private readonly gameRoot: HTMLDivElement
   private readonly labRoot: HTMLDivElement
   private readonly resizeObserver: ResizeObserver
@@ -39,6 +46,10 @@ export class GameHost {
   private readonly onExit: () => void
   private readonly onCompleted: (result: MatchCompletionDetail) => void
   private completionHandled = false
+  private readonly loadingOverlay: MatchLoadingOverlay
+  private preloadReady = false
+  private sceneReady = false
+  private revealTimer: number | null = null
 
   constructor(options: {
     root: HTMLElement
@@ -57,8 +68,9 @@ export class GameHost {
     const host = document.createElement('main')
     host.className =
       `game-host ${options.launch.mode === 'lab' ? 'has-lab' : ''}`.trim()
-    const shell = document.createElement('div')
-    shell.id = 'game-shell'
+    this.shell = document.createElement('div')
+    this.shell.id = 'game-shell'
+    this.shell.classList.add('is-match-loading')
     this.gameRoot = document.createElement('div')
     this.gameRoot.id = 'game-root'
     const hudRoot = document.createElement('div')
@@ -71,11 +83,12 @@ export class GameHost {
     this.exitButton.addEventListener('click', () => {
       this.exitMatch()
     })
-    shell.append(this.gameRoot, hudRoot, this.exitButton)
+    this.shell.append(this.gameRoot, hudRoot, this.exitButton)
     this.labRoot = document.createElement('div')
     this.labRoot.id = 'lab-root'
-    host.append(shell, this.labRoot)
+    host.append(this.shell, this.labRoot)
     this.root.appendChild(host)
+    this.loadingOverlay = new MatchLoadingOverlay(this.shell)
 
     if (options.launch.mode === 'lab') {
       this.labPanel = new LabPanel(this.labRoot, {
@@ -100,6 +113,15 @@ export class GameHost {
         },
       })
     }
+
+    window.addEventListener(
+      matchLoadingEvents.state,
+      this.handleLoadingState,
+    )
+    window.addEventListener(
+      matchLoadingEvents.sceneReady,
+      this.handleSceneReady,
+    )
 
     this.game = new Phaser.Game({
       ...gameConfig,
@@ -137,11 +159,24 @@ export class GameHost {
       matchEvents.completed,
       this.handleMatchCompleted,
     )
+    window.removeEventListener(
+      matchLoadingEvents.state,
+      this.handleLoadingState,
+    )
+    window.removeEventListener(
+      matchLoadingEvents.sceneReady,
+      this.handleSceneReady,
+    )
+    if (this.revealTimer !== null) {
+      window.clearTimeout(this.revealTimer)
+      this.revealTimer = null
+    }
     this.resizeObserver.disconnect()
     this.labPanel?.destroy()
     this.labPanel = null
     this.matchCompleteOverlay?.remove()
     this.matchCompleteOverlay = null
+    this.loadingOverlay.destroy()
     this.game?.destroy(true)
     this.game = null
     clearMatchLaunchConfig()
@@ -176,6 +211,63 @@ export class GameHost {
     this.completionHandled = true
     const customEvent = event as CustomEvent<MatchCompletionDetail>
     this.showMatchCompleteOverlay(structuredClone(customEvent.detail))
+  }
+
+  private handleLoadingState = (event: Event): void => {
+    const snapshot = (event as CustomEvent<MatchLoadingSnapshot>).detail
+    if (
+      snapshot.state === 'loading' &&
+      this.shell.classList.contains('is-match-ready')
+    ) {
+      this.preloadReady = false
+      this.sceneReady = false
+      this.shell.classList.remove('is-match-ready')
+      this.shell.classList.add('is-match-loading')
+      this.loadingOverlay.reset(this.shell)
+    }
+    this.loadingOverlay.update(snapshot)
+    this.shell.dataset.matchLoadingState = snapshot.state
+    this.shell.dataset.matchFallbackCount = String(snapshot.failures.length)
+    if (snapshot.durationMs !== null) {
+      this.shell.dataset.matchPreloadMs = snapshot.durationMs.toFixed(1)
+    }
+    this.preloadReady =
+      snapshot.state === 'ready' ||
+      snapshot.state === 'failedButPlayable'
+    this.tryRevealMatch()
+  }
+
+  private handleSceneReady = (event: Event): void => {
+    const detail = (event as CustomEvent<MatchSceneReadyDetail>).detail
+    this.sceneReady = Number.isFinite(detail.initDurationMs)
+    this.shell.dataset.matchInitMs = detail.initDurationMs.toFixed(1)
+    this.shell.dataset.matchTextureCount = String(detail.textureCount)
+    this.shell.dataset.matchSpectatorCount = String(detail.spectatorCount)
+    this.tryRevealMatch()
+  }
+
+  private tryRevealMatch(): void {
+    if (
+      !this.preloadReady ||
+      !this.sceneReady ||
+      this.revealTimer !== null ||
+      this.shell.classList.contains('is-match-ready')
+    ) {
+      return
+    }
+
+    this.loadingOverlay.setFinalizing()
+    const arena = getLabState().arenaVisual
+    const delayMs =
+      this.launch.mode === 'lab' && arena.simulateSlowLoading ? 1200 : 0
+    this.revealTimer = window.setTimeout(() => {
+      this.revealTimer = null
+      const fadeMs = arena.reducedMotion ? 80 : 260
+      this.shell.classList.remove('is-match-loading')
+      this.shell.classList.add('is-match-ready')
+      this.loadingOverlay.reveal(fadeMs)
+      window.dispatchEvent(new CustomEvent(matchLoadingEvents.reveal))
+    }, delayMs)
   }
 
   private exitMatch = (): void => {

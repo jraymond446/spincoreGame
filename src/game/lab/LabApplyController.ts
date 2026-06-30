@@ -198,6 +198,13 @@ function hasStructuralChanges(
     field: previous.field,
     wall: previous.wall,
     keeperEquipmentType: previous.keeper.keeperEquipmentType,
+    arenaLoading: {
+      themeId: previous.arenaVisual.themeId,
+      forceMissingAssetFallback:
+        previous.arenaVisual.forceMissingAssetFallback,
+      simulateSlowLoading: previous.arenaVisual.simulateSlowLoading,
+      showPreloadTimings: previous.arenaVisual.showPreloadTimings,
+    },
   }) !== JSON.stringify({
     mode: next.mode,
     formations: next.formations,
@@ -206,6 +213,13 @@ function hasStructuralChanges(
     field: next.field,
     wall: next.wall,
     keeperEquipmentType: next.keeper.keeperEquipmentType,
+    arenaLoading: {
+      themeId: next.arenaVisual.themeId,
+      forceMissingAssetFallback:
+        next.arenaVisual.forceMissingAssetFallback,
+      simulateSlowLoading: next.arenaVisual.simulateSlowLoading,
+      showPreloadTimings: next.arenaVisual.showPreloadTimings,
+    },
   })
 }
 

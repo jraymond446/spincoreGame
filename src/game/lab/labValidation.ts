@@ -64,6 +64,16 @@ const numericRules: Record<string, NumericRule> = {
     arenaProceduralAnimationRanges.lateralSwayAmount,
   'arenaVisual.shadowPulseAmount':
     arenaProceduralAnimationRanges.shadowPulseAmount,
+  'arenaVisual.frontArcDegrees':
+    arenaProceduralAnimationRanges.frontArcDegrees,
+  'arenaVisual.sideReachArcDegrees':
+    arenaProceduralAnimationRanges.sideReachArcDegrees,
+  'arenaVisual.readyCarriageAngle':
+    arenaProceduralAnimationRanges.readyCarriageAngle,
+  'arenaVisual.stickBiasStrength':
+    arenaProceduralAnimationRanges.stickBiasStrength,
+  'arenaVisual.stickClampAmount':
+    arenaProceduralAnimationRanges.stickClampAmount,
   'arenaVisual.stickFollowStrength':
     arenaProceduralAnimationRanges.stickFollowStrength,
   'arenaVisual.stickMaxTurnRate':
@@ -78,6 +88,8 @@ const numericRules: Record<string, NumericRule> = {
     arenaProceduralAnimationRanges.slashRecoverMs,
   'arenaVisual.slashArcDegrees':
     arenaProceduralAnimationRanges.slashArcDegrees,
+  'arenaVisual.slashAnimationSpeed':
+    arenaProceduralAnimationRanges.slashAnimationSpeed,
   'arenaVisual.chargeLoadAngleMax':
     arenaProceduralAnimationRanges.chargeLoadAngleMax,
   'arenaVisual.releaseSnapAmount':

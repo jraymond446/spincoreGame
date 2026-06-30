@@ -13,7 +13,8 @@
     "test:arena": "node --experimental-strip-types src/game/arena/ArenaAttendance.test.ts",
     "test:arena-character": "node --experimental-strip-types src/game/arena/ArenaCharacterAssets.test.ts",
     "test:arena-animation": "node --experimental-strip-types src/game/rendering/ArenaProceduralAnimation.test.ts",
-    "test": "npm run test:goals && npm run test:progression && npm run test:attributes && npm run test:loot && npm run test:arena && npm run test:arena-character && npm run test:arena-animation",
+    "test:loading": "node --experimental-strip-types src/game/loading/MatchAssetReadiness.test.ts",
+    "test": "npm run test:goals && npm run test:progression && npm run test:attributes && npm run test:loot && npm run test:arena && npm run test:arena-character && npm run test:arena-animation && npm run test:loading",
     "preview": "vite preview"
   },
   "devDependencies": {

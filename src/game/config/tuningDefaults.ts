@@ -506,6 +506,9 @@ export function createDefaultLabTuning(): LabTuningState {
       forceFullyCharged: false,
       coreSpin: true,
       chargeVfx: true,
+      simulateSlowLoading: false,
+      forceMissingAssetFallback: false,
+      showPreloadTimings: false,
       proceduralAnimation: arenaProceduralAnimationDefaults.enabled,
       hoverRunEnabled:
         arenaProceduralAnimationDefaults.hoverRunEnabled,
@@ -526,6 +529,17 @@ export function createDefaultLabTuning(): LabTuningState {
         arenaProceduralAnimationDefaults.shadowPulseAmount,
       coreTrackingEnabled:
         arenaProceduralAnimationDefaults.coreTrackingEnabled,
+      naturalHoldMode: arenaProceduralAnimationDefaults.naturalHoldMode,
+      legacyCoreMagnetMode:
+        arenaProceduralAnimationDefaults.legacyCoreMagnetMode,
+      frontArcDegrees: arenaProceduralAnimationDefaults.frontArcDegrees,
+      sideReachArcDegrees:
+        arenaProceduralAnimationDefaults.sideReachArcDegrees,
+      readyCarriageAngle:
+        arenaProceduralAnimationDefaults.readyCarriageAngle,
+      stickBiasStrength:
+        arenaProceduralAnimationDefaults.stickBiasStrength,
+      stickClampAmount: arenaProceduralAnimationDefaults.stickClampAmount,
       stickFollowStrength:
         arenaProceduralAnimationDefaults.stickFollowStrength,
       stickMaxTurnRate:
@@ -535,6 +549,8 @@ export function createDefaultLabTuning(): LabTuningState {
       slashSweepMs: arenaProceduralAnimationDefaults.slashSweepMs,
       slashRecoverMs: arenaProceduralAnimationDefaults.slashRecoverMs,
       slashArcDegrees: arenaProceduralAnimationDefaults.slashArcDegrees,
+      slashAnimationSpeed:
+        arenaProceduralAnimationDefaults.slashAnimationSpeed,
       chargeLoadAngleMax:
         arenaProceduralAnimationDefaults.chargeLoadAngleMax,
       releaseSnapAmount:

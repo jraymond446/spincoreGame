@@ -5,7 +5,7 @@ import {
 } from './ArenaProceduralAnimation.ts'
 
 testHoverRun()
-testCoreTracking()
+testNaturalStickHold()
 testChargeLoad()
 testReleaseTiers()
 testSlashTimelineAndPriority()
@@ -66,23 +66,75 @@ function testHoverRun(): void {
   )
 }
 
-function testCoreTracking(): void {
+function testNaturalStickHold(): void {
   const controller = new ArenaProceduralAnimationController()
   let frame = controller.update(input({ aimAngle: 0 }))
 
   for (let index = 0; index < 24; index += 1) {
     frame = controller.update(input({
       aimAngle: 0,
-      trackingTargetAngle: Math.PI / 2,
+      trackingTargetAngle: 0,
       trackingTargetDistance: 120,
     }))
   }
 
-  assertEqual(frame.stickActionState, 'trackCore', 'loose-Core tracking state')
-  assert(frame.visualStickAimAngle > 1.2, 'stick turns toward the Core')
+  assertEqual(frame.stickActionState, 'targetBias', 'loose-Core target bias state')
+  assert(
+    frame.visualStickAimAngle > 0 && frame.visualStickAimAngle < 0.5,
+    'front target biases the handed ready carriage',
+  )
   assert(
     Math.abs(frame.currentStickLagAngle) <= degreesToRadians(5) + 0.0001,
     'visual follow error is clamped',
+  )
+
+  const behind = new ArenaProceduralAnimationController()
+  for (let index = 0; index < 30; index += 1) {
+    frame = behind.update(input({
+      trackingTargetAngle: Math.PI,
+      trackingTargetDistance: 90,
+    }))
+  }
+  const readyCarriage = degreesToRadians(
+    arenaProceduralAnimationDefaults.readyCarriageAngle,
+  )
+  assert(
+    Math.abs(frame.visualStickAimAngle - readyCarriage) < 0.06,
+    'Core behind player keeps a natural ready carriage',
+  )
+  assert(
+    Math.abs(frame.visualStickAimAngle) < Math.PI / 2,
+    'stick never reaches behind the back in natural mode',
+  )
+
+  const gatherBehind = new ArenaProceduralAnimationController()
+  for (let index = 0; index < 30; index += 1) {
+    frame = gatherBehind.update(input({
+      stickState: 'CATCH_READY',
+      trackingTargetAngle: Math.PI,
+      trackingTargetDistance: 45,
+    }))
+  }
+  assertEqual(frame.stickActionState, 'gatherReach', 'gather owns stick state')
+  assert(
+    Math.abs(frame.visualStickAimAngle - readyCarriage) < 0.06,
+    'gather does not reach behind the player',
+  )
+
+  const legacy = new ArenaProceduralAnimationController()
+  for (let index = 0; index < 30; index += 1) {
+    frame = legacy.update(input({
+      trackingTargetAngle: Math.PI,
+      trackingTargetDistance: 90,
+      tuning: {
+        ...arenaProceduralAnimationDefaults,
+        legacyCoreMagnetMode: true,
+      },
+    }))
+  }
+  assert(
+    Math.abs(frame.visualStickAimAngle) > 2.5,
+    'legacy Core magnet remains available for comparison',
   )
 
   const carrier = new ArenaProceduralAnimationController()
@@ -94,7 +146,7 @@ function testCoreTracking(): void {
       stickState: 'CRADLED_STABLE',
     }))
   }
-  assertEqual(frame.stickActionState, 'cradle', 'carrier owns cradle aim')
+  assertEqual(frame.stickActionState, 'cradleHold', 'carrier owns cradle aim')
   assert(
     Math.abs(frame.visualStickAimAngle) < 0.01,
     'carrier follows release aim instead of Core tracking target',
@@ -126,6 +178,7 @@ function testChargeLoad(): void {
   assert(quarterAngle > 0.08, 'quarter charge starts a visible load')
   assert(mediumAngle > quarterAngle * 1.8, 'load angle grows with charge')
   assertEqual(full.stickActionState, 'fullyCharged', 'full charge stabilizes')
+  assertEqual(full.animationClipState, 'charge', 'charge clip state is exposed')
   assert(full.shadowScaleX > 1, 'charge plants and widens the shadow')
 }
 
@@ -188,6 +241,7 @@ function testTruckAndDisruption(): void {
     defenseState: 'TRUCK_ACTIVE',
   }))
   assertEqual(truck.stickActionState, 'truckCarry', 'truck pulls stick into carry')
+  assertEqual(truck.animationClipState, 'truck', 'truck clip state is exposed')
   assert(truck.currentActionPulse > 0.8, 'truck has a strong planted pulse')
 
   const disrupted = new ArenaProceduralAnimationController().update(input({
@@ -220,6 +274,19 @@ function testHandednessMirroring(): void {
     Math.abs(leftCharge.stickActionAngle),
     'mirrored charge magnitude',
   )
+
+  const leftReady = new ArenaProceduralAnimationController()
+  let leftFrame = leftReady.update(input({ mountSign: -1 }))
+  for (let index = 0; index < 24; index += 1) {
+    leftFrame = leftReady.update(input({
+      mountSign: -1,
+      trackingTargetAngle: Math.PI,
+    }))
+  }
+  assert(
+    leftFrame.visualStickAimAngle < 0,
+    'left-handed ready carriage stays on the left side',
+  )
 }
 
 function testReducedMotion(): void {
@@ -241,7 +308,10 @@ function testReducedMotion(): void {
   assertClose(frame.currentVisualBob, 0, 'reduced-motion bob')
   assertClose(frame.currentVisualSway, 0, 'reduced-motion sway')
   assertClose(frame.currentVisualLean, 0, 'reduced-motion lean')
-  assert(frame.visualStickAimAngle > 1, 'reduced motion keeps functional tracking')
+  assert(
+    frame.visualStickAimAngle > 0.45,
+    'reduced motion keeps a logical side-biased hold',
+  )
   assertClose(frame.slashTrailAlpha, 0, 'reduced-motion slash trail')
   assertClose(frame.releaseTrailAlpha, 0, 'reduced-motion release trail')
   assert(!frame.footShuffleEnabled, 'reduced motion disables feet')

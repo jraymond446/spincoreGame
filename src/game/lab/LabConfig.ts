@@ -493,6 +493,9 @@ export type LabArenaVisualTuning = {
   forceFullyCharged: boolean
   coreSpin: boolean
   chargeVfx: boolean
+  simulateSlowLoading: boolean
+  forceMissingAssetFallback: boolean
+  showPreloadTimings: boolean
   proceduralAnimation: boolean
   hoverRunEnabled: boolean
   footShuffle: boolean
@@ -505,6 +508,13 @@ export type LabArenaVisualTuning = {
   lateralSwayAmount: number
   shadowPulseAmount: number
   coreTrackingEnabled: boolean
+  naturalHoldMode: boolean
+  legacyCoreMagnetMode: boolean
+  frontArcDegrees: number
+  sideReachArcDegrees: number
+  readyCarriageAngle: number
+  stickBiasStrength: number
+  stickClampAmount: number
   stickFollowStrength: number
   stickMaxTurnRate: number
   stickLagClamp: number
@@ -512,6 +522,7 @@ export type LabArenaVisualTuning = {
   slashSweepMs: number
   slashRecoverMs: number
   slashArcDegrees: number
+  slashAnimationSpeed: number
   chargeLoadAngleMax: number
   releaseSnapAmount: number
   releaseRecoilAmount: number

@@ -9,6 +9,17 @@ export type DefensiveVisualState =
   | 'SLASH_ACTIVE'
   | 'SLASH_RECOVERY'
 
+export type ArenaAnimationClipState =
+  | 'idle'
+  | 'move'
+  | 'charge'
+  | 'slash'
+  | 'release'
+  | 'truck'
+  | 'fumble'
+
+export type ArenaAnimationSource = 'procedural' | 'spriteFrames'
+
 export type PlayerAnimationPose = {
   bodyForwardOffset: number
   bodySideOffset: number

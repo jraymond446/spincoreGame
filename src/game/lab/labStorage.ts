@@ -12,7 +12,7 @@ import { arenaProceduralAnimationDefaults } from '../rendering/ArenaProceduralAn
 const storageKey = 'spincore_lab_settings_v1'
 const previousStorageKey = 'spincore:lab-settings:v3'
 const legacyStorageKey = 'spincore:lab-settings:v2'
-const settingsVersion = 6
+const settingsVersion = 7
 
 type StoredLabSettings = {
   version: number
@@ -95,7 +95,7 @@ export function resetSavedLabSettings(): void {
 function readVersionedSettings(parsed: unknown): unknown {
   if (
     !isStoredLabSettings(parsed) ||
-    ![3, 4, 5, settingsVersion].includes(parsed.version)
+    ![3, 4, 5, 6, settingsVersion].includes(parsed.version)
   ) {
     throw new Error('Unsupported or invalid Lab settings schema.')
   }
@@ -105,6 +105,9 @@ function readVersionedSettings(parsed: unknown): unknown {
   }
   if (parsed.version < 6) {
     migrateArenaAnimationV6(parsed.settings)
+  }
+  if (parsed.version < 7) {
+    migrateArenaPresentationV7(parsed.settings)
   }
 
   return parsed.settings
@@ -219,6 +222,41 @@ function migrateArenaAnimationV6(settings: unknown): void {
   arenaVisual.fullChargeBurstEnabled = true
   delete arenaVisual.stickLagAmount
   delete arenaVisual.actionSnapAmount
+}
+
+function migrateArenaPresentationV7(settings: unknown): void {
+  if (!settings || typeof settings !== 'object') {
+    return
+  }
+
+  const arenaVisual =
+    'arenaVisual' in settings &&
+    settings.arenaVisual &&
+    typeof settings.arenaVisual === 'object'
+      ? settings.arenaVisual as Record<string, unknown>
+      : null
+
+  if (!arenaVisual) {
+    return
+  }
+
+  arenaVisual.simulateSlowLoading = false
+  arenaVisual.forceMissingAssetFallback = false
+  arenaVisual.showPreloadTimings = false
+  arenaVisual.naturalHoldMode = true
+  arenaVisual.legacyCoreMagnetMode = false
+  arenaVisual.frontArcDegrees =
+    arenaProceduralAnimationDefaults.frontArcDegrees
+  arenaVisual.sideReachArcDegrees =
+    arenaProceduralAnimationDefaults.sideReachArcDegrees
+  arenaVisual.readyCarriageAngle =
+    arenaProceduralAnimationDefaults.readyCarriageAngle
+  arenaVisual.stickBiasStrength =
+    arenaProceduralAnimationDefaults.stickBiasStrength
+  arenaVisual.stickClampAmount =
+    arenaProceduralAnimationDefaults.stickClampAmount
+  arenaVisual.slashAnimationSpeed =
+    arenaProceduralAnimationDefaults.slashAnimationSpeed
 }
 
 function isStoredLabSettings(value: unknown): value is StoredLabSettings {
