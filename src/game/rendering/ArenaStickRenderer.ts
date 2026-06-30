@@ -2,6 +2,7 @@ import Phaser from 'phaser'
 import {
   arenaStickDefinitions,
   MAX_ARENA_STICK_VISUAL_OFFSET_RADIANS,
+  MAX_ARENA_STICK_POCKET_OFFSET_RADIANS,
   resolveArenaStickTransform,
   type ArenaStickDefinition,
   type ArenaStickId,
@@ -12,6 +13,10 @@ import { arenaLayers } from '../arena/ArenaLayers'
 import type { Point } from '../data/geometry'
 import type { StickActionState } from '../data/matchTypes'
 import type { PlayerAnimationPose } from './AnimationState'
+import type {
+  ReleaseVisualTier,
+  StickVisualActionState,
+} from './ArenaProceduralAnimation'
 import {
   hasVisualAsset,
   useLinearVisualAssetFiltering,
@@ -39,6 +44,11 @@ export type ArenaStickRendererUpdate = {
   reducedMotion: boolean
   visualOffset: Point
   visualRotationOffset: number
+  actionState: StickVisualActionState
+  releaseTier: ReleaseVisualTier
+  slashTrailAlpha: number
+  releaseTrailAlpha: number
+  fullChargeBurstAlpha: number
   now: number
 }
 
@@ -46,6 +56,7 @@ export class ArenaStickRenderer {
   private readonly scene: Phaser.Scene
   private readonly image: Phaser.GameObjects.Image
   private readonly chargeGraphics: Phaser.GameObjects.Graphics
+  private readonly motionGraphics: Phaser.GameObjects.Graphics
   private readonly anchorGraphics: Phaser.GameObjects.Graphics
   private definition: ArenaStickDefinition
   private lastTransform: ArenaStickTransform
@@ -75,6 +86,10 @@ export class ArenaStickRenderer {
       .graphics()
       .setDepth(arenaLayers.gameplayVfx)
       .setVisible(false)
+    this.motionGraphics = scene.add
+      .graphics()
+      .setDepth(arenaLayers.gameplayVfx + 0.1)
+      .setVisible(false)
     this.anchorGraphics = scene.add
       .graphics()
       .setDepth(arenaLayers.geometryOverlay)
@@ -90,10 +105,14 @@ export class ArenaStickRenderer {
   update(data: ArenaStickRendererUpdate): void {
     const aimAngle = data.aimAngle + data.angleOffset
     const alignPocket = isPossessionState(data.state)
+    const previousTip = { ...this.lastTransform.tip }
+    const maximumVisualOffset = alignPocket
+      ? MAX_ARENA_STICK_POCKET_OFFSET_RADIANS
+      : MAX_ARENA_STICK_VISUAL_OFFSET_RADIANS
     const visualRotationOffset = Phaser.Math.Clamp(
-      data.pose.stickRotationOffset + data.visualRotationOffset,
-      -MAX_ARENA_STICK_VISUAL_OFFSET_RADIANS,
-      MAX_ARENA_STICK_VISUAL_OFFSET_RADIANS,
+      data.visualRotationOffset,
+      -maximumVisualOffset,
+      maximumVisualOffset,
     )
     const renderScale = data.pose.stickScaleX * data.scale
     const mountPoint = offsetPoint(data.mountPoint, data.visualOffset)
@@ -128,6 +147,7 @@ export class ArenaStickRenderer {
       .setVisible(this.visible)
 
     this.drawCharge(data)
+    this.drawActionVfx(data, previousTip)
     this.drawAnchors(data, mountPoint, pocketTarget)
   }
 
@@ -143,8 +163,10 @@ export class ArenaStickRenderer {
     this.visible = visible
     this.image.setVisible(visible)
     this.chargeGraphics.setVisible(visible)
+    this.motionGraphics.setVisible(visible)
     if (!visible) {
       this.chargeGraphics.clear()
+      this.motionGraphics.clear()
       this.anchorGraphics.clear().setVisible(false)
     }
   }
@@ -152,6 +174,7 @@ export class ArenaStickRenderer {
   destroy(): void {
     this.image.destroy()
     this.chargeGraphics.destroy()
+    this.motionGraphics.destroy()
     this.anchorGraphics.destroy()
   }
 
@@ -208,6 +231,76 @@ export class ArenaStickRenderer {
       pocket.y,
       (8 + charge * 6) * pulse,
     )
+  }
+
+  private drawActionVfx(
+    data: ArenaStickRendererUpdate,
+    previousTip: Point,
+  ): void {
+    this.motionGraphics.clear().setVisible(this.visible)
+
+    if (!this.visible || data.reducedMotion) {
+      return
+    }
+
+    const slashAlpha = Phaser.Math.Clamp(data.slashTrailAlpha, 0, 1)
+    const releaseAlpha = Phaser.Math.Clamp(data.releaseTrailAlpha, 0, 1)
+    const trailAlpha = Math.max(slashAlpha, releaseAlpha)
+
+    if (trailAlpha > 0.01) {
+      const isSlash =
+        data.actionState === 'slashSweep' && slashAlpha >= releaseAlpha
+      const color = isSlash
+        ? 0x8ef6ff
+        : data.releaseTier >= 2
+          ? 0xffe08a
+          : 0xf4fdff
+      const midpoint = {
+        x: (previousTip.x + this.lastTransform.tip.x) * 0.5,
+        y: (previousTip.y + this.lastTransform.tip.y) * 0.5,
+      }
+      const tangent = {
+        x: this.lastTransform.tip.x - previousTip.x,
+        y: this.lastTransform.tip.y - previousTip.y,
+      }
+      const tangentLength = Math.max(1, Math.hypot(tangent.x, tangent.y))
+      const arcBend = Math.min(5, tangentLength * 0.22)
+      const arcMidpoint = {
+        x: midpoint.x - tangent.y / tangentLength * arcBend,
+        y: midpoint.y + tangent.x / tangentLength * arcBend,
+      }
+
+      this.motionGraphics.lineStyle(
+        2.5 + trailAlpha * 3 + data.releaseTier * 0.45,
+        color,
+        trailAlpha * 0.72,
+      )
+      this.motionGraphics.beginPath()
+      this.motionGraphics.moveTo(previousTip.x, previousTip.y)
+      this.motionGraphics.lineTo(arcMidpoint.x, arcMidpoint.y)
+      this.motionGraphics.lineTo(
+        this.lastTransform.tip.x,
+        this.lastTransform.tip.y,
+      )
+      this.motionGraphics.strokePath()
+    }
+
+    const burstAlpha = Phaser.Math.Clamp(
+      data.fullChargeBurstAlpha,
+      0,
+      1,
+    )
+    if (burstAlpha > 0.01) {
+      const pocket = this.lastTransform.pocket
+      this.motionGraphics.fillStyle(0xfff5b0, burstAlpha * 0.72)
+      this.motionGraphics.fillCircle(pocket.x, pocket.y, 5 + burstAlpha * 5)
+      this.motionGraphics.lineStyle(2, 0xffffff, burstAlpha * 0.9)
+      this.motionGraphics.strokeCircle(
+        pocket.x,
+        pocket.y,
+        9 + burstAlpha * 9,
+      )
+    }
   }
 
   private drawAnchors(

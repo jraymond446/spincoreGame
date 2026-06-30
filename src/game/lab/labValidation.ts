@@ -64,10 +64,34 @@ const numericRules: Record<string, NumericRule> = {
     arenaProceduralAnimationRanges.lateralSwayAmount,
   'arenaVisual.shadowPulseAmount':
     arenaProceduralAnimationRanges.shadowPulseAmount,
-  'arenaVisual.stickLagAmount':
-    arenaProceduralAnimationRanges.stickLagAmount,
-  'arenaVisual.actionSnapAmount':
-    arenaProceduralAnimationRanges.actionSnapAmount,
+  'arenaVisual.stickFollowStrength':
+    arenaProceduralAnimationRanges.stickFollowStrength,
+  'arenaVisual.stickMaxTurnRate':
+    arenaProceduralAnimationRanges.stickMaxTurnRate,
+  'arenaVisual.stickLagClamp':
+    arenaProceduralAnimationRanges.stickLagClamp,
+  'arenaVisual.slashWindupMs':
+    arenaProceduralAnimationRanges.slashWindupMs,
+  'arenaVisual.slashSweepMs':
+    arenaProceduralAnimationRanges.slashSweepMs,
+  'arenaVisual.slashRecoverMs':
+    arenaProceduralAnimationRanges.slashRecoverMs,
+  'arenaVisual.slashArcDegrees':
+    arenaProceduralAnimationRanges.slashArcDegrees,
+  'arenaVisual.chargeLoadAngleMax':
+    arenaProceduralAnimationRanges.chargeLoadAngleMax,
+  'arenaVisual.releaseSnapAmount':
+    arenaProceduralAnimationRanges.releaseSnapAmount,
+  'arenaVisual.releaseRecoilAmount':
+    arenaProceduralAnimationRanges.releaseRecoilAmount,
+  'arenaVisual.quickPassThreshold':
+    arenaProceduralAnimationRanges.quickPassThreshold,
+  'arenaVisual.firmPassThreshold':
+    arenaProceduralAnimationRanges.firmPassThreshold,
+  'arenaVisual.heavyShotThreshold':
+    arenaProceduralAnimationRanges.heavyShotThreshold,
+  'arenaVisual.fullChargeThreshold':
+    arenaProceduralAnimationRanges.fullChargeThreshold,
   'arenaVisual.animationSpeed':
     arenaProceduralAnimationRanges.animationSpeedMultiplier,
   'keeper.keeperMoveSpeedMultiplier': { min: 0.2, max: 1.2 },

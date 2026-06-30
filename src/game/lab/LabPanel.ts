@@ -1039,6 +1039,10 @@ export class LabPanel {
           this.previewArenaVisuals()
         },
       ),
+      this.createCheckbox('Hover-run movement', arena.hoverRunEnabled, (checked) => {
+        arena.hoverRunEnabled = checked
+        this.previewArenaVisuals()
+      }),
       this.createCheckbox('Feet (experimental)', arena.footShuffle, (checked) => {
         arena.footShuffle = checked
         this.previewArenaVisuals()
@@ -1122,23 +1126,147 @@ export class LabPanel {
         },
       ),
       this.createImmediateRange(
-        'Stick lag',
-        arena.stickLagAmount,
-        { ...arenaProceduralAnimationRanges.stickLagAmount, digits: 2 },
+        'Stick follow strength',
+        arena.stickFollowStrength,
+        { ...arenaProceduralAnimationRanges.stickFollowStrength, digits: 2 },
         (value) => {
-          arena.stickLagAmount = value
+          arena.stickFollowStrength = value
           this.previewArenaVisuals()
         },
       ),
       this.createImmediateRange(
-        'Action snap',
-        arena.actionSnapAmount,
-        { ...arenaProceduralAnimationRanges.actionSnapAmount, digits: 2 },
+        'Stick max turn (deg/s)',
+        arena.stickMaxTurnRate,
+        { ...arenaProceduralAnimationRanges.stickMaxTurnRate, digits: 0 },
         (value) => {
-          arena.actionSnapAmount = value
+          arena.stickMaxTurnRate = value
           this.previewArenaVisuals()
         },
       ),
+      this.createImmediateRange(
+        'Stick lag clamp (deg)',
+        arena.stickLagClamp,
+        { ...arenaProceduralAnimationRanges.stickLagClamp, digits: 2 },
+        (value) => {
+          arena.stickLagClamp = value
+          this.previewArenaVisuals()
+        },
+      ),
+      this.createCheckbox('Track Core with stick', arena.coreTrackingEnabled, (checked) => {
+        arena.coreTrackingEnabled = checked
+        this.previewArenaVisuals()
+      }),
+      this.createImmediateRange(
+        'Slash windup (ms)',
+        arena.slashWindupMs,
+        { ...arenaProceduralAnimationRanges.slashWindupMs, digits: 0 },
+        (value) => {
+          arena.slashWindupMs = value
+          this.previewArenaVisuals()
+        },
+      ),
+      this.createImmediateRange(
+        'Slash sweep (ms)',
+        arena.slashSweepMs,
+        { ...arenaProceduralAnimationRanges.slashSweepMs, digits: 0 },
+        (value) => {
+          arena.slashSweepMs = value
+          this.previewArenaVisuals()
+        },
+      ),
+      this.createImmediateRange(
+        'Slash recovery (ms)',
+        arena.slashRecoverMs,
+        { ...arenaProceduralAnimationRanges.slashRecoverMs, digits: 0 },
+        (value) => {
+          arena.slashRecoverMs = value
+          this.previewArenaVisuals()
+        },
+      ),
+      this.createImmediateRange(
+        'Slash arc (deg)',
+        arena.slashArcDegrees,
+        { ...arenaProceduralAnimationRanges.slashArcDegrees, digits: 0 },
+        (value) => {
+          arena.slashArcDegrees = value
+          this.previewArenaVisuals()
+        },
+      ),
+      this.createImmediateRange(
+        'Charge load angle (deg)',
+        arena.chargeLoadAngleMax,
+        { ...arenaProceduralAnimationRanges.chargeLoadAngleMax, digits: 0 },
+        (value) => {
+          arena.chargeLoadAngleMax = value
+          this.previewArenaVisuals()
+        },
+      ),
+      this.createImmediateRange(
+        'Release snap',
+        arena.releaseSnapAmount,
+        { ...arenaProceduralAnimationRanges.releaseSnapAmount, digits: 2 },
+        (value) => {
+          arena.releaseSnapAmount = value
+          this.previewArenaVisuals()
+        },
+      ),
+      this.createImmediateRange(
+        'Release recoil',
+        arena.releaseRecoilAmount,
+        { ...arenaProceduralAnimationRanges.releaseRecoilAmount, digits: 2 },
+        (value) => {
+          arena.releaseRecoilAmount = value
+          this.previewArenaVisuals()
+        },
+      ),
+      this.createImmediateRange(
+        'Quick pass threshold',
+        arena.quickPassThreshold,
+        { ...arenaProceduralAnimationRanges.quickPassThreshold, digits: 2 },
+        (value) => {
+          arena.quickPassThreshold = value
+          this.previewArenaVisuals()
+        },
+      ),
+      this.createImmediateRange(
+        'Firm pass threshold',
+        arena.firmPassThreshold,
+        { ...arenaProceduralAnimationRanges.firmPassThreshold, digits: 2 },
+        (value) => {
+          arena.firmPassThreshold = value
+          this.previewArenaVisuals()
+        },
+      ),
+      this.createImmediateRange(
+        'Heavy shot threshold',
+        arena.heavyShotThreshold,
+        { ...arenaProceduralAnimationRanges.heavyShotThreshold, digits: 2 },
+        (value) => {
+          arena.heavyShotThreshold = value
+          this.previewArenaVisuals()
+        },
+      ),
+      this.createImmediateRange(
+        'Full charge threshold',
+        arena.fullChargeThreshold,
+        { ...arenaProceduralAnimationRanges.fullChargeThreshold, digits: 3 },
+        (value) => {
+          arena.fullChargeThreshold = value
+          this.previewArenaVisuals()
+        },
+      ),
+      this.createCheckbox('Slash trail', arena.slashTrailEnabled, (checked) => {
+        arena.slashTrailEnabled = checked
+        this.previewArenaVisuals()
+      }),
+      this.createCheckbox('Release trail', arena.releaseTrailEnabled, (checked) => {
+        arena.releaseTrailEnabled = checked
+        this.previewArenaVisuals()
+      }),
+      this.createCheckbox('Full-charge burst', arena.fullChargeBurstEnabled, (checked) => {
+        arena.fullChargeBurstEnabled = checked
+        this.previewArenaVisuals()
+      }),
       this.createImmediateRange(
         'Character animation speed',
         arena.animationSpeed,

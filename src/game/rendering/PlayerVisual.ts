@@ -50,6 +50,8 @@ export type PlayerVisualUpdate = {
   position: Point
   velocity: Point
   facingRotation: number
+  visualStickTarget: Point | null
+  possessesCore: boolean
   stickMountPoint: Point
   stickForward: Point
   stickSide: Point
@@ -214,11 +216,26 @@ export class PlayerVisual {
       settings.rendererMode,
       settings.inScope,
     )
+    const trackingTargetAngle = data.visualStickTarget
+      ? Math.atan2(
+          data.visualStickTarget.y - data.position.y,
+          data.visualStickTarget.x - data.position.x,
+        )
+      : null
+    const trackingTargetDistance = data.visualStickTarget
+      ? Math.hypot(
+          data.visualStickTarget.x - data.position.x,
+          data.visualStickTarget.y - data.position.y,
+        )
+      : Number.POSITIVE_INFINITY
     const arenaMotion = this.arenaAnimation.update({
       deltaMs: Math.min(50, Math.max(0, this.scene.game.loop.delta)),
       velocity: data.velocity,
       bodyRotation: data.facingRotation,
       aimAngle: Math.atan2(data.stickForward.y, data.stickForward.x),
+      trackingTargetAngle,
+      trackingTargetDistance,
+      possessesCore: data.possessesCore,
       mountSign: handednessFrame.mountSign,
       stickState: data.stickState,
       defenseState: data.defenseState,
@@ -261,6 +278,12 @@ export class PlayerVisual {
     if (useArenaRenderer) {
       pose.bodyScaleX *= 1 + arenaMotion.currentVisualSquash
       pose.bodyScaleY *= 1 - arenaMotion.currentVisualSquash
+      const releaseRecoil = arenaMotion.currentReleaseRecoil
+      pose.bodyForwardOffset += releaseRecoil * 5
+      pose.bodyRotationOffset +=
+        releaseRecoil * 0.07 * handednessFrame.mountSign
+      pose.bodyScaleX *= 1 - releaseRecoil * 0.025
+      pose.bodyScaleY *= 1 + releaseRecoil * 0.04
     }
     const bodyRotation =
       data.facingRotation +
@@ -316,13 +339,17 @@ export class PlayerVisual {
 
     if (useArenaRenderer) {
       this.character.clear()
+      const visualStickForward = {
+        x: Math.cos(arenaMotion.visualStickAimAngle),
+        y: Math.sin(arenaMotion.visualStickAimAngle),
+      }
       this.arenaCharacter.update({
         position: visualPosition,
         playerOrigin: data.position,
         velocity: data.velocity,
         bodyRotation,
         mountPoint: data.stickMountPoint,
-        stickForward: data.stickForward,
+        stickForward: visualStickForward,
         cradleSocket: data.cradleSocket,
         mirrorSign: handednessFrame.mountSign,
         handedness: settings.handedness,
@@ -479,6 +506,7 @@ export class PlayerVisual {
       },
       proceduralAnimation: {
         enabled: arena.proceduralAnimation,
+        hoverRunEnabled: arena.hoverRunEnabled,
         footShuffle: arena.footShuffle,
         playerScaleMultiplier: arena.playerScaleMultiplier,
         idleBobAmount: arena.idleBobAmount,
@@ -488,8 +516,24 @@ export class PlayerVisual {
         leanAmount: arena.leanAmount,
         lateralSwayAmount: arena.lateralSwayAmount,
         shadowPulseAmount: arena.shadowPulseAmount,
-        stickLagAmount: arena.stickLagAmount,
-        actionSnapAmount: arena.actionSnapAmount,
+        coreTrackingEnabled: arena.coreTrackingEnabled,
+        stickFollowStrength: arena.stickFollowStrength,
+        stickMaxTurnRate: arena.stickMaxTurnRate,
+        stickLagClamp: arena.stickLagClamp,
+        slashWindupMs: arena.slashWindupMs,
+        slashSweepMs: arena.slashSweepMs,
+        slashRecoverMs: arena.slashRecoverMs,
+        slashArcDegrees: arena.slashArcDegrees,
+        chargeLoadAngleMax: arena.chargeLoadAngleMax,
+        releaseSnapAmount: arena.releaseSnapAmount,
+        releaseRecoilAmount: arena.releaseRecoilAmount,
+        quickPassThreshold: arena.quickPassThreshold,
+        firmPassThreshold: arena.firmPassThreshold,
+        heavyShotThreshold: arena.heavyShotThreshold,
+        fullChargeThreshold: arena.fullChargeThreshold,
+        slashTrailEnabled: arena.slashTrailEnabled,
+        releaseTrailEnabled: arena.releaseTrailEnabled,
+        fullChargeBurstEnabled: arena.fullChargeBurstEnabled,
         animationSpeedMultiplier: arena.animationSpeed,
       },
     }

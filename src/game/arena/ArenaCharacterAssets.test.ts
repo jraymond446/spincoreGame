@@ -1,5 +1,6 @@
 import {
   arenaStickDefinitions,
+  MAX_ARENA_STICK_POCKET_OFFSET_RADIANS,
   resolveArenaCoreVisualState,
   resolveArenaStickTransform,
 } from './ArenaCharacterAssets.ts'
@@ -65,6 +66,16 @@ const laggedLeft = resolveArenaStickTransform(
   true,
   -0.1,
 )
+const fullyLoadedRight = resolveArenaStickTransform(
+  definition,
+  mountTarget,
+  0,
+  1,
+  definition.displayScale,
+  rightPocketTarget,
+  true,
+  MAX_ARENA_STICK_POCKET_OFFSET_RADIANS,
+)
 
 assertClose(definition.displayScale, 0.42, 'default stick render scale')
 assertClose(displaySize.width, 67.2, 'default stick display width')
@@ -80,6 +91,11 @@ assertPoint(left.pocket, leftPocketTarget, 'left-handed pocket alignment')
 assertPoint(rotated.pocket, { x: 229, y: 539.5 }, 'rotated pocket alignment')
 assertPoint(laggedRight.pocket, rightPocketTarget, 'lagged right pocket alignment')
 assertPoint(laggedLeft.pocket, leftPocketTarget, 'lagged left pocket alignment')
+assertPoint(
+  fullyLoadedRight.pocket,
+  rightPocketTarget,
+  'fully loaded pocket alignment',
+)
 assert(
   distance(laggedRight.grip, right.grip) < 5,
   'right visual lag keeps grip near the hand',
@@ -87,6 +103,10 @@ assert(
 assert(
   distance(laggedLeft.grip, left.grip) < 5,
   'left visual lag keeps grip near the hand',
+)
+assert(
+  distance(fullyLoadedRight.grip, right.grip) < 11,
+  'maximum charge load keeps grip within the hand tolerance',
 )
 assertClose(right.scaleX, 0.42, 'right-handed aligned scale X')
 assertClose(right.scaleY, 0.42, 'right-handed aligned scale Y')

@@ -12,7 +12,7 @@ import { arenaProceduralAnimationDefaults } from '../rendering/ArenaProceduralAn
 const storageKey = 'spincore_lab_settings_v1'
 const previousStorageKey = 'spincore:lab-settings:v3'
 const legacyStorageKey = 'spincore:lab-settings:v2'
-const settingsVersion = 5
+const settingsVersion = 6
 
 type StoredLabSettings = {
   version: number
@@ -95,13 +95,16 @@ export function resetSavedLabSettings(): void {
 function readVersionedSettings(parsed: unknown): unknown {
   if (
     !isStoredLabSettings(parsed) ||
-    ![3, 4, settingsVersion].includes(parsed.version)
+    ![3, 4, 5, settingsVersion].includes(parsed.version)
   ) {
     throw new Error('Unsupported or invalid Lab settings schema.')
   }
 
-  if (parsed.version < settingsVersion) {
+  if (parsed.version < 5) {
     migrateArenaAnimationV5(parsed.settings)
+  }
+  if (parsed.version < 6) {
+    migrateArenaAnimationV6(parsed.settings)
   }
 
   return parsed.settings
@@ -154,6 +157,68 @@ function migrateArenaAnimationV5(settings: unknown): void {
     arenaProceduralAnimationDefaults.lateralSwayAmount
   arenaVisual.footShuffle = false
   replaceLegacyDefault(arenaVisual, 'shadowPulseAmount', 0.14, 0.12)
+}
+
+function migrateArenaAnimationV6(settings: unknown): void {
+  if (!settings || typeof settings !== 'object') {
+    return
+  }
+
+  const arenaVisual =
+    'arenaVisual' in settings &&
+    settings.arenaVisual &&
+    typeof settings.arenaVisual === 'object'
+      ? settings.arenaVisual as Record<string, unknown>
+      : null
+
+  if (!arenaVisual) {
+    return
+  }
+
+  const previousStickLag = arenaVisual.stickLagAmount
+  const previousActionSnap = arenaVisual.actionSnapAmount
+
+  arenaVisual.hoverRunEnabled = true
+  arenaVisual.footShuffle = false
+  replaceLegacyDefault(arenaVisual, 'idleBobAmount', 0.65, 0.6)
+  replaceLegacyDefault(arenaVisual, 'movementBobAmount', 2.2, 1.8)
+  replaceLegacyDefault(arenaVisual, 'squashStretchAmount', 0.035, 0.05)
+  replaceLegacyDefault(arenaVisual, 'leanAmount', 4, 5)
+  replaceLegacyDefault(arenaVisual, 'lateralSwayAmount', 0.05, 0)
+  arenaVisual.coreTrackingEnabled = true
+  arenaVisual.stickFollowStrength =
+    typeof previousStickLag === 'number' && previousStickLag !== 0.16
+      ? previousStickLag
+      : arenaProceduralAnimationDefaults.stickFollowStrength
+  arenaVisual.stickMaxTurnRate =
+    arenaProceduralAnimationDefaults.stickMaxTurnRate
+  arenaVisual.stickLagClamp = arenaProceduralAnimationDefaults.stickLagClamp
+  arenaVisual.slashWindupMs = arenaProceduralAnimationDefaults.slashWindupMs
+  arenaVisual.slashSweepMs = arenaProceduralAnimationDefaults.slashSweepMs
+  arenaVisual.slashRecoverMs = arenaProceduralAnimationDefaults.slashRecoverMs
+  arenaVisual.slashArcDegrees =
+    arenaProceduralAnimationDefaults.slashArcDegrees
+  arenaVisual.chargeLoadAngleMax =
+    arenaProceduralAnimationDefaults.chargeLoadAngleMax
+  arenaVisual.releaseSnapAmount =
+    typeof previousActionSnap === 'number' && previousActionSnap !== 0.7
+      ? previousActionSnap
+      : arenaProceduralAnimationDefaults.releaseSnapAmount
+  arenaVisual.releaseRecoilAmount =
+    arenaProceduralAnimationDefaults.releaseRecoilAmount
+  arenaVisual.quickPassThreshold =
+    arenaProceduralAnimationDefaults.quickPassThreshold
+  arenaVisual.firmPassThreshold =
+    arenaProceduralAnimationDefaults.firmPassThreshold
+  arenaVisual.heavyShotThreshold =
+    arenaProceduralAnimationDefaults.heavyShotThreshold
+  arenaVisual.fullChargeThreshold =
+    arenaProceduralAnimationDefaults.fullChargeThreshold
+  arenaVisual.slashTrailEnabled = true
+  arenaVisual.releaseTrailEnabled = true
+  arenaVisual.fullChargeBurstEnabled = true
+  delete arenaVisual.stickLagAmount
+  delete arenaVisual.actionSnapAmount
 }
 
 function isStoredLabSettings(value: unknown): value is StoredLabSettings {
@@ -542,7 +607,6 @@ function migrateGameplayDefaults(candidate: unknown): unknown {
   replaceLegacyDefault(defense, 'stableSlashVulnerability', 0.75, 0.82)
   replaceLegacyDefault(defense, 'fumblePressureThreshold', 1.12, 1.05)
   replaceLegacyDefault(defense, 'supportStealBonus', 0.16, 0.2)
-  replaceLegacyDefault(arenaVisual, 'actionSnapAmount', 0.72, 0.7)
   migrateArenaPlayerRenderScale(arenaVisual)
   migrateArenaStickRenderScale(arenaVisual)
 

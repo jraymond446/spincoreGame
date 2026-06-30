@@ -196,9 +196,13 @@ export class ArenaCharacterRenderer {
       chargeVfx: data.chargeVfx,
       reducedMotion: data.reducedMotion,
       visualOffset: fullyChargedShake,
-      visualRotationOffset:
-        data.proceduralAnimation.currentStickLagAngle +
-        data.proceduralAnimation.stickActionAngle,
+      visualRotationOffset: data.proceduralAnimation.stickActionAngle,
+      actionState: data.proceduralAnimation.stickActionState,
+      releaseTier: data.proceduralAnimation.releaseTier,
+      slashTrailAlpha: data.proceduralAnimation.slashTrailAlpha,
+      releaseTrailAlpha: data.proceduralAnimation.releaseTrailAlpha,
+      fullChargeBurstAlpha:
+        data.proceduralAnimation.fullChargeBurstAlpha,
       now: data.now,
     }
     this.stick.update(stickUpdate)

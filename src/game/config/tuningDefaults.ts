@@ -507,6 +507,8 @@ export function createDefaultLabTuning(): LabTuningState {
       coreSpin: true,
       chargeVfx: true,
       proceduralAnimation: arenaProceduralAnimationDefaults.enabled,
+      hoverRunEnabled:
+        arenaProceduralAnimationDefaults.hoverRunEnabled,
       footShuffle: arenaProceduralAnimationDefaults.footShuffle,
       playerScaleMultiplier:
         arenaProceduralAnimationDefaults.playerScaleMultiplier,
@@ -522,8 +524,37 @@ export function createDefaultLabTuning(): LabTuningState {
         arenaProceduralAnimationDefaults.lateralSwayAmount,
       shadowPulseAmount:
         arenaProceduralAnimationDefaults.shadowPulseAmount,
-      stickLagAmount: arenaProceduralAnimationDefaults.stickLagAmount,
-      actionSnapAmount: arenaProceduralAnimationDefaults.actionSnapAmount,
+      coreTrackingEnabled:
+        arenaProceduralAnimationDefaults.coreTrackingEnabled,
+      stickFollowStrength:
+        arenaProceduralAnimationDefaults.stickFollowStrength,
+      stickMaxTurnRate:
+        arenaProceduralAnimationDefaults.stickMaxTurnRate,
+      stickLagClamp: arenaProceduralAnimationDefaults.stickLagClamp,
+      slashWindupMs: arenaProceduralAnimationDefaults.slashWindupMs,
+      slashSweepMs: arenaProceduralAnimationDefaults.slashSweepMs,
+      slashRecoverMs: arenaProceduralAnimationDefaults.slashRecoverMs,
+      slashArcDegrees: arenaProceduralAnimationDefaults.slashArcDegrees,
+      chargeLoadAngleMax:
+        arenaProceduralAnimationDefaults.chargeLoadAngleMax,
+      releaseSnapAmount:
+        arenaProceduralAnimationDefaults.releaseSnapAmount,
+      releaseRecoilAmount:
+        arenaProceduralAnimationDefaults.releaseRecoilAmount,
+      quickPassThreshold:
+        arenaProceduralAnimationDefaults.quickPassThreshold,
+      firmPassThreshold:
+        arenaProceduralAnimationDefaults.firmPassThreshold,
+      heavyShotThreshold:
+        arenaProceduralAnimationDefaults.heavyShotThreshold,
+      fullChargeThreshold:
+        arenaProceduralAnimationDefaults.fullChargeThreshold,
+      slashTrailEnabled:
+        arenaProceduralAnimationDefaults.slashTrailEnabled,
+      releaseTrailEnabled:
+        arenaProceduralAnimationDefaults.releaseTrailEnabled,
+      fullChargeBurstEnabled:
+        arenaProceduralAnimationDefaults.fullChargeBurstEnabled,
       animationSpeed:
         arenaProceduralAnimationDefaults.animationSpeedMultiplier,
       geometryOverlay: false,

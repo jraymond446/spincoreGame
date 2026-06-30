@@ -75,6 +75,8 @@ export class Player {
   private stickVisualRotation = 0
   private runningStickStanceActive = false
   private carrySocket: Point | null = null
+  private visualStickTarget: Point | null = null
+  private visualPossessesCore = false
   private chargeVisual = {
     normalized: 0,
     hardCharge: false,
@@ -216,6 +218,11 @@ export class Player {
 
   updateVisuals(): void {
     this.syncVisuals()
+  }
+
+  setVisualStickTarget(target: Point | null, possessesCore: boolean): void {
+    this.visualStickTarget = target ? { ...target } : null
+    this.visualPossessesCore = possessesCore
   }
 
   applyVisualProfile(
@@ -677,6 +684,8 @@ export class Player {
       position: this.position,
       velocity: this.velocity,
       facingRotation: this.bodyFacingAngle,
+      visualStickTarget: this.visualStickTarget,
+      possessesCore: this.visualPossessesCore,
       stickMountPoint: this.getVisualStickMountPoint(),
       stickForward: this.getStickForward(),
       stickSide: this.getCradleSideDirection(),

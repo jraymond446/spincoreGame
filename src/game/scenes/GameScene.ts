@@ -266,10 +266,17 @@ export class GameScene extends Phaser.Scene {
     }
 
     const players = this.teamSystem.players
+    const visualCarrierId = this.stickInteractionSystem.getCarrierId()
+    for (const player of players) {
+      player.setVisualStickTarget(
+        player.id === visualCarrierId ? null : this.core.position,
+        player.id === visualCarrierId,
+      )
+    }
     this.spinGuardSystem.prepareFrame(delta)
     const controlledPlayer = this.playerControlSystem.update(
       this.teamSystem.getPlayersForSide('A'),
-      this.stickInteractionSystem.getCarrierId(),
+      visualCarrierId,
       this.core.position,
       this.core.velocity,
       delta,

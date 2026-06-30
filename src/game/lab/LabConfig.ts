@@ -494,6 +494,7 @@ export type LabArenaVisualTuning = {
   coreSpin: boolean
   chargeVfx: boolean
   proceduralAnimation: boolean
+  hoverRunEnabled: boolean
   footShuffle: boolean
   playerScaleMultiplier: number
   idleBobAmount: number
@@ -503,8 +504,24 @@ export type LabArenaVisualTuning = {
   leanAmount: number
   lateralSwayAmount: number
   shadowPulseAmount: number
-  stickLagAmount: number
-  actionSnapAmount: number
+  coreTrackingEnabled: boolean
+  stickFollowStrength: number
+  stickMaxTurnRate: number
+  stickLagClamp: number
+  slashWindupMs: number
+  slashSweepMs: number
+  slashRecoverMs: number
+  slashArcDegrees: number
+  chargeLoadAngleMax: number
+  releaseSnapAmount: number
+  releaseRecoilAmount: number
+  quickPassThreshold: number
+  firmPassThreshold: number
+  heavyShotThreshold: number
+  fullChargeThreshold: number
+  slashTrailEnabled: boolean
+  releaseTrailEnabled: boolean
+  fullChargeBurstEnabled: boolean
   animationSpeed: number
   geometryOverlay: boolean
   crowdAnimation: boolean
