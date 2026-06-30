@@ -150,6 +150,8 @@ export class PlayerVisual {
       options.profile.arenaBodyId,
       options.profile.arenaHairId,
       arenaCharacterDefaults.stickId,
+      options.teamSide,
+      options.role,
     )
     this.controlledIndicator = scene.add
       .graphics()

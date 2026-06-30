@@ -1,5 +1,6 @@
 import {
   arenaStickDefinitions,
+  DEFAULT_ARENA_PLAYER_RENDER_SCALE,
   MAX_ARENA_STICK_POCKET_OFFSET_RADIANS,
   resolveArenaCoreVisualState,
   resolveArenaStickTransform,
@@ -78,6 +79,11 @@ const fullyLoadedRight = resolveArenaStickTransform(
 )
 
 assertClose(definition.displayScale, 0.42, 'default stick render scale')
+assertClose(
+  DEFAULT_ARENA_PLAYER_RENDER_SCALE,
+  1.67,
+  'default synchronized player render scale',
+)
 assertClose(displaySize.width, 67.2, 'default stick display width')
 assertClose(displaySize.height, 40.32, 'default stick display height')
 assertPoint(neutral.pivot, mountTarget, 'neutral pivot alignment')

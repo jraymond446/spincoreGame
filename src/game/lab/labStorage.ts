@@ -689,7 +689,7 @@ function migrateArenaPlayerRenderScale(
 
   const scale = values.spriteScale
 
-  if (scale === 1 || scale === undefined) {
+  if (scale === 1 || scale === 2 || scale === undefined) {
     values.spriteScale = DEFAULT_ARENA_PLAYER_RENDER_SCALE
     return
   }

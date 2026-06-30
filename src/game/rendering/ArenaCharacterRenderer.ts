@@ -1,4 +1,5 @@
 import Phaser from 'phaser'
+import { keeperShieldConfig } from '../config/keeperShieldConfig'
 import {
   arenaBodyDefinitions,
   arenaHairDefinitions,
@@ -13,6 +14,7 @@ import type {
   PlayerHandedness,
   PlayerRole,
   StickActionState,
+  TeamSide,
 } from '../data/matchTypes'
 import type { PlayerVisualProfile } from '../data/playerVisualProfiles'
 import type { TeamVisualPalette } from '../data/visualPalettes'
@@ -29,6 +31,7 @@ import {
   hasVisualAsset,
   useLinearVisualAssetFiltering,
 } from './VisualAssetOverrides'
+import { KeeperShieldVisual } from './KeeperShieldVisual'
 
 export type ArenaCharacterRendererUpdate = {
   position: Point
@@ -76,6 +79,7 @@ export class ArenaCharacterRenderer {
   private accentLayer: Phaser.GameObjects.Image | null = null
   private hairLayer: Phaser.GameObjects.Image | null = null
   private readonly stick: ArenaStickRenderer
+  private readonly keeperShield: KeeperShieldVisual
   private bodyId: ArenaBodyId
   private hairId: ArenaHairId
   private profile: PlayerVisualProfile
@@ -86,6 +90,7 @@ export class ArenaCharacterRenderer {
   private hitFlashRemainingMs = 0
   private lastPocket: Point = { x: 0, y: 0 }
   private fallbackSignature = ''
+  private displayingShield: boolean
 
   constructor(
     scene: Phaser.Scene,
@@ -94,6 +99,8 @@ export class ArenaCharacterRenderer {
     bodyId: ArenaBodyId,
     hairId: ArenaHairId,
     stickId: ArenaStickId,
+    teamSide: TeamSide,
+    role: PlayerRole,
   ) {
     this.scene = scene
     this.profile = profile
@@ -117,6 +124,9 @@ export class ArenaCharacterRenderer {
       this.hitFlash,
     ])
     this.stick = new ArenaStickRenderer(scene, stickId)
+    this.keeperShield = new KeeperShieldVisual(scene, teamSide)
+    this.displayingShield = usesKeeperShield(role)
+    this.keeperShield.setVisible(false)
     this.buildAssetLayers()
     this.container.bringToTop(this.fallbackHair)
     this.container.bringToTop(this.hitFlash)
@@ -205,8 +215,27 @@ export class ArenaCharacterRenderer {
         data.proceduralAnimation.fullChargeBurstAlpha,
       now: data.now,
     }
-    this.stick.update(stickUpdate)
-    this.lastPocket = this.stick.getPocketAnchor()
+    this.displayingShield = usesKeeperShield(data.role)
+
+    if (this.displayingShield) {
+      this.stick.setVisible(false)
+      this.keeperShield.setVisible(this.visible)
+      this.keeperShield.update(
+        visualMountPoint,
+        {
+          x: Math.cos(data.bodyRotation),
+          y: Math.sin(data.bodyRotation),
+        },
+        data.state,
+        data.defenseState,
+      )
+      this.lastPocket = { ...data.cradleSocket }
+    } else {
+      this.keeperShield.setVisible(false)
+      this.stick.setVisible(this.visible)
+      this.stick.update(stickUpdate)
+      this.lastPocket = this.stick.getPocketAnchor()
+    }
     this.drawContractOverlay(data, definition)
   }
 
@@ -221,7 +250,8 @@ export class ArenaCharacterRenderer {
   setVisible(visible: boolean): void {
     this.visible = visible
     this.container.setVisible(visible)
-    this.stick.setVisible(visible)
+    this.stick.setVisible(visible && !this.displayingShield)
+    this.keeperShield.setVisible(visible && this.displayingShield)
     if (!visible) {
       this.contractGraphics.clear().setVisible(false)
     }
@@ -231,6 +261,7 @@ export class ArenaCharacterRenderer {
     this.container.destroy(true)
     this.contractGraphics.destroy()
     this.stick.destroy()
+    this.keeperShield.destroy()
   }
 
   private buildAssetLayers(): void {
@@ -476,4 +507,12 @@ export class ArenaCharacterRenderer {
 
     return { x: point.x, y: point.y }
   }
+}
+
+function usesKeeperShield(role: PlayerRole): boolean {
+  return (
+    role === 'keeper' &&
+    keeperShieldConfig.keeperUsesShieldDefault &&
+    keeperShieldConfig.keeperEquipmentType === 'shield'
+  )
 }

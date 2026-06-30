@@ -6006,6 +6006,16 @@ button.spincore-stick-card:hover {
   pointer-events: auto;
 }
 
+.app-loading-overlay {
+  position: fixed;
+}
+
+#app[data-navigation-state='loading'] > .app-screen,
+#app[data-navigation-state='loading'] > .app-boot-screen {
+  overflow: hidden;
+  pointer-events: none;
+}
+
 .match-loading-overlay.is-leaving {
   opacity: 0;
   pointer-events: none;

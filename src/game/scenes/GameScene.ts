@@ -599,6 +599,9 @@ export class GameScene extends Phaser.Scene {
         ? new Phaser.Math.Vector2()
         : movement,
       input.aimAngle,
+      player.role === 'keeper'
+        ? getCoreTrackingAngle(player, this.core.position)
+        : undefined,
     )
     const stickActionAllowed =
       !recovering &&
@@ -762,12 +765,14 @@ export class GameScene extends Phaser.Scene {
       player.update(
         move,
         aimAngle,
-        this.aiFacingSystem.resolve(
-          player,
-          move,
-          isCarrier,
-          deltaMs,
-        ),
+        player.role === 'keeper'
+          ? getCoreTrackingAngle(player, this.core.position)
+          : this.aiFacingSystem.resolve(
+              player,
+              move,
+              isCarrier,
+              deltaMs,
+            ),
       )
       const usesKeeperShield =
         player.role === 'keeper' &&
@@ -1558,6 +1563,20 @@ function normalizedDirection(
     },
     fallback,
   )
+}
+
+function getCoreTrackingAngle(
+  player: Player,
+  corePosition: Point,
+): number {
+  const deltaX = corePosition.x - player.position.x
+  const deltaY = corePosition.y - player.position.y
+
+  if (deltaX * deltaX + deltaY * deltaY < 1) {
+    return player.getBodyFacingAngle()
+  }
+
+  return Math.atan2(deltaY, deltaX)
 }
 
 function stabilizeAIAim(

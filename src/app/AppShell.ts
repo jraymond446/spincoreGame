@@ -71,6 +71,10 @@ import {
   getTeamRosterReadiness,
   isFreeAgentSigned,
 } from '../franchise/teamRoster'
+import {
+  AppLoadingOverlay,
+  waitForScreenAssets,
+} from './AppLoadingOverlay'
 
 export class AppShell {
   private readonly root: HTMLElement
@@ -79,6 +83,9 @@ export class AppShell {
   private selectedOpponentId = opponentTeams[0]?.id ?? ''
   private gameHost: GameHost | null = null
   private rewardNotice: RewardNotice | null = null
+  private renderedScreen: AppScreen | null = null
+  private navigationOverlay: AppLoadingOverlay | null = null
+  private navigationToken = 0
 
   constructor(root: HTMLElement) {
     this.root = root
@@ -94,6 +101,9 @@ export class AppShell {
   }
 
   destroy(): void {
+    this.navigationToken += 1
+    this.navigationOverlay?.destroy()
+    this.navigationOverlay = null
     this.gameHost?.destroy()
     this.gameHost = null
     window.visualViewport?.removeEventListener(
@@ -443,6 +453,12 @@ export class AppShell {
     }
 
     this.screen = 'match'
+    this.renderedScreen = 'match'
+    this.navigationToken += 1
+    this.navigationOverlay?.destroy()
+    this.navigationOverlay = null
+    this.root.dataset.screen = 'match'
+    this.root.dataset.navigationState = 'ready'
     this.rewardNotice = null
     this.gameHost?.destroy()
     this.gameHost = new GameHost({
@@ -972,8 +988,50 @@ export class AppShell {
   private show(screen: HTMLElement): void {
     this.gameHost?.destroy()
     this.gameHost = null
-    this.root.dataset.screen = this.screen
+    const destination = this.screen
+    const shouldTransition =
+      destination !== 'boot' && this.renderedScreen !== destination
+
+    this.renderedScreen = destination
+    this.navigationToken += 1
+    const token = this.navigationToken
+    this.navigationOverlay?.destroy()
+    this.navigationOverlay = null
+    this.root.dataset.screen = destination
+
+    if (!shouldTransition) {
+      this.root.dataset.navigationState = 'ready'
+      this.root.replaceChildren(screen)
+      return
+    }
+
+    this.root.dataset.navigationState = 'loading'
+    screen.inert = true
+    screen.setAttribute('aria-hidden', 'true')
     this.root.replaceChildren(screen)
+    const overlay = new AppLoadingOverlay(this.root, destination)
+    this.navigationOverlay = overlay
+    overlay.update(0.08, 'Preparing interface')
+
+    void waitForScreenAssets(screen, (progress, step) => {
+      if (token === this.navigationToken) {
+        overlay.update(progress, step)
+      }
+    }).then(() => {
+      if (token !== this.navigationToken) {
+        return
+      }
+
+      overlay.setFinalizing()
+      screen.inert = false
+      screen.removeAttribute('aria-hidden')
+      this.root.dataset.navigationState = 'ready'
+      const reducedMotion = window.matchMedia(
+        '(prefers-reduced-motion: reduce)',
+      ).matches
+      overlay.reveal(reducedMotion ? 60 : 220)
+      this.navigationOverlay = null
+    })
   }
 
   private syncViewport = (): void => {
