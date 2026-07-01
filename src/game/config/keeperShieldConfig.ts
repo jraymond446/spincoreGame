@@ -6,6 +6,8 @@ export const keeperShieldConfig = {
   keeperShieldWidth: 42,
   keeperShieldDepth: 18,
   keeperShieldDeflectForce: 5,
+  goalieQuickShotDeflectPower: 6.2,
+  quickShotReboundBias: 0.32,
   keeperShieldDeflectDamping: 0.35,
   keeperShieldClearForce: 8,
   keeperShieldTrapTimeMs: 300,

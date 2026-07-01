@@ -1337,6 +1337,7 @@ export class AISystem {
           moveTarget: context.player.position,
           aimTarget: shotEvaluation.directTarget,
           hold: true,
+          charge: false,
           swing: false,
           releaseTarget: undefined,
           aiReleaseDelayMs: undefined,
@@ -1538,6 +1539,7 @@ export class AISystem {
           moveTarget,
           aimTarget: shotEvaluation.directTarget,
           hold: true,
+          charge: false,
           swing: false,
           releaseTarget: undefined,
           aiState: 'SUPPORT_ATTACK',
@@ -1598,6 +1600,10 @@ export class AISystem {
         moveTarget: context.player.position,
         aimTarget: targetWithError,
         hold: true,
+        charge: bank
+          ? context.pressure < 0.45
+          : shotEvaluation.directScore >= 0.82 &&
+            context.pressure < 0.2,
         swing: false,
         releaseTarget: targetWithError,
         aiReleaseDelayMs:
@@ -1651,6 +1657,7 @@ export class AISystem {
         moveTarget: context.player.position,
         aimTarget: assistedPassTarget,
         hold: true,
+        charge: false,
         swing: false,
         releaseTarget: assistedPassTarget,
         aiReleaseDelayMs:
@@ -1696,6 +1703,7 @@ export class AISystem {
         moveTarget: context.player.position,
         aimTarget: target,
         hold: true,
+        charge: false,
         swing: false,
         releaseTarget: target,
         aiReleaseDelayMs: 80,

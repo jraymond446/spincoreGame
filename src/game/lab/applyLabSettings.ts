@@ -204,6 +204,10 @@ export function applyLabSettings(state: LabTuningState): void {
     keeperShieldDepth: state.keeper.keeperShieldDepth,
     keeperShieldDeflectForce:
       state.keeper.keeperShieldDeflectForce,
+    goalieQuickShotDeflectPower:
+      state.keeper.goalieQuickShotDeflectPower,
+    quickShotReboundBias:
+      state.keeper.quickShotReboundBias,
     keeperShieldDeflectDamping:
       state.keeper.keeperShieldDeflectDamping,
     keeperShieldClearForce:
@@ -369,6 +373,11 @@ export function applyLabSettings(state: LabTuningState): void {
     carryPoseSmoothing: stick.carryPoseSmoothing,
     carryPoseRotationLimit: stick.carryPoseRotationLimit,
     chargeLoadbackDistance: stick.chargeLoadbackDistance,
+    quickReleasePower: stick.quickReleasePower,
+    quickReleaseWindupMs: stick.quickReleaseWindupMs,
+    quickReleaseRecoveryMs: stick.quickReleaseRecoveryMs,
+    quickReleaseSpin: stick.quickReleaseSpin,
+    quickPassAssist: stick.quickPassAssist,
     hardChargeEnabled: stick.hardChargeEnabled,
     hardChargeHoldMs: stick.hardChargeHoldMs,
     hardChargeMultiplier: stick.hardChargeMultiplier,

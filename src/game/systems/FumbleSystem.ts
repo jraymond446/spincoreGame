@@ -1,10 +1,23 @@
 import Phaser from 'phaser'
 import { defenseConfig } from '../config/defenseConfig'
-import type { PlayerRole } from '../data/matchTypes'
 import type { Player } from '../entities/Player'
 import type { CorePossessionState } from './StickInteractionSystem'
+import {
+  calculateFumblePressureGain,
+  normalizeCarrierState,
+  type FumbleContactType,
+  type NormalizedCarrierState,
+} from './CarrierVulnerability'
 
 export type FumblePressureSource = 'truck' | 'slash'
+
+export type FumblePressureResult = {
+  shouldFumble: boolean
+  pressureBefore: number
+  pressureAfter: number
+  fumbleMultiplier: number
+  normalizedCarrierState: NormalizedCarrierState
+}
 
 export class FumbleSystem {
   private carrierId: string | null = null
@@ -33,58 +46,47 @@ export class FumbleSystem {
   }
 
   addPressure(
-    amount: number,
-    attackerRole: PlayerRole,
+    attackScale: number,
+    attacker: Player,
     source: FumblePressureSource,
     coreState: CorePossessionState,
+    chargeProgress: number,
     carrier: Player,
+    releaseCommitted = false,
     phaseMultiplierOverride?: number,
-  ): boolean {
-    const handling = Phaser.Math.Clamp(
-      carrier.attributes.ballHandling,
-      0,
-      1.6,
+  ): FumblePressureResult {
+    const pressureBefore = this.pressure
+    const normalizedCarrierState = normalizeCarrierState(
+      coreState,
+      chargeProgress,
+      releaseCommitted,
     )
-    const toughness = Phaser.Math.Clamp(
-      carrier.attributes.toughness,
-      0,
-      1.6,
-    )
-    const contactResistance =
-      source === 'truck'
-        ? Phaser.Math.Linear(1.2, 0.7, toughness) *
-          Phaser.Math.Linear(1.15, 0.75, handling)
-        : Phaser.Math.Linear(1.2, 0.65, handling)
-    const phaseMultiplier =
-      phaseMultiplierOverride ??
-      (coreState === 'CRADLED_OVERCHARGED'
-        ? source === 'slash'
-          ? defenseConfig.overchargedSlashVulnerability
-          : defenseConfig.overchargeFumbleVulnerability *
-            defenseConfig.truckOverchargeMultiplier
-        : coreState === 'CRADLED_CHARGING'
-          ? source === 'slash'
-            ? defenseConfig.chargingSlashVulnerability
-            : defenseConfig.chargingFumbleResistance
-          : source === 'slash'
-            ? defenseConfig.stableSlashVulnerability
-            : defenseConfig.stableCradleFumbleResistance)
-    const roleBonus =
-      attackerRole === 'brute' && source === 'truck'
-        ? defenseConfig.bruteFumbleBonus
-        : attackerRole === 'support' && source === 'slash'
-          ? defenseConfig.supportStealBonus
-          : 0
+    const calculation = calculateFumblePressureGain({
+      carrierOwnerType: carrier.controllerType,
+      attackerOwnerType: attacker.controllerType,
+      normalizedCarrierState,
+      contactType: sourceToContactType(source),
+      carrierHandling: carrier.attributes.ballHandling,
+      carrierToughness: carrier.attributes.toughness,
+      attackerRole: attacker.role,
+      attackScale,
+      phaseMultiplierOverride,
+    })
 
     this.pressure = Phaser.Math.Clamp(
-      this.pressure +
-        amount * phaseMultiplier * contactResistance +
-        roleBonus * contactResistance,
+      this.pressure + calculation.pressureGain,
       0,
       defenseConfig.fumblePressureThreshold * 1.5,
     )
 
-    return this.pressure >= defenseConfig.fumblePressureThreshold
+    return {
+      shouldFumble:
+        this.pressure >= defenseConfig.fumblePressureThreshold,
+      pressureBefore,
+      pressureAfter: this.pressure,
+      fumbleMultiplier: calculation.fumbleMultiplier,
+      normalizedCarrierState,
+    }
   }
 
   addWallPressure(
@@ -140,6 +142,12 @@ export class FumbleSystem {
       1,
     )
   }
+}
+
+function sourceToContactType(
+  source: FumblePressureSource,
+): FumbleContactType {
+  return source === 'truck' ? 'check' : 'slash'
 }
 
 function isCradledState(state: CorePossessionState): boolean {

@@ -170,6 +170,7 @@ export type PlayerControlIntent = {
   aimTarget: Point
   aimAngle?: number
   hold: boolean
+  charge?: boolean
   swing?: boolean
   truck?: boolean
   slash?: boolean

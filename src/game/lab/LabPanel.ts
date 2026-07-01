@@ -1540,6 +1540,8 @@ export class LabPanel {
       ['Shield width', 'keeperShieldWidth', { min: 36, max: 96, step: 1 }],
       ['Shield depth', 'keeperShieldDepth', { min: 12, max: 48, step: 1 }],
       ['Shield deflect force', 'keeperShieldDeflectForce', { min: 1, max: 12, step: 0.1, digits: 1 }],
+      ['Quick-shot deflect power', 'goalieQuickShotDeflectPower', { min: 1, max: 14, step: 0.1, digits: 1 }],
+      ['Quick-shot rebound bias', 'quickShotReboundBias', { min: 0, max: 0.8, step: 0.02, digits: 2 }],
       ['Shield damping', 'keeperShieldDeflectDamping', { min: 0, max: 1, step: 0.05, digits: 2 }],
       ['Shield clear force', 'keeperShieldClearForce', { min: 2, max: 16, step: 0.2, digits: 1 }],
       ['Shield trap time ms', 'keeperShieldTrapTimeMs', { min: 0, max: 1000, step: 25 }],
@@ -2107,7 +2109,7 @@ export class LabPanel {
       this.createRange(
         'Pass charge maximum ms',
         offense.aiPassChargeMaxMs,
-        { min: 200, max: 1900, step: 25 },
+        { min: 100, max: 1900, step: 20 },
         (value) => {
           offense.aiPassChargeMaxMs = value
           this.markDraftChanged()
@@ -2125,7 +2127,7 @@ export class LabPanel {
       this.createRange(
         'Direct-shot charge maximum ms',
         offense.aiDirectShotChargeMaxMs,
-        { min: 400, max: 2200, step: 25 },
+        { min: 180, max: 2200, step: 20 },
         (value) => {
           offense.aiDirectShotChargeMaxMs = value
           this.markDraftChanged()
@@ -2134,7 +2136,7 @@ export class LabPanel {
       this.createRange(
         'Bank-shot charge minimum ms',
         offense.aiBankShotChargeMinMs,
-        { min: 800, max: 2100, step: 25 },
+        { min: 500, max: 2100, step: 25 },
         (value) => {
           offense.aiBankShotChargeMinMs = value
           this.markDraftChanged()
@@ -2143,7 +2145,7 @@ export class LabPanel {
       this.createRange(
         'Bank-shot charge maximum ms',
         offense.aiBankShotChargeMaxMs,
-        { min: 1000, max: 2400, step: 25 },
+        { min: 700, max: 2400, step: 25 },
         (value) => {
           offense.aiBankShotChargeMaxMs = value
           this.markDraftChanged()
@@ -2749,6 +2751,11 @@ export class LabPanel {
       ['Catch-ready min hold ms', 'catchReadyMinHoldMs', { min: 0, max: 500, step: 10 }],
       ['Catch-ready exit delay ms', 'catchReadyExitDelayMs', { min: 0, max: 500, step: 10 }],
       ['Charge load-back distance', 'chargeLoadbackDistance', { min: 0, max: 36, step: 1 }],
+      ['Quick release power', 'quickReleasePower', { min: 0.35, max: 0.75, step: 0.01, digits: 2 }],
+      ['Quick release windup ms', 'quickReleaseWindupMs', { min: 0, max: 120, step: 5 }],
+      ['Quick release recovery ms', 'quickReleaseRecoveryMs', { min: 80, max: 300, step: 10 }],
+      ['Quick release spin', 'quickReleaseSpin', { min: 0, max: 0.6, step: 0.02, digits: 2 }],
+      ['Quick pass assist', 'quickPassAssist', { min: 0, max: 0.75, step: 0.02, digits: 2 }],
       ['Hard charge hold ms', 'hardChargeHoldMs', { min: 100, max: 1400, step: 25 }],
       ['Hard charge multiplier', 'hardChargeMultiplier', { min: 1, max: 1.5, step: 0.01, digits: 2 }],
       ['Charge aura threshold', 'playerChargeAuraThreshold', { min: 0, max: 1, step: 0.02, digits: 2 }],
@@ -2903,6 +2910,9 @@ export class LabPanel {
       ['Slash arc radians', 'slashArcRadians', { min: 0.5, max: 3, step: 0.02, digits: 2 }],
       ['Slash range', 'slashRange', { min: 60, max: 180, step: 2 }],
       ['Slash fumble pressure', 'slashFumblePressure', { min: 0.05, max: 1, step: 0.02, digits: 2 }],
+      ['Slash vs charge base', 'slashVsChargingBaseFumble', { min: 0.1, max: 1.2, step: 0.02, digits: 2 }],
+      ['Slash vs full charge base', 'slashVsFullChargeBaseFumble', { min: 0.1, max: 1.4, step: 0.02, digits: 2 }],
+      ['Check vs charge base', 'checkVsChargingBaseFumble', { min: 0.1, max: 1.4, step: 0.02, digits: 2 }],
       ['Slash overcharge multiplier', 'slashOverchargeMultiplier', { min: 0.5, max: 3, step: 0.05, digits: 2 }],
       ['Charging slash vulnerability', 'chargingSlashVulnerability', { min: 0.2, max: 3, step: 0.05, digits: 2 }],
       ['Overcharged slash vulnerability', 'overchargedSlashVulnerability', { min: 0.2, max: 4, step: 0.05, digits: 2 }],
@@ -2917,6 +2927,10 @@ export class LabPanel {
       ['Brute slash power', 'bruteSlashPowerMultiplier', { min: 0.6, max: 1.8, step: 0.05, digits: 2 }],
       ['Fumble threshold', 'fumblePressureThreshold', { min: 0.3, max: 2, step: 0.05, digits: 2 }],
       ['Pressure decay / sec', 'fumblePressureDecayPerSecond', { min: 0, max: 1, step: 0.02, digits: 2 }],
+      ['Stable fumble multiplier', 'stableFumbleMultiplier', { min: 0.2, max: 1.5, step: 0.05, digits: 2 }],
+      ['Charging fumble multiplier', 'chargingFumbleMultiplier', { min: 0.5, max: 3, step: 0.05, digits: 2 }],
+      ['High charge multiplier', 'highChargeFumbleMultiplier', { min: 0.5, max: 4, step: 0.05, digits: 2 }],
+      ['Full charge multiplier', 'fullChargeFumbleMultiplier', { min: 0.5, max: 5, step: 0.05, digits: 2 }],
       ['Overcharge vulnerability', 'overchargeFumbleVulnerability', { min: 0.5, max: 3, step: 0.05, digits: 2 }],
       ['Stable resistance', 'stableCradleFumbleResistance', { min: 0.2, max: 1.4, step: 0.05, digits: 2 }],
       ['Charging resistance', 'chargingFumbleResistance', { min: 0.2, max: 1.6, step: 0.05, digits: 2 }],

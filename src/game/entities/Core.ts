@@ -73,6 +73,12 @@ export class Core {
     return this.renderer.getPosition()
   }
 
+  getRecentReleaseCharge(): number | null {
+    return this.scene.time.now < this.releaseVisualUntil
+      ? this.releaseVisualCharge
+      : null
+  }
+
   update(deltaMs = this.scene.game.loop.delta): void {
     const now = this.scene.time.now
     const released = now < this.releaseVisualUntil

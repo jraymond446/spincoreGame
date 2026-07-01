@@ -16,7 +16,7 @@ export const stickConfig = {
   deflectRadius: 20.3,
   swingDurationMs: 145,
   swingCooldownMs: 340,
-  releaseRecoveryMs: 280,
+  releaseRecoveryMs: 160,
   lightSwingOnEmptyRelease: true,
   cradleMinRadius: 26,
   cradleMaxRadius: 88,

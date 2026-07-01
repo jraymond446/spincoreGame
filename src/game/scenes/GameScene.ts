@@ -614,6 +614,8 @@ export class GameScene extends Phaser.Scene {
       hold: isCarrier
         ? primaryStickAction
         : stickActionAllowed && primaryStickAction,
+      charge: isCarrier && primaryStickAction,
+      quickRelease: isCarrier && input.explicitSlashAction,
       swing:
         defenseActionAllowed &&
         usesKeeperShield &&
@@ -782,6 +784,7 @@ export class GameScene extends Phaser.Scene {
         hold: isCarrier
           ? true
           : stickActionAllowed && intent.hold,
+        charge: isCarrier && (intent.charge ?? false),
         swing:
           defenseActionAllowed &&
           !isCarrier && usesKeeperShield ? intent.swing : false,

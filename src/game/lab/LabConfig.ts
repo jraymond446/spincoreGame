@@ -99,6 +99,8 @@ export type LabKeeperTuning = {
   keeperShieldWidth: number
   keeperShieldDepth: number
   keeperShieldDeflectForce: number
+  goalieQuickShotDeflectPower: number
+  quickShotReboundBias: number
   keeperShieldDeflectDamping: number
   keeperShieldClearForce: number
   keeperShieldTrapTimeMs: number
@@ -191,6 +193,11 @@ export type LabStickTuning = {
   catchReadyExitDelayMs: number
   stanceResetDoesNotCancelGather: boolean
   chargeLoadbackDistance: number
+  quickReleasePower: number
+  quickReleaseWindupMs: number
+  quickReleaseRecoveryMs: number
+  quickReleaseSpin: number
+  quickPassAssist: number
   hardChargeEnabled: boolean
   hardChargeHoldMs: number
   hardChargeMultiplier: number
@@ -422,6 +429,9 @@ export type LabDefenseTuning = {
   slashArcRadians: number
   slashRange: number
   slashFumblePressure: number
+  slashVsChargingBaseFumble: number
+  slashVsFullChargeBaseFumble: number
+  checkVsChargingBaseFumble: number
   slashOverchargeMultiplier: number
   chargingSlashVulnerability: number
   overchargedSlashVulnerability: number
@@ -438,6 +448,10 @@ export type LabDefenseTuning = {
   bruteSlashPowerMultiplier: number
   fumblePressureThreshold: number
   fumblePressureDecayPerSecond: number
+  stableFumbleMultiplier: number
+  chargingFumbleMultiplier: number
+  highChargeFumbleMultiplier: number
+  fullChargeFumbleMultiplier: number
   overchargeFumbleVulnerability: number
   stableCradleFumbleResistance: number
   chargingFumbleResistance: number

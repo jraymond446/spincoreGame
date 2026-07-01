@@ -60,15 +60,30 @@ export class KeeperShieldSystem {
       forwardDistance >= 0
         ? geometry.normal
         : { x: -geometry.normal.x, y: -geometry.normal.y }
+    const releasedCharge = core.getRecentReleaseCharge()
+    const quickShot = releasedCharge !== null && releasedCharge <= 0.2
+    const reboundSign =
+      Math.sign(lateralDistance || core.velocity.x) ||
+      (player.teamSide === 'A' ? 1 : -1)
     const desired = normalized({
       x:
         contactNormal.x *
           (1 - keeperShieldConfig.keeperShieldOwnGoalSafetyBias) +
-        away.x * keeperShieldConfig.keeperShieldOwnGoalSafetyBias,
+        away.x * keeperShieldConfig.keeperShieldOwnGoalSafetyBias +
+        (quickShot
+          ? geometry.right.x *
+            reboundSign *
+            keeperShieldConfig.quickShotReboundBias
+          : 0),
       y:
         contactNormal.y *
           (1 - keeperShieldConfig.keeperShieldOwnGoalSafetyBias) +
-        away.y * keeperShieldConfig.keeperShieldOwnGoalSafetyBias,
+        away.y * keeperShieldConfig.keeperShieldOwnGoalSafetyBias +
+        (quickShot
+          ? geometry.right.y *
+            reboundSign *
+            keeperShieldConfig.quickShotReboundBias
+          : 0),
     })
     const clearAssistBonus = getClearAssistBonus(player)
     const clearResult = this.clearSafety.sanitize(
@@ -94,7 +109,9 @@ export class KeeperShieldSystem {
     const force =
       (active
         ? keeperShieldConfig.keeperShieldClearForce
-        : keeperShieldConfig.keeperShieldDeflectForce) *
+        : quickShot
+          ? keeperShieldConfig.goalieQuickShotDeflectPower
+          : keeperShieldConfig.keeperShieldDeflectForce) *
       powerMultiplier
     const damped = {
       x:
