@@ -39,6 +39,7 @@ export class ArenaRenderer {
       scene,
       this.arenaLayout,
       this.theme,
+      presentation,
     )
     this.crowd = new CrowdRenderer(
       scene,
@@ -80,6 +81,7 @@ export class ArenaRenderer {
     )
     this.crest.setPlacement(this.theme.crestPlacement)
     this.crest.draw(presentation.teams.A)
+    this.court.applyPresentation(presentation)
     this.crowd.applyPresentation(
       this.arenaLayout,
       this.theme,
