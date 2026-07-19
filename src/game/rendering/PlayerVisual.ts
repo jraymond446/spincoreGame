@@ -653,6 +653,24 @@ export class PlayerVisual {
         pose.shadowScale *
         motionScaleY,
     )
+    this.shadow.lineStyle(
+      visualConfig.teamRingWidth,
+      this.palette.shirt,
+      visualConfig.teamRingAlpha,
+    )
+    this.shadow.strokeEllipse(
+      position.x,
+      position.y + visualConfig.shadowOffsetY,
+      (visualConfig.shadowWidth + stretch + visualConfig.teamRingPadding) *
+        visualScale *
+        shadowRoleScale *
+        pose.shadowScale *
+        motionScaleX,
+      (visualConfig.shadowHeight + visualConfig.teamRingPadding) *
+        visualScale *
+        pose.shadowScale *
+        motionScaleY,
+    )
   }
 
   private updateAssetCharacter(
