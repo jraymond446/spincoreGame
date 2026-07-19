@@ -17,6 +17,10 @@ import {
   normalizeCarrierState,
   type NormalizedCarrierState,
 } from './CarrierVulnerability'
+import {
+  isChargingState,
+  resolveCarrierDisruption,
+} from './CarrierDisruptionPolicy'
 import type {
   CorePossessionState,
   StickInteractionSystem,
@@ -701,10 +705,7 @@ export class DefenseSystem {
         chargeProgress,
         releaseWindup,
       )
-      const charging =
-        normalizedCarrierState === 'charging' ||
-        normalizedCarrierState === 'highCharge' ||
-        normalizedCarrierState === 'fullyCharged'
+      const charging = isChargingState(normalizedCarrierState)
       const vulnerabilityMultiplier = getCarrierFumbleMultiplier(
         normalizedCarrierState,
       )
@@ -776,17 +777,18 @@ export class DefenseSystem {
         carrier,
       )
       const shouldFumble = pressureResult.shouldFumble
+      const disruption = resolveCarrierDisruption({
+        normalizedCarrierState: pressureResult.normalizedCarrierState,
+        shouldFumble,
+        chargeInterruptEnabled: defenseConfig.slashCanInterruptCharge,
+      })
 
-      if (
-        charging &&
-        defenseConfig.slashCanInterruptCharge &&
-        !shouldFumble
-      ) {
+      if (disruption === 'interruptCharge') {
         stickSystem.interruptCharge(carrier.id)
       }
 
       const fumbled =
-        shouldFumble &&
+        disruption === 'fumble' &&
         stickSystem.forceFumble(core, players, carrier.id, direction)
       const deniedReason = fumbled
         ? null
