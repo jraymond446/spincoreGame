@@ -3,6 +3,7 @@ import { inputConfig } from '../config/inputConfig'
 import { possessionFeelConfig } from '../config/possessionFeelConfig'
 import { stickConfig } from '../config/stickConfig'
 import type { Point } from '../data/geometry'
+import { resolveExplicitSlashAction } from './PlayerInputPolicy'
 
 export type InputMode = 'keyboardMouse' | 'touch'
 
@@ -206,10 +207,16 @@ export class PlayerInputController {
         : this.truckKeys.some((key) =>
             Phaser.Input.Keyboard.JustDown(key),
           )
-    const explicitSlashAction =
+    const rawExplicitSlashAction =
       this.mode === 'keyboardMouse' &&
       (Phaser.Input.Keyboard.JustDown(this.slashKey) ||
         (rightMouseDown && !this.rightMouseWasDown))
+    const contextualExplicitAction = resolveExplicitSlashAction({
+      gameplayEnabled: this.gameplayEnabled,
+      carrying: this.carrying,
+      rawExplicitSlashAction,
+    })
+    const explicitSlashAction = contextualExplicitAction !== 'none'
 
     this.rightMouseWasDown = rightMouseDown
     this.previousPrimaryAction = primaryStickAction
@@ -249,8 +256,6 @@ export class PlayerInputController {
       truckAction:
         this.gameplayEnabled && !this.carrying && truckAction,
       explicitSlashAction:
-        this.gameplayEnabled &&
-        !this.carrying &&
         explicitSlashAction,
     }
   }
