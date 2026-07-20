@@ -18,15 +18,22 @@ console.info('Arena procedural animation cases passed')
 
 function testHoverRun(): void {
   const controller = new ArenaProceduralAnimationController()
+  const hoverTuning = {
+    ...arenaProceduralAnimationDefaults,
+    hoverRunEnabled: true,
+  }
   let movingBobPeak = 0
   let movingSwayPeak = 0
   let movingSquashPeak = 0
   let shadowScaleMin = 1
   let shadowScaleMax = 1
-  let frame = controller.update(input())
+  let frame = controller.update(input({ tuning: hoverTuning }))
 
   for (let index = 0; index < 120; index += 1) {
-    frame = controller.update(input({ velocity: { x: 9, y: 0 } }))
+    frame = controller.update(input({
+      velocity: { x: 9, y: 0 },
+      tuning: hoverTuning,
+    }))
     movingBobPeak = Math.max(movingBobPeak, Math.abs(frame.currentVisualBob))
     movingSwayPeak = Math.max(
       movingSwayPeak,
@@ -48,7 +55,10 @@ function testHoverRun(): void {
   assert(movingSquashPeak > 0.025, 'movement has subtle compression')
   assert(shadowScaleMin < 0.95, 'shadow narrows during lift')
   assert(shadowScaleMax > 1.05, 'shadow widens on landing')
-  assert(!frame.footShuffleEnabled, 'feet default to off')
+  assert(
+    !arenaProceduralAnimationDefaults.hoverRunEnabled,
+    'production defaults disable prototype hover-run movement',
+  )
   assertClose(
     arenaProceduralAnimationDefaults.idleBobAmount,
     0.6,
@@ -314,7 +324,6 @@ function testReducedMotion(): void {
   )
   assertClose(frame.slashTrailAlpha, 0, 'reduced-motion slash trail')
   assertClose(frame.releaseTrailAlpha, 0, 'reduced-motion release trail')
-  assert(!frame.footShuffleEnabled, 'reduced motion disables feet')
 }
 
 function testDisabledAnimation(): void {
