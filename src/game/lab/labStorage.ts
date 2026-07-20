@@ -158,7 +158,6 @@ function migrateArenaAnimationV5(settings: unknown): void {
       : arenaProceduralAnimationDefaults.leanAmount
   arenaVisual.lateralSwayAmount =
     arenaProceduralAnimationDefaults.lateralSwayAmount
-  arenaVisual.footShuffle = false
   replaceLegacyDefault(arenaVisual, 'shadowPulseAmount', 0.14, 0.12)
 }
 
@@ -182,7 +181,6 @@ function migrateArenaAnimationV6(settings: unknown): void {
   const previousActionSnap = arenaVisual.actionSnapAmount
 
   arenaVisual.hoverRunEnabled = true
-  arenaVisual.footShuffle = false
   replaceLegacyDefault(arenaVisual, 'idleBobAmount', 0.65, 0.6)
   replaceLegacyDefault(arenaVisual, 'movementBobAmount', 2.2, 1.8)
   replaceLegacyDefault(arenaVisual, 'squashStretchAmount', 0.035, 0.05)
