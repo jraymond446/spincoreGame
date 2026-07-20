@@ -78,17 +78,17 @@ const fullyLoadedRight = resolveArenaStickTransform(
   MAX_ARENA_STICK_POCKET_OFFSET_RADIANS,
 )
 
-assertClose(definition.displayScale, 0.42, 'default stick render scale')
+assertClose(definition.displayScale, 0.34, 'default stick render scale')
 assertClose(
   DEFAULT_ARENA_PLAYER_RENDER_SCALE,
-  1.67,
+  1.18,
   'default synchronized player render scale',
 )
-assertClose(displaySize.width, 67.2, 'default stick display width')
-assertClose(displaySize.height, 40.32, 'default stick display height')
+assertClose(displaySize.width, 54.4, 'default stick display width')
+assertClose(displaySize.height, 32.64, 'default stick display height')
 assertPoint(neutral.pivot, mountTarget, 'neutral pivot alignment')
-assertClose(neutral.scaleX, 0.42, 'neutral scale X')
-assertClose(neutral.scaleY, 0.42, 'neutral scale Y')
+assertClose(neutral.scaleX, 0.34, 'neutral scale X')
+assertClose(neutral.scaleY, 0.34, 'neutral scale Y')
 assert(right.pivot.x > mountTarget.x, 'right-handed aligned pivot preserves authored scale')
 assert(left.pivot.x > mountTarget.x, 'left-handed aligned pivot preserves authored scale')
 assert(rotated.pivot.y > mountTarget.y, 'rotated aligned pivot preserves authored scale')
@@ -114,10 +114,10 @@ assert(
   distance(fullyLoadedRight.grip, right.grip) < 11,
   'maximum charge load keeps grip within the hand tolerance',
 )
-assertClose(right.scaleX, 0.42, 'right-handed aligned scale X')
-assertClose(right.scaleY, 0.42, 'right-handed aligned scale Y')
-assertClose(left.scaleX, 0.42, 'left-handed aligned scale X')
-assertClose(left.scaleY, -0.42, 'left-handed aligned scale Y')
+assertClose(right.scaleX, 0.34, 'right-handed aligned scale X')
+assertClose(right.scaleY, 0.34, 'right-handed aligned scale Y')
+assertClose(left.scaleX, 0.34, 'left-handed aligned scale X')
+assertClose(left.scaleY, -0.34, 'left-handed aligned scale Y')
 assert(right.pocket.y > right.pivot.y, 'right-handed local Y')
 assert(left.pocket.y < left.pivot.y, 'left-handed local Y mirror')
 
