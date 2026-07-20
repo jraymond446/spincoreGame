@@ -1055,10 +1055,6 @@ export class LabPanel {
         arena.hoverRunEnabled = checked
         this.previewArenaVisuals()
       }),
-      this.createCheckbox('Feet (experimental)', arena.footShuffle, (checked) => {
-        arena.footShuffle = checked
-        this.previewArenaVisuals()
-      }),
       this.createImmediateRange(
         'Player visual scale',
         arena.playerScaleMultiplier,
