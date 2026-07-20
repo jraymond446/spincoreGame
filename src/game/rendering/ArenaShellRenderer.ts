@@ -10,6 +10,7 @@ import { hasVisualAsset } from './VisualAssetOverrides'
 export class ArenaShellRenderer {
   private readonly graphics: Phaser.GameObjects.Graphics
   private readonly shellAsset: Phaser.GameObjects.Image | null
+  private readonly venueSign: Phaser.GameObjects.Text
   private readonly layout: ArenaLayout
 
   constructor(
@@ -36,6 +37,24 @@ export class ArenaShellRenderer {
             )
             .setDepth(arenaLayers.venueShell + 0.5)
         : null
+    this.venueSign = scene.add
+      .text(
+        layout.court.x + layout.court.width / 2,
+        layout.court.y - 56,
+        theme.leagueId.replaceAll('_', ' ').toUpperCase(),
+        {
+          fontFamily: 'Arial Black, Arial, sans-serif',
+          fontSize: '20px',
+          fontStyle: 'bold',
+          color: '#f2c84b',
+          stroke: '#091f38',
+          strokeThickness: 4,
+          padding: { x: 12, y: 4 },
+        },
+      )
+      .setOrigin(0.5)
+      .setDepth(arenaLayers.venueShell + 0.75)
+      .setAlpha(0.96)
   }
 
   draw(simplified: boolean): void {
@@ -49,6 +68,9 @@ export class ArenaShellRenderer {
     const venue = arenaPresentationConfig.venue
 
     this.graphics.clear()
+    this.venueSign
+      .setVisible(!simplified)
+      .setPosition(left + arenaConfig.width / 2, top - 56)
     this.graphics.fillStyle(venue.floorColor, 1)
     this.graphics.fillRect(
       left - overscan,
@@ -81,6 +103,7 @@ export class ArenaShellRenderer {
   destroy(): void {
     this.graphics.destroy()
     this.shellAsset?.destroy()
+    this.venueSign.destroy()
   }
 
   private drawArenaWall(

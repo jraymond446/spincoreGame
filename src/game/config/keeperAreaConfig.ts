@@ -6,7 +6,7 @@ export const keeperAreaConfig = {
   keeperZoneRadius: aiConfig.keeperHomeRadius,
   keeperZoneBoundaryBuffer: 8,
   keeperZonePushStrength: 0.85,
-  keeperZoneVisualAlpha: 0.055,
+  keeperZoneVisualAlpha: 0.075,
   keeperZoneDebugAlpha: 0.14,
   innerNoBodyRadius: 40,
   normal: {

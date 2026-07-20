@@ -1,6 +1,7 @@
 import Phaser from 'phaser'
 import type { ArenaLayout } from '../arena/ArenaLayout'
 import { arenaLayers } from '../arena/ArenaLayers'
+import type { ArenaMatchPresentation } from '../arena/ArenaPresentation'
 import type { ArenaTheme } from '../arena/ArenaTheme'
 import { arenaConfig } from '../config/arenaConfig'
 import { visualStyleConfig } from '../config/visualStyleConfig'
@@ -8,25 +9,38 @@ import { hasVisualAsset } from './VisualAssetOverrides'
 
 export class CourtRenderer {
   private readonly surfaceGraphics: Phaser.GameObjects.Graphics
+  private readonly atmosphereGraphics: Phaser.GameObjects.Graphics
   private readonly markingsGraphics: Phaser.GameObjects.Graphics
+  private readonly identityGraphics: Phaser.GameObjects.Graphics
+  private readonly endLabels: [Phaser.GameObjects.Text, Phaser.GameObjects.Text]
   private graphics: Phaser.GameObjects.Graphics
   private readonly surfaceAsset: Phaser.GameObjects.Image | null
   private readonly layout: ArenaLayout
   private readonly theme: ArenaTheme
+  private presentation: ArenaMatchPresentation
 
   constructor(
     scene: Phaser.Scene,
     layout: ArenaLayout,
     theme: ArenaTheme,
+    presentation: ArenaMatchPresentation,
   ) {
     this.layout = layout
     this.theme = theme
+    this.presentation = presentation
     this.surfaceGraphics = scene.add
       .graphics()
       .setDepth(arenaLayers.courtSurface)
     this.markingsGraphics = scene.add
       .graphics()
       .setDepth(arenaLayers.fieldMarkings)
+    this.atmosphereGraphics = scene.add
+      .graphics()
+      .setDepth(arenaLayers.courtSurface + 1.5)
+    this.identityGraphics = scene.add
+      .graphics()
+      .setDepth(arenaLayers.fieldMarkings + 0.15)
+    this.endLabels = [createEndLabel(scene), createEndLabel(scene)]
     this.graphics = this.surfaceGraphics
     this.surfaceAsset =
       theme.surfaceAsset && hasVisualAsset(scene, theme.surfaceAsset.key)
@@ -45,8 +59,16 @@ export class CourtRenderer {
 
   destroy(): void {
     this.surfaceGraphics.destroy()
+    this.atmosphereGraphics.destroy()
     this.markingsGraphics.destroy()
+    this.identityGraphics.destroy()
+    this.endLabels.forEach((label) => label.destroy())
     this.surfaceAsset?.destroy()
+  }
+
+  applyPresentation(presentation: ArenaMatchPresentation): void {
+    this.presentation = presentation
+    this.drawTeamIdentity()
   }
 
   private draw(): void {
@@ -63,7 +85,9 @@ export class CourtRenderer {
       y + arenaConfig.height - arenaConfig.serviceLineDepth
 
     this.surfaceGraphics.clear()
+    this.atmosphereGraphics.clear()
     this.markingsGraphics.clear()
+    this.identityGraphics.clear()
     this.graphics = this.surfaceGraphics
 
     this.drawNotchedPanel(
@@ -119,6 +143,7 @@ export class CourtRenderer {
     )
 
     this.drawSurfaceTiles(innerX, innerY, innerWidth, innerHeight)
+    this.drawSurfaceAtmosphere(innerX, innerY, innerWidth, innerHeight)
     this.graphics = this.markingsGraphics
     this.drawCourtBands(innerX, innerY, innerWidth, innerHeight)
     this.drawPrimaryMarkings(innerX, innerY, innerWidth, centerY)
@@ -133,6 +158,122 @@ export class CourtRenderer {
     this.drawCenterEmblem(centerY)
     this.drawFaceoffDots(topServiceY, centerY, bottomServiceY)
     this.drawCornerTicks(innerX, innerY, innerWidth, innerHeight)
+    this.drawTeamIdentity()
+  }
+
+  private drawSurfaceAtmosphere(
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+  ): void {
+    const graphics = this.atmosphereGraphics
+    const edgeSteps = 9
+    const edgeStep = 10
+
+    for (let step = 0; step < edgeSteps; step += 1) {
+      const alpha = 0.055 * (1 - step / edgeSteps)
+      const inset = step * edgeStep
+
+      graphics.fillStyle(visualStyleConfig.court.surfaceShade, alpha)
+      graphics.fillRect(x + inset, y + inset, width - inset * 2, edgeStep)
+      graphics.fillRect(
+        x + inset,
+        y + height - inset - edgeStep,
+        width - inset * 2,
+        edgeStep,
+      )
+      graphics.fillRect(x + inset, y + inset, edgeStep, height - inset * 2)
+      graphics.fillRect(
+        x + width - inset - edgeStep,
+        y + inset,
+        edgeStep,
+        height - inset * 2,
+      )
+    }
+
+    for (let step = 0; step < 7; step += 1) {
+      const bandWidth = width * (0.76 - step * 0.075)
+      const bandHeight = height * (0.38 - step * 0.035)
+      graphics.fillStyle(
+        visualStyleConfig.court.surfaceLight,
+        0.012 + step * 0.004,
+      )
+      graphics.fillEllipse(
+        arenaConfig.center.x,
+        arenaConfig.center.y,
+        bandWidth,
+        bandHeight,
+      )
+    }
+
+    const goalWashHeight = 190
+    graphics.fillStyle(visualStyleConfig.goal.topAccent, 0.035)
+    graphics.fillRect(x + 18, y + 18, width - 36, goalWashHeight)
+    graphics.fillStyle(visualStyleConfig.goal.bottomAccent, 0.032)
+    graphics.fillRect(
+      x + 18,
+      y + height - goalWashHeight - 18,
+      width - 36,
+      goalWashHeight,
+    )
+  }
+
+  private drawTeamIdentity(): void {
+    const x = this.layout.court.x + arenaConfig.courtInset
+    const y = this.layout.court.y + arenaConfig.courtInset
+    const width = this.layout.court.width - arenaConfig.courtInset * 2
+    const height = this.layout.court.height - arenaConfig.courtInset * 2
+    const topTeam = this.presentation.teams.B
+    const bottomTeam = this.presentation.teams.A
+    const graphics = this.identityGraphics
+
+    graphics.clear()
+    this.drawEndRail(y + 10, topTeam.primaryColor, topTeam.accentColor)
+    this.drawEndRail(
+      y + height - 18,
+      bottomTeam.primaryColor,
+      bottomTeam.accentColor,
+    )
+
+    const labels = [
+      {
+        label: this.endLabels[0],
+        text: `AWAY // ${topTeam.shortName}`,
+        color: topTeam.accentColor,
+        y: y + 38,
+      },
+      {
+        label: this.endLabels[1],
+        text: `HOME // ${bottomTeam.shortName}`,
+        color: bottomTeam.accentColor,
+        y: y + height - 38,
+      },
+    ]
+
+    for (const item of labels) {
+      item.label
+        .setPosition(x + width - 28, item.y)
+        .setText(item.text)
+        .setColor(`#${item.color.toString(16).padStart(6, '0')}`)
+    }
+  }
+
+  private drawEndRail(
+    y: number,
+    primaryColor: number,
+    accentColor: number,
+  ): void {
+    const x = this.layout.court.x + arenaConfig.courtInset + 22
+    const width = this.layout.court.width - arenaConfig.courtInset * 2 - 44
+    const graphics = this.identityGraphics
+
+    graphics.fillStyle(visualStyleConfig.outline, 0.48)
+    graphics.fillRoundedRect(x, y + 2, width, 8, 3)
+    graphics.fillStyle(primaryColor, 0.78)
+    graphics.fillRoundedRect(x, y, width, 6, 3)
+    graphics.fillStyle(accentColor, 0.92)
+    graphics.fillRoundedRect(x + width * 0.36, y, width * 0.28, 6, 3)
   }
 
   private drawShellTiles(
@@ -525,4 +666,19 @@ function seeded(seed: number): number {
   const value = Math.sin(seed * 12.9898 + 78.233) * 43758.5453
 
   return value - Math.floor(value)
+}
+
+function createEndLabel(scene: Phaser.Scene): Phaser.GameObjects.Text {
+  return scene.add
+    .text(0, 0, '', {
+      fontFamily: 'Arial Black, Arial, sans-serif',
+      fontSize: '17px',
+      fontStyle: 'bold',
+      color: '#fff8df',
+      stroke: '#091f38',
+      strokeThickness: 3,
+    })
+    .setOrigin(1, 0.5)
+    .setAlpha(0.82)
+    .setDepth(arenaLayers.fieldMarkings + 0.2)
 }
