@@ -12,7 +12,7 @@ export const defenseConfig = {
   truckFumblePressure: 0.42,
   truckOverchargeMultiplier: 1.85,
   bruteTruckMultiplier: 1.45,
-  nonBruteTruckMultiplier: 0.58,
+  nonBruteTruckMultiplier: 0.72,
   truckMissRecoveryMovement: 0.58,
   truckOffBallSpeedBoostAllowed: true,
   truckKnockdownThreshold: -0.02,

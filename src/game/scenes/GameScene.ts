@@ -71,6 +71,7 @@ import type { PlayerInputState } from '../systems/PlayerInputController'
 import { PlayerControlSystem } from '../systems/PlayerControlSystem'
 import {
   getPlayerActionLock,
+  isActionMovementLocked,
   type PlayerActionLock,
 } from '../systems/PlayerActionStateSystem'
 import { KeeperControlAssistSystem } from '../systems/KeeperControlAssistSystem'
@@ -594,7 +595,8 @@ export class GameScene extends Phaser.Scene {
           )
         : input.movement
     const movementLocked =
-      this.defenseSystem.isMovementLocked(player.id)
+      this.defenseSystem.isMovementLocked(player.id) ||
+      isActionMovementLocked(actionLock)
 
     player.update(
       recovering || movementLocked
@@ -711,7 +713,7 @@ export class GameScene extends Phaser.Scene {
       const isCarrier = player.id === carrierId
       const actionLock = this.getActionLock(player)
       const move =
-        recovering || actionLock === 'downed'
+        recovering || isActionMovementLocked(actionLock)
           ? new Phaser.Math.Vector2()
           : baseMove.scale(speedMultiplier)
       const stickActionAllowed =

@@ -1,4 +1,5 @@
 import { resolveExplicitSlashAction } from './PlayerInputPolicy.ts'
+import { isActionMovementLocked } from './PlayerActionStateSystem.ts'
 
 assertEqual(
   resolveExplicitSlashAction({
@@ -36,8 +37,18 @@ assertEqual(
   'none',
   'no raw action produces no contextual action',
 )
+assertEqual(
+  isActionMovementLocked('fumble'),
+  true,
+  'fumbled carriers briefly lose movement',
+)
+assertEqual(
+  isActionMovementLocked('none'),
+  false,
+  'normal play keeps movement available',
+)
 
-console.log('Player input policy regression cases passed: 4')
+console.log('Player input policy regression cases passed: 6')
 
 function assertEqual<T>(actual: T, expected: T, message: string): void {
   if (actual !== expected) {

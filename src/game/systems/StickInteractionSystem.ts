@@ -1951,6 +1951,7 @@ export class StickInteractionSystem {
     if (nextState === 'FUMBLED') {
       core.setReleaseVisualCharge(0.35, true)
       core.setDisruptedVisual()
+      carrier.stopMovement()
     }
     this.coreState = nextState
     this.carrierId = null

@@ -14,7 +14,7 @@ export const gatherConfig = {
   humanCloseGatherRadius: 38,
   humanPassiveCloseGatherRadius: 26,
   releaseRegrabCooldownMs: 180,
-  fumbleRegrabCooldownMs: 260,
+  fumbleRegrabCooldownMs: 800,
   gatherAttemptCooldownMs: 20,
   failedGatherGraceMs: 220,
   gatherOverridesStanceReset: true,
