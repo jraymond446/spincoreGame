@@ -26,6 +26,10 @@ import {
 import type { DefensiveVisualState } from '../rendering/AnimationState'
 import { PlayerVisual } from '../rendering/PlayerVisual'
 import {
+  resolveFacingAngle,
+  resolveLocomotionVelocity,
+} from '../movement/PlayerLocomotion'
+import {
   getHandednessFrame,
   type HandednessSign,
 } from '../rules/Handedness'
@@ -156,6 +160,7 @@ export class Player {
     moveVector: Phaser.Math.Vector2,
     aimAngle: number,
     facingAngle?: number,
+    deltaMs = this.scene.game.loop.delta,
   ): void {
     const safeMove = clampVectorMagnitude(
       sanitizeVector(
@@ -194,24 +199,25 @@ export class Player {
           ? Math.atan2(safeMove.y, safeMove.x)
           : null
     if (desiredFacingAngle !== null) {
-      const turn = Phaser.Math.Clamp(
-        Phaser.Math.Angle.Wrap(
-          desiredFacingAngle - this.bodyFacingAngle,
-        ),
-        -0.16,
-        0.16,
-      )
-
-      this.bodyFacingAngle = Phaser.Math.Angle.Wrap(
-        this.bodyFacingAngle + turn,
-      )
+      this.bodyFacingAngle = resolveFacingAngle({
+        currentAngle: this.bodyFacingAngle,
+        targetAngle: desiredFacingAngle,
+        turnRateRadiansPerSecond:
+          playerRuntimeConfig.facingTurnRateRadiansPerSecond,
+        deltaMs,
+      })
     }
     const maxSpeed = playerRuntimeConfig.baseMaxSpeed * this.attributes.speed
-
-    this.scene.matter.body.setVelocity(this.body, {
-      x: safeMove.x * maxSpeed,
-      y: safeMove.y * maxSpeed,
+    const velocity = resolveLocomotionVelocity({
+      currentVelocity: this.velocity,
+      movementIntent: safeMove,
+      maxSpeed,
+      accelerationPerSecond: playerRuntimeConfig.accelerationPerSecond,
+      brakingPerSecond: playerRuntimeConfig.brakingPerSecond,
+      deltaMs,
     })
+
+    this.scene.matter.body.setVelocity(this.body, velocity)
     this.lockPhysicsRotation()
     this.syncVisuals()
   }
