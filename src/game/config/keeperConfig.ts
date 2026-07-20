@@ -16,7 +16,7 @@ export const keeperConfig = {
   keeperClearTowardCenterBias: 0.6,
   keeperOrbitSmoothing: 4.4,
   keeperMaxLateralSpeed: 6.6,
-  keeperMoveSpeedMultiplier: 0.84,
+  keeperMoveSpeedMultiplier: 0.71,
   keeperAccelerationMultiplier: 1.05,
   keeperTurnRateMultiplier: 1.05,
   keeperReactionDelayMs: 75,

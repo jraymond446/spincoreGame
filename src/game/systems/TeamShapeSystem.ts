@@ -24,6 +24,11 @@ import type {
   TeamStrategy,
 } from '../tactics/TeamStrategy'
 import {
+  enforceMinimumSeparation,
+  resolveBehindNetOffBallJob,
+  resolveWeakSideLaneSign,
+} from '../tactics/PlaymakingGeometry'
+import {
   clampVectorMagnitude,
   normalizeSafe,
   sanitizeVector,
@@ -410,6 +415,7 @@ export class TeamShapeSystem {
         player,
         teammates,
         job,
+        teamCarrier,
       )
 
       this.assignments.set(player.id, {
@@ -579,21 +585,11 @@ export class TeamShapeSystem {
 
     switch (strategy.offenseScheme) {
       case 'behindNet': {
-        if (
-          carrier &&
-          this.isBehindGoal(
-            carrier.position,
-            this.attackGoal(player.teamSide),
-            player.teamSide,
-          )
-        ) {
-          return 'frontSlot'
-        }
-        const nearGoal =
-          carrier &&
-          distance(carrier.position, this.attackGoal(player.teamSide)) <=
-            keeperAreaConfig.keeperZoneRadius * 2.5
-        return nearGoal ? 'behindNet' : 'supportOutlet'
+        return resolveBehindNetOffBallJob(
+          carrier?.position ?? null,
+          this.attackGoal(player.teamSide),
+          spacingConfig.deepAttackActivationDistance,
+        )
       }
       case 'sideSpread':
         return this.isWeakSide(player.position, carrier?.position ?? core.position)
@@ -758,8 +754,10 @@ export class TeamShapeSystem {
     const ownGoal = this.ownGoal(side)
     const attackGoal = this.attackGoal(side)
     const anchor = carrier?.position ?? core.position
-    const laneSign =
-      anchor.x < arenaConfig.center.x ? 1 : -1
+    const laneSign = resolveWeakSideLaneSign(
+      anchor.x,
+      arenaConfig.center.x,
+    )
     const supportPreferredSpacing =
       this.phases[side] === 'OFFENSE'
         ? spacingConfig.offenseSupportPreferredSpacing
@@ -1056,6 +1054,7 @@ export class TeamShapeSystem {
     player: Player,
     teammates: Player[],
     job: TacticalJob,
+    carrier: Player | null = null,
   ): Point {
     const safeTarget = sanitizeVector(
       target,
@@ -1108,6 +1107,21 @@ export class TeamShapeSystem {
     adjusted = {
       x: safeTarget.x + avoidanceOffset.x,
       y: safeTarget.y + avoidanceOffset.y,
+    }
+
+    if (offenseSpacing && carrier && carrier.id !== player.id) {
+      adjusted = enforceMinimumSeparation(
+        adjusted,
+        carrier.position,
+        spacingConfig.offenseCarrierExclusionRadius,
+        {
+          x: resolveWeakSideLaneSign(
+            carrier.position.x,
+            arenaConfig.center.x,
+          ),
+          y: 0,
+        },
+      )
     }
 
     const allowOwnOuterZone =
