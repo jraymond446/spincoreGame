@@ -72,3 +72,7 @@ export function getPlayerActionLock(
 
   return 'none'
 }
+
+export function isActionMovementLocked(actionLock: PlayerActionLock): boolean {
+  return actionLock === 'downed' || actionLock === 'fumble'
+}

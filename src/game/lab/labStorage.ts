@@ -687,6 +687,8 @@ function migrateGameplayDefaults(candidate: unknown): unknown {
     2.65,
     2.9,
   )
+  replaceLegacyDefault(stick, 'fumbleRegrabCooldownMs', 260, 800)
+  replaceLegacyDefault(defense, 'nonBruteTruckMultiplier', 0.58, 0.72)
   replaceLegacyDefault(stick, 'stanceResetDelayMs', 120, 170)
   replaceLegacyDefault(stick, 'stanceReturnSmoothing', 12, 10)
   replaceLegacyDefault(stick, 'runningStanceOffsetRadians', 0.55, 0.48)

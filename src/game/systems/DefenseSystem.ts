@@ -14,6 +14,7 @@ import type { DefensiveVisualState } from '../rendering/AnimationState'
 import type { FumbleSystem } from './FumbleSystem'
 import {
   getCarrierFumbleMultiplier,
+  getCheckAttackScale,
   getSlashAttackScale,
   normalizeCarrierState,
   type NormalizedCarrierState,
@@ -588,9 +589,13 @@ export class DefenseSystem {
       }
 
       const attackScale =
-        attacker.attributes.defense *
+        getCheckAttackScale({
+          power: attacker.attributes.power,
+          defense: attacker.attributes.defense,
+          fumblePressurePreference:
+            attacker.defenseTendencies.fumblePressurePreference,
+        }) *
         roleMultiplier *
-        attacker.defenseTendencies.fumblePressurePreference *
         stylePressureMultiplier(attacker)
       const result = fumbleSystem.addPressure(
         attackScale,
@@ -673,6 +678,7 @@ export class DefenseSystem {
         ? [
             core.position,
             carrier.getCradleSocket(),
+            carrier.position,
             ...carrier.getStickSamplePoints(),
           ]
         : carrier
