@@ -382,6 +382,7 @@ export class GameScene extends Phaser.Scene {
       stickIntents,
       defenseIntents,
       humanInput,
+      delta,
     )
     this.updateAIPlayers(
       players,
@@ -568,6 +569,7 @@ export class GameScene extends Phaser.Scene {
     stickIntents: Map<string, StickIntent>,
     defenseIntents: Map<string, DefenseIntent>,
     input: PlayerInputState,
+    deltaMs: number,
   ): void {
     const isCarrier =
       this.stickInteractionSystem.getCarrierId() === player.id
@@ -602,6 +604,7 @@ export class GameScene extends Phaser.Scene {
       player.role === 'keeper'
         ? getCoreTrackingAngle(player, this.core.position)
         : undefined,
+      deltaMs,
     )
     const stickActionAllowed =
       !recovering &&
@@ -674,7 +677,12 @@ export class GameScene extends Phaser.Scene {
       const recovering = this.spinGuardSystem.isRecovering(player.id)
 
       if (!intent) {
-        player.update(new Phaser.Math.Vector2(), player.getAimAngle())
+        player.update(
+          new Phaser.Math.Vector2(),
+          player.getAimAngle(),
+          undefined,
+          deltaMs,
+        )
         stickIntents.set(player.id, {
           hold: player.id === carrierId,
         })
@@ -775,6 +783,7 @@ export class GameScene extends Phaser.Scene {
               isCarrier,
               deltaMs,
             ),
+        deltaMs,
       )
       const usesKeeperShield =
         player.role === 'keeper' &&
