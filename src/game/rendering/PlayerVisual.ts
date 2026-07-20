@@ -509,7 +509,6 @@ export class PlayerVisual {
       proceduralAnimation: {
         enabled: arena.proceduralAnimation,
         hoverRunEnabled: arena.hoverRunEnabled,
-        footShuffle: arena.footShuffle,
         playerScaleMultiplier: arena.playerScaleMultiplier,
         idleBobAmount: arena.idleBobAmount,
         movementBobAmount: arena.movementBobAmount,
