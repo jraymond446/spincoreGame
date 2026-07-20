@@ -512,7 +512,6 @@ export type LabArenaVisualTuning = {
   showPreloadTimings: boolean
   proceduralAnimation: boolean
   hoverRunEnabled: boolean
-  footShuffle: boolean
   playerScaleMultiplier: number
   idleBobAmount: number
   movementBobAmount: number

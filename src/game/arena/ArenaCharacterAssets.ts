@@ -92,7 +92,7 @@ export type ArenaStickTransform = {
   tip: Point
 }
 
-export const DEFAULT_ARENA_STICK_RENDER_SCALE = 0.42
+export const DEFAULT_ARENA_STICK_RENDER_SCALE = 0.34
 
 export const ARENA_STICK_RENDER_SCALE_RANGE = {
   min: 0.3,
@@ -100,7 +100,7 @@ export const ARENA_STICK_RENDER_SCALE_RANGE = {
   step: 0.01,
 } as const
 
-export const DEFAULT_ARENA_PLAYER_RENDER_SCALE = 1.67
+export const DEFAULT_ARENA_PLAYER_RENDER_SCALE = 1.18
 
 export const MAX_ARENA_STICK_VISUAL_OFFSET_RADIANS = 0.62
 

@@ -1,6 +1,9 @@
 export const playerRuntimeConfig = {
   radius: 21.5,
   baseMaxSpeed: 5.35,
+  accelerationPerSecond: 30,
+  brakingPerSecond: 44,
+  facingTurnRateRadiansPerSecond: 7.5,
   frictionAir: 0.18,
   restitution: 0.35,
   controlledIndicatorRadius: 35,

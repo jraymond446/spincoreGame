@@ -526,7 +526,6 @@ export function createDefaultLabTuning(): LabTuningState {
       proceduralAnimation: arenaProceduralAnimationDefaults.enabled,
       hoverRunEnabled:
         arenaProceduralAnimationDefaults.hoverRunEnabled,
-      footShuffle: arenaProceduralAnimationDefaults.footShuffle,
       playerScaleMultiplier:
         arenaProceduralAnimationDefaults.playerScaleMultiplier,
       idleBobAmount: arenaProceduralAnimationDefaults.idleBobAmount,
