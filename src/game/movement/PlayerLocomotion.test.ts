@@ -2,24 +2,25 @@ import {
   resolveFacingAngle,
   resolveLocomotionVelocity,
 } from './PlayerLocomotion.ts'
+import { playerRuntimeConfig } from '../config/playerConfig.ts'
 
 const moving = resolveLocomotionVelocity({
   currentVelocity: { x: 0, y: 0 },
   movementIntent: { x: 1, y: 0 },
-  maxSpeed: 5.35,
-  accelerationPerSecond: 30,
-  brakingPerSecond: 44,
+  maxSpeed: playerRuntimeConfig.baseMaxSpeed,
+  accelerationPerSecond: playerRuntimeConfig.accelerationPerSecond,
+  brakingPerSecond: playerRuntimeConfig.brakingPerSecond,
   deltaMs: 16,
 })
-assertClose(moving.x, 0.48, 'movement accelerates instead of snapping')
+assertClose(moving.x, 0.608, 'movement accelerates instead of snapping')
 assertClose(moving.y, 0, 'movement preserves the intended axis')
 
 const stopped = resolveLocomotionVelocity({
   currentVelocity: { x: 0.5, y: 0 },
   movementIntent: { x: 0, y: 0 },
-  maxSpeed: 5.35,
-  accelerationPerSecond: 30,
-  brakingPerSecond: 44,
+  maxSpeed: playerRuntimeConfig.baseMaxSpeed,
+  accelerationPerSecond: playerRuntimeConfig.accelerationPerSecond,
+  brakingPerSecond: playerRuntimeConfig.brakingPerSecond,
   deltaMs: 16,
 })
 assertClose(stopped.x, 0, 'braking can settle a small velocity in one step')
@@ -27,9 +28,9 @@ assertClose(stopped.x, 0, 'braking can settle a small velocity in one step')
 const reversing = resolveLocomotionVelocity({
   currentVelocity: { x: 5, y: 0 },
   movementIntent: { x: -1, y: 0 },
-  maxSpeed: 5.35,
-  accelerationPerSecond: 30,
-  brakingPerSecond: 44,
+  maxSpeed: playerRuntimeConfig.baseMaxSpeed,
+  accelerationPerSecond: playerRuntimeConfig.accelerationPerSecond,
+  brakingPerSecond: playerRuntimeConfig.brakingPerSecond,
   deltaMs: 16,
 })
 assert(
@@ -40,20 +41,21 @@ assert(
 const clampedFrame = resolveLocomotionVelocity({
   currentVelocity: { x: 0, y: 0 },
   movementIntent: { x: 1, y: 0 },
-  maxSpeed: 5.35,
-  accelerationPerSecond: 30,
-  brakingPerSecond: 44,
+  maxSpeed: playerRuntimeConfig.baseMaxSpeed,
+  accelerationPerSecond: playerRuntimeConfig.accelerationPerSecond,
+  brakingPerSecond: playerRuntimeConfig.brakingPerSecond,
   deltaMs: 1000,
 })
-assertClose(clampedFrame.x, 1.5, 'long frames use the capped simulation step')
+assertClose(clampedFrame.x, 1.9, 'long frames use the capped simulation step')
 
 const facing = resolveFacingAngle({
   currentAngle: 0,
   targetAngle: Math.PI,
-  turnRateRadiansPerSecond: 7.5,
+  turnRateRadiansPerSecond:
+    playerRuntimeConfig.facingTurnRateRadiansPerSecond,
   deltaMs: 16,
 })
-assertClose(Math.abs(facing), 0.12, 'facing uses a frame-rate-independent turn rate')
+assertClose(Math.abs(facing), 0.136, 'facing uses a frame-rate-independent turn rate')
 
 console.log('Player locomotion regression cases passed: 6')
 

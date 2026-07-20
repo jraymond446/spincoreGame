@@ -1714,9 +1714,12 @@ export class StickInteractionSystem {
       })
       .filter(
         (candidate) =>
-          candidate.angleError <= 0.32 &&
-          candidate.targetDistance >= 80 &&
-          candidate.targetDistance <= 380,
+          candidate.angleError <=
+            possessionFeelConfig.quickPassAssistAngleRadians &&
+          candidate.targetDistance >=
+            possessionFeelConfig.quickPassAssistMinDistance &&
+          candidate.targetDistance <=
+            possessionFeelConfig.quickPassAssistMaxDistance,
       )
       .sort(
         (a, b) =>

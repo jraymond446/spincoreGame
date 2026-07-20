@@ -598,6 +598,51 @@ function migrateGameplayDefaults(candidate: unknown): unknown {
   replaceLegacyDefault(aiOffense, 'aiFrontSlotFinishPreference', 0.6, 0.68)
   replaceLegacyDefault(aiOffense, 'aiShotPatienceMs', 520, 540)
   replaceLegacyDefault(aiOffense, 'aiForceShotAfterMs', 2450, 2150)
+  replaceLegacyDefault(
+    spacing,
+    'offenseSupportMinSpacingFromCarrier',
+    185,
+    240,
+  )
+  replaceLegacyDefault(
+    spacing,
+    'offenseSupportPreferredSpacing',
+    295,
+    340,
+  )
+  replaceLegacyDefault(spacing, 'offenseAvoidClusterRadius', 178, 220)
+  replaceLegacyDefault(
+    spacing,
+    'offenseTeammateRepulsionStrength',
+    0.74,
+    0.9,
+  )
+  replaceLegacyDefault(spacing, 'frontSlotSpacing', 155, 190)
+  replaceLegacyDefault(aiTactics, 'jobTargetStrictness', 0.68, 0.86)
+  replaceLegacyDefault(
+    aiOffense,
+    'opponentAiBankShotFrequency',
+    0.52,
+    0.42,
+  )
+  replaceLegacyDefault(
+    aiOffense,
+    'opponentAiPassToShotBias',
+    0.72,
+    0.84,
+  )
+  replaceLegacyDefault(aiOffense, 'aiBankShotPreference', 0.58, 0.48)
+  replaceLegacyDefault(
+    aiOffense,
+    'aiBankShotAttemptChanceWhenBlocked',
+    0.65,
+    0.52,
+  )
+  replaceLegacyDefault(stick, 'quickReleasePower', 0.52, 0.62)
+  replaceLegacyDefault(stick, 'quickReleaseWindupMs', 55, 35)
+  replaceLegacyDefault(stick, 'quickReleaseRecoveryMs', 160, 130)
+  replaceLegacyDefault(stick, 'quickPassAssist', 0.35, 0.5)
+  replaceLegacyDefault(keeper, 'keeperMoveSpeedMultiplier', 0.84, 0.71)
   replaceLegacyDefault(stick, 'stanceResetDelayMs', 120, 170)
   replaceLegacyDefault(stick, 'stanceReturnSmoothing', 12, 10)
   replaceLegacyDefault(stick, 'runningStanceOffsetRadians', 0.55, 0.48)

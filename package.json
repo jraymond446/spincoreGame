@@ -16,8 +16,9 @@
     "test:loading": "node --experimental-strip-types src/game/loading/MatchAssetReadiness.test.ts",
     "test:input": "node --experimental-strip-types src/game/systems/PlayerInputPolicy.test.ts",
     "test:movement": "node --experimental-strip-types src/game/movement/PlayerLocomotion.test.ts",
+    "test:tactics": "node --experimental-strip-types src/game/tactics/PlaymakingGeometry.test.ts",
     "test:possession": "node --experimental-strip-types src/game/systems/CarrierVulnerability.test.ts",
-    "test": "npm run test:goals && npm run test:progression && npm run test:attributes && npm run test:loot && npm run test:arena && npm run test:arena-character && npm run test:arena-animation && npm run test:loading && npm run test:input && npm run test:movement && npm run test:possession",
+    "test": "npm run test:goals && npm run test:progression && npm run test:attributes && npm run test:loot && npm run test:arena && npm run test:arena-character && npm run test:arena-animation && npm run test:loading && npm run test:input && npm run test:movement && npm run test:tactics && npm run test:possession",
     "preview": "vite preview"
   },
   "devDependencies": {
