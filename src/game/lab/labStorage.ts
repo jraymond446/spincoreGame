@@ -643,6 +643,50 @@ function migrateGameplayDefaults(candidate: unknown): unknown {
   replaceLegacyDefault(stick, 'quickReleaseRecoveryMs', 160, 130)
   replaceLegacyDefault(stick, 'quickPassAssist', 0.35, 0.5)
   replaceLegacyDefault(keeper, 'keeperMoveSpeedMultiplier', 0.84, 0.71)
+  replaceLegacyDefault(stick, 'fumbleMs', 2500, 2200)
+  replaceLegacyDefault(defense, 'slashCooldownMs', 650, 600)
+  replaceLegacyDefault(defense, 'slashActiveMs', 110, 130)
+  replaceLegacyDefault(defense, 'slashArcRadians', 1.2, 1.4)
+  replaceLegacyDefault(defense, 'slashRange', 84, 96)
+  replaceLegacyDefault(defense, 'slashFumblePressure', 0.34, 0.4)
+  replaceLegacyDefault(
+    defense,
+    'slashVsChargingBaseFumble',
+    0.45,
+    0.5,
+  )
+  replaceLegacyDefault(
+    defense,
+    'slashVsFullChargeBaseFumble',
+    0.75,
+    0.82,
+  )
+  replaceLegacyDefault(defense, 'fumblePressureThreshold', 1.05, 1)
+  replaceLegacyDefault(
+    defense,
+    'fumblePressureDecayPerSecond',
+    0.28,
+    0.1,
+  )
+  replaceLegacyDefault(defense, 'stableFumbleMultiplier', 0.7, 0.9)
+  replaceLegacyDefault(
+    defense,
+    'chargingFumbleMultiplier',
+    1.6,
+    1.75,
+  )
+  replaceLegacyDefault(
+    defense,
+    'highChargeFumbleMultiplier',
+    2.15,
+    2.35,
+  )
+  replaceLegacyDefault(
+    defense,
+    'fullChargeFumbleMultiplier',
+    2.65,
+    2.9,
+  )
   replaceLegacyDefault(stick, 'stanceResetDelayMs', 120, 170)
   replaceLegacyDefault(stick, 'stanceReturnSmoothing', 12, 10)
   replaceLegacyDefault(stick, 'runningStanceOffsetRadians', 0.55, 0.48)

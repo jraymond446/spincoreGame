@@ -14,6 +14,7 @@ import type { DefensiveVisualState } from '../rendering/AnimationState'
 import type { FumbleSystem } from './FumbleSystem'
 import {
   getCarrierFumbleMultiplier,
+  getSlashAttackScale,
   normalizeCarrierState,
   type NormalizedCarrierState,
 } from './CarrierVulnerability'
@@ -760,12 +761,15 @@ export class DefenseSystem {
             ? defenseConfig.bruteSlashPowerMultiplier
             : 1
       const attackScale =
-        attacker.attributes.defense *
-        Phaser.Math.Linear(0.8, 1.15, attacker.attributes.accuracy) *
-        Phaser.Math.Linear(0.86, 1.12, attacker.attributes.control) *
+        getSlashAttackScale({
+          defense: attacker.attributes.defense,
+          accuracy: attacker.attributes.accuracy,
+          control: attacker.attributes.control,
+          fumblePressurePreference:
+            attacker.defenseTendencies.fumblePressurePreference,
+        }) *
         roleMultiplier *
         stickSlashMultiplier(attacker) *
-        attacker.defenseTendencies.fumblePressurePreference *
         stylePressureMultiplier(attacker)
       this.recordTargetDebug(attacker, carrier, 'SLASH')
       const pressureResult = fumbleSystem.addPressure(
