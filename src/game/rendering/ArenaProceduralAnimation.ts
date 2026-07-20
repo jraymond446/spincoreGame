@@ -26,7 +26,6 @@ export type ReleaseVisualTier = 0 | 1 | 2 | 3
 export type ArenaProceduralAnimationTuning = {
   enabled: boolean
   hoverRunEnabled: boolean
-  footShuffle: boolean
   playerScaleMultiplier: number
   idleBobAmount: number
   movementBobAmount: number
@@ -74,13 +73,10 @@ export type ArenaProceduralAnimationFrame = {
   currentVisualSway: number
   currentVisualSquash: number
   currentStrideImpact: number
-  currentVisualFootPhase: number
   visualStickAimAngle: number
   currentStickLagAngle: number
   currentActionPulse: number
   currentReleaseRecoil: number
-  footStride: number
-  footSpread: number
   shadowScaleX: number
   shadowScaleY: number
   stickActionAngle: number
@@ -93,14 +89,12 @@ export type ArenaProceduralAnimationFrame = {
   fullChargeBurstAlpha: number
   animationClipState: ArenaAnimationClipState
   enabled: boolean
-  footShuffleEnabled: boolean
 }
 
 export const arenaProceduralAnimationDefaults = {
   enabled: true,
-  hoverRunEnabled: true,
-  footShuffle: false,
-  playerScaleMultiplier: 0.92,
+  hoverRunEnabled: false,
+  playerScaleMultiplier: 0.9,
   idleBobAmount: 0.6,
   movementBobAmount: 1.8,
   movementBobSpeed: 1.05,
@@ -214,7 +208,6 @@ export class ArenaProceduralAnimationController {
   private currentVisualSway = 0
   private currentVisualSquash = 0
   private currentStrideImpact = 0.5
-  private currentVisualFootPhase = 0
   private visualStickAimAngle = 0
   private currentStickLagAngle = 0
   private aimInitialized = false
@@ -239,13 +232,10 @@ export class ArenaProceduralAnimationController {
       currentVisualSway: 0,
       currentVisualSquash: 0,
       currentStrideImpact: 0.5,
-      currentVisualFootPhase: 0,
       visualStickAimAngle: 0,
       currentStickLagAngle: 0,
       currentActionPulse: 0,
       currentReleaseRecoil: 0,
-      footStride: 0,
-      footSpread: 0,
       shadowScaleX: 1,
       shadowScaleY: 1,
       stickActionAngle: 0,
@@ -258,7 +248,6 @@ export class ArenaProceduralAnimationController {
       fullChargeBurstAlpha: 0,
       animationClipState: 'idle',
       enabled: true,
-      footShuffleEnabled: false,
     }
   }
 
@@ -364,16 +353,6 @@ export class ArenaProceduralAnimationController {
       this.currentVisualSway,
       targetSway,
       18,
-      deltaSeconds,
-    )
-
-    const footWave = Math.sin(this.animationTime)
-    const targetFootPhase =
-      this.movementSpeedVisual > 0.04 ? footWave : 0
-    this.currentVisualFootPhase = damp(
-      this.currentVisualFootPhase,
-      targetFootPhase,
-      22,
       deltaSeconds,
     )
 
@@ -806,12 +785,6 @@ export class ArenaProceduralAnimationController {
       24,
       deltaSeconds,
     )
-    this.currentVisualFootPhase = damp(
-      this.currentVisualFootPhase,
-      0,
-      24,
-      deltaSeconds,
-    )
   }
 
   private writeFrame(
@@ -843,9 +816,6 @@ export class ArenaProceduralAnimationController {
     this.frame.currentStrideImpact = hoverActive
       ? this.currentStrideImpact
       : 0.5
-    this.frame.currentVisualFootPhase = hoverActive
-      ? this.currentVisualFootPhase
-      : 0
     this.frame.visualStickAimAngle = this.visualStickAimAngle
     this.frame.currentStickLagAngle = active
       ? this.currentStickLagAngle
@@ -853,14 +823,6 @@ export class ArenaProceduralAnimationController {
     this.frame.currentActionPulse = active ? stickPose.pulse : 0
     this.frame.currentReleaseRecoil = active
       ? stickPose.releaseRecoil
-      : 0
-    this.frame.footStride = hoverActive
-      ? this.currentVisualFootPhase * 2.2 * this.movementSpeedVisual
-      : 0
-    this.frame.footSpread = hoverActive
-      ? charging
-        ? 2.4 + input.charge * 1.2
-        : 0.45 + this.movementSpeedVisual * 0.55
       : 0
     this.frame.shadowScaleX = hoverActive
       ? 1 + stridePulse +
@@ -891,8 +853,6 @@ export class ArenaProceduralAnimationController {
       this.movementSpeedVisual,
     )
     this.frame.enabled = active
-    this.frame.footShuffleEnabled =
-      hoverActive && input.tuning.footShuffle
     return this.frame
   }
 }
